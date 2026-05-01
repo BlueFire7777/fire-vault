@@ -1,0 +1,18 @@
+# Obsidian (machine/session dependent)
+.obsidian/workspace*
+.obsidian/cache
+.obsidian/community-plugins.json
+.obsidian/plugins/*/data.json
+
+# kepano/obsidian-skills は別リポジトリのクローン (.git 持ち)。Vault では追跡しない
+.claude/
+
+# macOS
+.DS_Store
+
+# Office / temp files
+~$*.xlsx
+~$*.docx
+*.tmp
+*.swp
+*~
