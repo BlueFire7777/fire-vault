@@ -741,3 +741,118 @@ Edit で全置換 → `## 12. F261 OpenClaw Skill 統合 (Phase 1A 実装記録)
 ### 残作業 (本タスクで完了、次タスクへ)
 
 なし (F141 完了)。F142 (寄り直後制限 / 特買売禁止 / 価格乖離上限) が次の R-17 系候補。
+
+## F144 執行品質 3 段階監視 + 自己キャリブレーション 完了 (2026-05-03 21:55)
+
+優先度・最優先 (TODO Excel)、F140 ✅ + F141 ✅ + F144 で執行品質 3 点セット完結。F261 Phase 1A の Skill 9 個 / F141 / F144 が今夜揃って Stage 3 移行の執行レイヤが大幅前進。
+
+### 成果物 (~/fire commit 7091c27)
+
+- 新規: `~/fire/execution/slippage_monitor.py` (405 行、`SlippageAlertResult` + `check_slippage_alert` + `record_slippage` + `initialize_slippage_table` + 内部ヘルパー 6 個)
+- 新規: `~/fire/tests/execution/test_slippage_monitor.py` (15 テスト、全 PASS)
+- 編集: `~/fire/agents/trade_decision.py` (`decide_orders` に F144 case P 組み込み、TradeDecisionResult.summary に slippage_alert dict)
+  - シグネチャ追加: `skip_slippage_check: bool = False`, `risk_multiplier: float = 1.0`
+  - F133 時刻ガード後 / F132 損失制御前に `check_slippage_alert` 呼び出し
+  - `action=halt` → 全候補 reject (rejected[].reason に「F144 slippage halt: ...」)
+  - `action=reduce_risk` → equity に risk_multiplier=0.5 を乗算 → F130 許容損失も半減
+  - `action=warn` → summary に記録のみ、orders は通常通り構築
+  - F144 内部例外は halt せず warning に降格 (F140 fail-open と同方針)
+- 編集: `~/fire/.env.example` に `STAGE_3_START_DATE` テンプレ追加
+
+### 実装した要件
+
+- **R-17-09**: 3 段階監視 (注意 / 警戒 / 停止)
+- **R-17-10**: 30 日後実測スリッページ中央値ベース判定 (calibration_mode 切替)
+- **R-17-11**: Dashboard 可視化のための JSON 出力 (本タスクは未実装、output dataclass 提供のみ)
+
+### 3 段階閾値 + アクション
+
+| level | サンプル | 閾値 | action | risk_multiplier |
+|---|---|---|---|---|
+| `normal` | - | - | `pass` | 1.0 |
+| `caution` | 直近 5 中央値 | > 想定 × 2.0 | `warn` | 1.0 (LINE 警告のみ) |
+| `warning` | 直近 10 中央値 | > 想定 × 2.5 | `reduce_risk` | 0.5 (リスク半減) |
+| `stop` | 直近 10 中央値 | > 想定 × 3.0 | `halt` | 0.0 (即時停止) |
+
+### baseline (`expected_slippage_bps`) 段階フォールバック
+
+1. 引数 `expected_slippage_bps` (テスト用、最優先)
+2. `calibration_mode==post_30d` の場合: 直近 30 日実測スリッページ中央値
+3. `features.entry_slippage_estimate` の全 symbol 平均 (F140 と同源)
+4. F141 `DEFAULT_MAX_SLIPPAGE_PCT * 10000 = 30 bps` (R-17-04 整合)
+5. ハードコード fallback (10 bps、最終手段、未使用)
+
+各段階で fallback 発動時に `warnings` に追加 (運用初期に「features 機能してない?」を早期発見)。
+
+### calibration_mode 切替 (R-17-10)
+
+```python
+if business_days_since_start < 30:
+    calibration_mode = "pre_30d"   # 想定値ベース判定
+else:
+    calibration_mode = "post_30d"  # 直近 30 日実測中央値ベース
+```
+
+`STAGE_3_START_DATE` は `.env` で指定 (例: `STAGE_3_START_DATE=2026-06-01`)、未設定なら pre_30d 安全側フォールバック + `stage_3_start_date_unset_pre_30d_fallback` warning。
+
+### 当日リセット (9:00 JST 起点、F133 と整合)
+
+- 当日 9:00 JST 以降の記録のみで判定
+- 9:00 JST 前は前日 9:00 JST 起点
+- 「警戒/停止レベルは当該日の新規エントリー」要件 (R-17-09) を実装
+
+### 設計判断 (Fujiwara 2026-05-03 確認、5 不明点 + 追加提案 2 件への対応)
+
+| # | 採用案 | 内容 |
+|---|---|---|
+| 1 | 案 A | `~/fire/fire.db` に `slippage_records` テーブル新設 (CREATE IF NOT EXISTS、idempotent) |
+| 2 | 段階フォールバック | 引数 > features > F141 default > hardcode、各段階で warning 出力 (F140 fail-open の教訓) |
+| 3 | 9:00 JST | 当日リセット起点、F133 時刻ガード (14:45/15:00/15:15) と整合 |
+| 4 | .env STAGE_3_START_DATE | 未設定 → pre_30d 安全側 + warning |
+| 5 | 案 P | F133 時刻ガード後 / F132 損失制御前、halt 条件として並列配置 |
+| 追加 1 | SlippageAlertResult dataclass | F141 HybridExecutionDecision と統一感、`risk_multiplier` フィールド明示 |
+| 追加 2 | テスト容易性モック | `current_datetime` + `stage_3_start_date` 引数注入で「Stage 3 開始 35 日後」テスト可能 |
+
+### 連携 (F140 / F141 / F236)
+
+- **F140**: 同じ features ソース (`entry_slippage_estimate`) を使う、F144 で値嵩株フォールバックの bps 閾値も EXPENSIVE_SLIP_BPS_WARNING (30 bps) と整合
+- **F141**: `HybridExecutionDecision.max_slippage_pct=0.3%` を F144 の baseline 候補として参照可能 (FALLBACK_F141_DEFAULT_BPS=30)
+- **F236 緊急ポジション整理**: 独立経路 (F236=launchd 直撃 LINE、F144=F115 経路の発注品質監視)
+
+### テスト結果 (3 段階全 PASS)
+
+- **F144 単体**: 15/15 PASS (NORMAL / CAUTION / WARNING / STOP + calibration 切替 + フォールバック + 引数注入 + 当日リセット + record_slippage + idempotent)
+- **F141 単体**: 13/13 PASS (回帰なし)
+- **F115 trade_decision 既存**: 22/22 PASS (回帰なし、`risk_multiplier=1.0` default で破壊なし)
+- **F115 統合 3 パターン**:
+  - HALT (ratio=3.5): orders=0、rejected reason に「F144 slippage halt: 停止レベル...」 ✅
+  - REDUCE_RISK (ratio=2.7): equity 100万 → 50万、許容損失も半減 → 株数不足で reject ✅ (要件通り、安全側)
+  - WARN (ratio=2.5): equity 維持、`risk_multiplier=1.0`、`summary["slippage_alert"]` に記録 ✅
+
+### F144 と Stage 3 移行への影響
+
+`evaluation.orchestrator.run_evaluation()` (F119、Phase 1-3 完了済) と組合せると Stage 3 移行直後から:
+
+1. F141 が事前に Sランク → stop_market を判定
+2. F144 が実測スリッページを監視、3 段階で発注フローに介入
+3. F140 が個別注文の執行品質をゲートチェック
+4. F119 が evaluation で日次/週次に滑り傾向を提案
+
+→ Stage 3 における執行品質ループが論理的に閉じる (R-19-08 本番移行条件の「執行品質」項目への大きな進捗)。
+
+### 残作業 / 別タスク候補 (本タスクで完了、log.md に記録)
+
+なし (F144 完了)。次の R-17 系候補:
+- **F142**: R-17-02/03/04 (寄り直後制限 / 特買売禁止 / 価格乖離上限)
+- **F143**: R-17-05 (部分約定処理)
+- **F063**: LINE コマンド受信 (F144 警告通知の自動送信先、Webhook 設計含む)
+
+### 今夜の達成サマリ (2026-05-03 全体)
+
+- ✅ Stage 3 Block 3 完全完了 (Phase 1-4、案 Y / 案 A3 採用、Fujiwara 個人 LINE 到達)
+- ✅ F100 historical 過去 6 ヶ月分取得 + Run 1 (20d) batch_replay 完了 / Run 2 (60d) 進行中
+- ✅ F261 Phase 1A 完了 (Skill 9 個 + IDENTITY 6 本 + F265 dotenv 統一 + Section 12 ガイド拡充)
+- ✅ F141 ハイブリッド執行方針 (R-17-01/08 + 第 1 章) 完了
+- ✅ F144 執行品質 3 段階監視 (R-17-09/10) 完了
+
+第 17 章 R-17-01/07/08/09/10 が網羅実装済み (R-17-02/03/04/05 は別タスク残)。
