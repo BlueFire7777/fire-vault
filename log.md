@@ -152,3 +152,32 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
 - agent 系 cron が動くと意味のない自然言語ノイズが 5分毎流れる (現状 prompt 整備不足)
 - paper_live_positions は paper_live_runs への FK あり (TEST 挿入時に parent run も必要)
 - emergency_alert.py の宛先決定は notifications/router.py:45-59 で 3段階フォールバック実装済み
+
+## F261 Step 3 完了 (2026-05-03 20:20 頃)
+
+### 成果物 (line-notify Skill パターン確立)
+
+- `~/fire/scripts/wrapper/__init__.py` (Python module 化)
+- `~/fire/scripts/wrapper/line_notify.py` (CLI ラッパー、router.send_to_room を引数 5 部屋で呼ぶ)
+- `~/.openclaw/workspace/skills/line-notify/SKILL.md` (OpenClaw 認識確認済 ✓ Ready)
+- `~/fire/docs/openclaw/agents/monitoring_alert_identity.md` (案 B に切替、後述)
+
+### 動作確認
+
+- `openclaw skills info line-notify` で `Source: openclaw-workspace, Path: ~/.openclaw/workspace/skills/line-notify/SKILL.md, Requirements: python3 ✓` 認識
+- DRY モード送信成功: `{"status": "dry_run", "to": "Ud6bfa86...", "room": "emergency"}` (.env export 後)
+
+### IDENTITY.md ファイル方式 → 案 B にフォールバック切替
+
+- `openclaw agents set-identity --agent monitoring_alert --identity-file <path>` 実行で
+  `No identity data found in <path>` 警告 → FIRE のロール定義 markdown は OpenClaw が
+  期待する Kit スタイル (Name/Creature/Vibe/Emoji/Avatar) と互換性なし
+- フォールバック発動: 配置先を `~/fire/docs/openclaw/agents/<agent>_identity.md` (案 B) に切替
+- F261 完了基準は「IDENTITY.md ファイル作成完了」のみ、OpenClaw 認識は将来仕様変更時に再考
+- 6 本すべて案 B で作成する方針
+
+### 留意点 (次の Step / F265 関連)
+
+- `python-dotenv` が `.venv` 未インストール、wrapper 単体実行時は `set -a; source .env; set +a` 必須
+- F265 完全消化のため `~/fire/.venv/bin/pip install python-dotenv` を別途検討
+- 現状の wrapper は try/except で dotenv import を回避、未インストール時は env export を要求
