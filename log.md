@@ -70,3 +70,26 @@
 - バックアップ (.{name}.bak) は Block 4 まで保持
 - cron 3 件は依然 `delivery: announce -> last (no route, fail-closed)` 状態 → Block 3 で `--to <userId|groupId|roomId>` 修正
 - 次は Block 3 (cron delivery 設定 = LINE 部屋 binding)
+
+## [2026-05-03] decision | F260 Block 4 完了 (OpenClaw 統合フェーズ完了)
+
+- Phase 4-A: Skills 仕様調査 (skills CLI 6 サブコマンド / SKILL.md フォーマット / agent-skill 紐付けは LLM 自動判定)
+- Phase 4-B: 残り 7 エージェント (daytrade_selection / swing_selection / longterm_selection / portfolio_balance / trade_decision / goal_tracking / evaluation) を agents add で登録
+- Phase 4-C: 全 10 サブエージェントに name + emoji 設定 (set-identity 4 項目のみ、long-form role は F261 へ)
+- Phase 4-D: F012 _oc_agent() 経由で全 10 エージェント `status: ok` 確認
+- バックアップ 3 件 (.bak) 削除完了
+- ガイド (~/fire/docs/openclaw/agent_registration_guide.md) 11 節構成で最終化
+- Skills 詳細実装 (13 Skill の SKILL.md + scripts/wrapper) は **F261 として切り出し**
+- 次は Block 3 (Stage 3 環境設定: cron delivery 修正) または F261 (Skills 詳細)
+
+## F260 全体まとめ
+
+Block 1: OpenClaw 公式仕様調査 → ガイド初版作成
+Block 2: 既存 3 サブエージェント初期化 + lazy 生成挙動確定 + ガイド更新
+Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F012 統合 + ガイド最終化
+(Block 3: Stage 3 環境設定の一部として切り出し)
+
+成果物:
+- ~/fire/docs/openclaw/agent_registration_guide.md (11 節構成、トークンマスク済)
+- ~/.openclaw/agents/ 配下に 11 エージェント (main + 10 サブ)、auth main 共有
+- F012 FIRERunner から全 10 エージェント呼び出し可能
