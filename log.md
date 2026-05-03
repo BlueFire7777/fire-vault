@@ -115,3 +115,40 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
   - 解決された宛先: Ud6bfa86... (Fujiwara 個人 1:1 トーク)
 - 実 LINE 通知は送信せず、コードパス検証のみ
 - 次: 案 A (実機 LINE 通知テスト) 実行可否を Anthropic Claude (このチャット) で判断
+
+## Stage 3 Block 3 完全完了 (2026-05-03)
+
+### Phase 1-4 完了サマリ
+
+- Phase 1: LINE Bot 5部屋作成 + Bot 招待完了 (将来 Webhook 公開設計後に活用予定)
+- Phase 2: groupId 取得不可と判明 (Webhook OFF のため、これは LINE Messaging API 仕様)
+  → 案Y 採用: LINE_USER_ID 直送方式に切替
+- Phase 3:
+  - .env に LINE_CHANNEL_TOKEN + LINE_USER_ID 投入
+  - OpenClaw cron 3ジョブ (fire_morning_scan/fire_intraday_monitor/fire_eod_review) を disable
+    → agent ノイズ通知の流入回避、F261/F104 完了後に有効化予定
+- Phase 4:
+  - launchctl 5plist load (jp.fire.emergency-1445/1455/1505/1510/1515)
+  - 案A3 実機テスト: paper_live_positions クリーン → skipped 確認 →
+    TEST 建玉挿入 → 実機発火 → LINE 個人到達確認 → クリーンアップ
+  - end-to-end 動作確認完了 (emergency_alert.py → router → line_bot.py → LINE Push API)
+
+### 設計判断記録
+
+- 案Y (LINE_USER_ID 直送) を採用、5部屋運用は将来 Webhook 公開設計後に追加
+- 案A (cron 3ジョブ disable) を採用、agent 自動レポートは F261/F104 完了後
+- paper_live_positions を Stage 3 開始のため完全クリーン (バックアップは logs/ に保存)
+
+### Stage 3 移行残作業
+
+- F100 historical 実 API 実行 (過去6ヶ月分、1-2時間放置)
+- F230 batch_replay (20営業日 Paper Live リプレイ、数時間放置)
+- F241 --check-live-advisory --fujiwara-accept で全9項目 PASS
+- Stage 3 開始最終承認 (Fujiwara さん意思決定)
+
+### Block 3 で発見・解決した非自明事項
+
+- LINE Messaging API には「Bot 参加グループ一覧取得 API」がない (Webhook 経由のみ)
+- agent 系 cron が動くと意味のない自然言語ノイズが 5分毎流れる (現状 prompt 整備不足)
+- paper_live_positions は paper_live_runs への FK あり (TEST 挿入時に parent run も必要)
+- emergency_alert.py の宛先決定は notifications/router.py:45-59 で 3段階フォールバック実装済み
