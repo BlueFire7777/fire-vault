@@ -2,8 +2,8 @@
 type: requirement_chapter
 chapter: "21"
 title: "Pattern Research Agent / Pattern Store 詳細"
-version: v3.1
-updated: 2026-04-21
+version: v3.4
+updated: 2026-05-03
 ---
 
 # 第21章: Pattern Research Agent / Pattern Store 詳細
@@ -78,6 +78,36 @@ Pattern Research Agentは勝ちパターン候補を提案できるが、Pattern
 | 使う人(実行時に参照) | Daytrade Selection Agent / Trade Decision Agent |
 | 監査する人 | Evaluation Agent |
 | 最終承認者 | ユーザー(Fujiwara) |
+
+## 空売りパターン保存項目 (v3.4 追加)
+
+空売りパターン (direction="short") は買いパターンの保存項目に加え、以下の項目を保存する:
+
+| カラム | 型 | 説明 |
+|---|---|---|
+| direction | enum("long","short") | 必須。"short" 固定 |
+| setup_type | enum("S1_悪材料初動","S2_決算失望","S3_主役崩れ","S4_VWAP割れ","S5_セクター流出") | 空売りレーン |
+| borrow_status | enum("貸借可","貸借不可","不明") | 貸借区分 |
+| short_sell_regulation_status | enum("規制なし","トリガー抵触","売禁") | 規制有無 |
+| inventory_status | enum("在庫あり","在庫なし","不明") | 一般信用売り在庫 |
+| reverse_interest_risk | enum("制度未使用","低","中","高") | 逆日歩リスク (制度信用使用時のみ) |
+| entry_price | numeric | 信用売建価格 |
+| stop_price | numeric | 返済買い損切価格 (entry_price より上) |
+| take_profit_price | numeric | 返済買い利確価格 (entry_price より下) |
+| max_adverse_excursion | numeric | 最大不利方向到達価格 (空売り中最も上昇した価格) |
+| max_favorable_excursion | numeric | 最大有利方向到達価格 (空売り中最も下落した価格) |
+| execution_quality | numeric | 執行品質スコア (R-17-09 と同基準) |
+| pattern_win_rate | numeric | 同 setup_type の過去勝率 |
+| average_profit | numeric | 平均利益 |
+| average_loss | numeric | 平均損失 |
+| expected_value | numeric | 期待値 |
+| regime | enum("上昇","下落","レンジ","急反発","急落") | 当日レジーム |
+| sector_flow | enum("流入","中立","流出") | セクター資金フロー |
+| index_trend | enum("強上昇","弱上昇","レンジ","弱下落","強下落") | 当日指数トレンド |
+
+### 本章追加要件ID (v3.4 — 既存 R-21-08/09 と衝突回避のため R-21-21 から採番)
+- **R-21-21** 空売りパターン保存項目 (direction/setup_type/borrow_status/regulation/inventory/reverse_interest/MAE/MFE/regime/sector_flow/index_trend 等)
+- **R-21-22** STOP > ENTRY > TP の不変条件 (空売り invariant)
 
 ## 本章の要件ID
 
