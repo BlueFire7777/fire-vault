@@ -943,3 +943,114 @@ else:
 - ✅ **F142 発注前フィルタ (R-17-02/03/04)** ← 本タスク
 
 第 17 章実装系: 9/10 完了 (残 F143 のみ、F142 で R-17 設計の主要部分はほぼ完成)。
+
+## F211 目標圧力と運用規律の分離 完了 (2026-05-03 22:45) — 第27章実装系完了
+
+優先度・最優先 (TODO Excel)、第 27 章 (穴 5 対策) を網羅実装。FIRE 全体の最重要原則
+「目標未達を理由にした規律崩壊防止」をコード化。
+
+### 成果物 (~/fire commit、4 files / 新規ディレクトリ goal/)
+
+- 新規: `~/fire/goal/__init__.py` (package init、主要 API export)
+- 新規: `~/fire/goal/discipline.py` (~530 行、F211 規律ガード本体)
+- 新規: `~/fire/tests/goal/__init__.py` (空)
+- 新規: `~/fire/tests/goal/test_discipline.py` (22 テスト全 PASS)
+
+### 実装した要件 (R-27-01〜07)
+
+| 要件 | 実装 |
+|---|---|
+| **R-27-01** 規律崩壊防止 | 全関数の根幹理念、docstring に明記 |
+| **R-27-02** 固定原則 4 点 | 定数 + 各関数のロジック |
+| **R-27-03** 禁止事項 4 関数 | `check_lot_increase_request` / `check_criteria_loosening_request` / `check_strategy_promotion_request` / `check_stop_condition_relaxation_request` |
+| **R-27-04** リスク量変更可否 | `evaluate_market_conditions` (5 項目厳格、データ欠損 fail-safe) |
+| **R-27-05** Eval 提案順序 | `propose_evaluation_order` (固定 ["頻度","精度","候補","約定","ロット"]) |
+| **R-27-06** 攻める日/守る日 | `decide_attack_or_defend_day` (4+ で発動) |
+| **R-27-07** Dashboard | スコープ外 (to_dict() 連携準備) |
+
+### 哲学の一貫性 (全関数で貫く、FIRE 哲学根幹)
+
+- **「足りないから上げる」ではなく「勝ちやすいから上げる」**
+- 乖離理由のリスク変更要求は **severity 不問で必ず REJECT** (R-27-03、案 a)
+- リスク量変更の正当性は **市場条件 5 項目のみ** (R-27-04、案 X 厳格)
+- 攻める日/守る日 は **市場条件のみ** で決定 (R-27-06、目標乖離は不使用)
+- データ欠損は **fail-safe** (False 側、F140 fail-open とは反対方針)
+
+### 設計判断 (Fujiwara 2026-05-03 確認)
+
+| # | 採用案 | 内容 |
+|---|---|---|
+| 1 | 案 X 厳格 | 5 項目すべて favorable で `can_increase=True`、データ欠損は False に倒す |
+| 2 | 案 P 全 severity 同一 | 固定 5 項目順序、severity に関わらず同じ |
+| 3 | 案 D 攻撃/守備 4+ | `ATTACK_THRESHOLD=DEFEND_THRESHOLD=4`、両方同時 → neutral + warning |
+| 4 | 新規 `goal/` ディレクトリ | F210 `goal/tracking.py` 想定で整合 |
+| 5 | 案 a severity 不問 | deviation 系 reason は severity に関わらず REJECT (抜け道封じ) |
+| + | RejectionReason Enum | deviation/goal_pressure/time_pressure/market_condition/rule の 5 値 |
+
+### F210 mock 経路 (将来統合)
+
+`F211` の入力 `GoalDeviationInput` は Caller が構築。将来 F210 `goal/tracking.py` 完成時:
+
+```python
+# 将来の統合例 (F118 Goal Tracking Agent から)
+from goal.tracking import calculate_deviation
+from goal.discipline import check_lot_increase_request, RejectionReason
+
+deviation = calculate_deviation(...)  # F210 が生成
+result = check_lot_increase_request(
+    deviation=deviation,
+    reason=RejectionReason.MARKET_CONDITION.value,
+    market_conditions=...,
+)
+```
+
+差し替え不要 (`GoalDeviationInput` dataclass の構造を保ったまま F210 が実データから生成)。
+
+### MarketConditions 連携 (5 項目 + 補助 1 項目)
+
+| field | 入力ソース | 状態 |
+|---|---|---|
+| `pattern_score` | F032 `reproducibility.py` | ✅ 既存 |
+| `regime_fit` | F110 (未実装) | ❌ mock |
+| `theme_clarity` | F110 (未実装、補助) | ❌ mock |
+| `execution_quality` | F140/F144 | ✅ 既存 (Caller 責務で変換) |
+| `recent_stability` | F032/F119 | ✅ 既存 (Caller 責務で変換) |
+| `system_health_score` | F119 SystemMetrics | ✅ 既存 |
+
+### テスト結果
+
+- **F211 単体**: 22/22 PASS (R-27-03 6 + R-27-04 4 + R-27-06 4 + R-27-05 1 + 統合 7 + rule)
+- **F141 + F142 + F144 + F211 + F115 既存**: 92/92 PASS (回帰なし)
+- **F115 統合**: 不要 (F211 は別経路の規律ガード、F115 から呼ばれない純粋関数群)
+
+### 第 27 章 R-27 進捗 (実装系 7/7 完了)
+
+R-27-01 ✅ / R-27-02 ✅ / R-27-03 ✅ / R-27-04 ✅ / R-27-05 ✅ / R-27-06 ✅ / R-27-07 (Dashboard) ⭐
+
+**第 27 章は実装系すべて完了**、Dashboard 整備で R-27-07 を将来カバー。
+
+### 残課題 / 将来タスク
+
+- **F210** `goal/tracking.py`: 3000 万円 2 年目標トラッキング (本タスクの mock 入力源)
+- **F032/F110/F118 連携**: MarketConditions の各 field を実データ化
+- **F244 System Health 拡充**: 現状は F119 SystemMetrics で代用、専用タスクで精緻化
+- **F211 Stage 3 運用後の閾値再評価**:
+  - `PATTERN_SCORE_FAVORABLE_THRESHOLD=0.7` / `SYSTEM_HEALTH_FAVORABLE_THRESHOLD=0.8`
+  - `ATTACK_THRESHOLD=DEFEND_THRESHOLD=4`
+  - 要件書未明示、運用知見で調整
+- **R-27-07 Dashboard**: F141/F142/F144/F211 の `to_dict()` を可視化する整備タスク
+
+### 今夜の達成サマリ更新 (2026-05-03 全体、F211 追加)
+
+- ✅ Stage 3 Block 3 完全完了 + LINE 個人到達確認
+- ✅ F100 historical 6 ヶ月分 + Run 1/Run 2 完了 / Run 3 進行中
+- ✅ F261 Phase 1A 完了 (Skill 9 + IDENTITY 6 + F265 + Section 12)
+- ✅ F141 ハイブリッド執行 (R-17-01/08)
+- ✅ F144 執行品質 3 段階監視 (R-17-09/10)
+- ✅ F142 発注前フィルタ (R-17-02/03/04)
+- ✅ **F211 規律ガード (R-27-01〜07、第 27 章実装系完了)** ← 本タスク
+
+実装系完了状況:
+- 第 17 章: 9/10 (R-17-05 のみ残、F143)
+- 第 27 章: 7/7 (Dashboard R-27-07 別領域)
+- → **章単位での実装網羅性が大きく前進**
