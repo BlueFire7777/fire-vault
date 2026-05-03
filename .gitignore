@@ -16,3 +16,12 @@
 *.tmp
 *.swp
 *~
+
+# Secrets / credentials (defense in depth)
+.env
+.env.*
+*.key
+*.pem
+*credential*
+*token*
+*.secret
