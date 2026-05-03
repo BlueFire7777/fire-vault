@@ -440,3 +440,182 @@ batch_replay 20 営業日 (run_id: PL-20260503111212-D43E、tick 1340) の F053 
 - **Step 5-D 第 2 陣**: sector_research_identity / evaluation_identity (~/fire/evaluation/ 構造確認後)
 - **Step 6**: 統合テスト (Chain ALL DONE 後、9 Skill chain 動作確認)
 - **Step 7**: agent_registration_guide.md 最終化 (Section 9 拡充: 9 Skill レシピ集)
+
+## F261 Step 5-D 第 2 陣 完了 (2026-05-03 21:05 頃)
+
+### IDENTITY.md 残り 2 本完成
+
+- `~/fire/docs/openclaw/agents/sector_research_identity.md` (7,685 byte、Skills あり版: sector-flow-analysis Phase 1A 実装済を明記)
+- `~/fire/docs/openclaw/agents/evaluation_identity.md` (11,482 byte、Implementation Status 詳細記載: 9 ファイル / 1,933 行 / Phase 1-3 全実装済)
+
+### evaluation/ 構造判断結果 (パターン 1 確定)
+
+調査結果から**パターン 1: F119 Evaluation Agent 本実装** で確定:
+
+- `__init__.py` で「F119: Evaluation Agent (第 13 章) Phase 1/2/3 完了」と明記
+- 9 ファイル / 1,933 行
+- `optimistic_bias` / `simulation_accuracy` / `promotion` / `昇格` キーワードは含まれない
+  → F046/F047 (Simulation Accuracy) や F053 (Promotion) とは別物
+- 全 9 ファイルに `EvaluationAgent` / `R-13` キーワード含む → F119 確定
+
+**F266 Stage 3 ゲート判断材料**: `evaluation.orchestrator.run_evaluation()` で
+日次 evaluation レポート + 改善提案 + Markdown 提案書 + LINE 通知 + DB 永続化が
+即生成可能。Skill 化 (Phase 1B `evaluation-run`) は未だが、本体は Stage 3 移行時
+に呼び出し可能。
+
+---
+
+# 🎉 F261 Phase 1A 完了マーク (2026-05-03 21:05) 🎉
+
+## 成果物サマリ
+
+### Skills 9 個 (✓ Ready 全件)
+
+| 絵文字 | Skill | wrapper.py | 役割 |
+|---|---|---|---|
+| 📣 | `line-notify` | `line_notify.py` | 5 部屋ルーティング + LINE_USER_ID フォールバック |
+| 💴 | `lot-calculator` | `lot_calculator.py` | F130 許容損失 + 株数算出 (R-05-02) |
+| 📝 | `order-generator` | `order_generator.py` | F115 decide_orders ラップ (R-06-03 11 項目) |
+| 👀 | `position-check` | `position_check.py` | paper_live_positions read-only 照会 |
+| 📡 | `price-monitor` | `price_monitor.py` | F054 TP/SL → EXECUTION 通知 (F116) |
+| 🛡️ | `risk-validator` | `risk_validator.py` | F140 R-17-07 Execution Quality Gate |
+| 📊 | `daytrade-score` | `daytrade_score.py` | 生スコア確認 (フィルタなし、デバッグ寄り) |
+| 🎯 | `candidate-filter` | `candidate_filter.py` | F111 select_candidates ラップ (R-07-01/04) |
+| 🏢 | `sector-flow-analysis` | `sector_flow_analysis.py` | F243 個別性検出 + フィルタ提案 |
+
+### Wrappers 9 個
+
+`~/fire/scripts/wrapper/` 配下、全 wrapper で `try: load_dotenv() except ImportError: pass` パターン統一。
+status code 0 + JSON `{"status": "ok"|"error", ...}` 形式統一。
+
+### IDENTITY.md 6 本
+
+`~/fire/docs/openclaw/agents/*_identity.md` 配下 (案 B、git 管理下、機密情報なし):
+
+| ファイル | 行数 (バイト) | Skills セクション |
+|---|---|---|
+| `monitoring_alert_identity.md` | 3,150 byte | Phase 1A 実装済: price-monitor, position-check, line-notify |
+| `daytrade_selection_identity.md` | 6,290 byte | Phase 1A 実装済: daytrade-score, candidate-filter, line-notify |
+| `trade_decision_identity.md` | 8,459 byte | Phase 1A 実装済: lot-calculator, risk-validator, order-generator, line-notify |
+| `pattern_research_identity.md` | 7,375 byte | Phase 1A 未作成 (Phase 1B 繰延、F267 候補) |
+| `sector_research_identity.md` | 7,685 byte | Phase 1A 実装済: sector-flow-analysis |
+| `evaluation_identity.md` | 11,482 byte | Phase 1A 未作成 (Phase 1B 繰延、F267: evaluation-run / evaluation-approve) |
+
+統一テンプレ: Role / Responsibility / Skills / Strict Constraints / Trigger / Output Format / Out of Scope / Related Files (+ evaluation のみ Implementation Status 追加)。
+
+### F265 完全消化
+
+- `python-dotenv 1.2.2` インストール (`~/fire/.venv`)
+- `~/fire/requirements.txt` 新規作成 (32 行、pip freeze ベース)
+- 全 9 wrapper で `.env` 自動読込 (set -a; source 不要)
+- 動作確認済 (Step 4 で `.env export なし`の DRY 送信成功)
+
+### F261 検証結果 (agent_registration_guide.md Section 9 で記録)
+
+- IDENTITY.md ファイル方式は Kit スタイル限定 → 案 B (`~/fire/docs/openclaw/agents/<agent>_identity.md`) 採用
+- Custom Skills 配置先: `~/.openclaw/workspace/skills/<name>/SKILL.md` (workspace 共有、`Source: openclaw-workspace`)
+- Wrapper 規約: `~/fire/scripts/wrapper/<skill_name>.py` (Python module、underscore 命名)
+- 呼び出し: `cd ~/fire && .venv/bin/python -m scripts.wrapper.<skill_name>` (`.env` 自動読込)
+
+## Chain 並行運用結果
+
+- **Chain 投入** 2026-05-03 19:34:10 (PID 56992)
+- **Phase 1**: F100 完了待ち → 20:12:11 完了 (38 分、122 営業日 / 全 4449 銘柄取得)
+- **Phase 2**: 失敗銘柄再取得 → 20:12:11〜20:12:12 (誤抽出 `0`/`6` 含む 8 件、正規 6 件は 720 行挿入で復旧)
+- **Phase 4-A (Run 1)** 開始 20:12:12 → 完了 20:44:28 (所要 32 分、20 営業日 / 1,340 ticks / 0 events / F053 FAIL)
+- **Phase 4-B (Run 2)** 開始 20:44:28、ELAPSED 18:42、CPU 96% 継続 (ETA 22:00-23:30)
+- **Phase 4-C (Run 3)** 未開始 (Run 2 完了後、ETA 翌朝 04:00 ± 90 分)
+- ALL DONE 未検出、F261 Phase 1A 完了時点で **Chain 並行成立** ✅
+
+並行実行リスク (SQLite WAL 競合等) は問題なし、本 Phase 1A 中に Run 1 + Run 2 が
+順次完了 / 開始する状態を観察できた。
+
+## 残作業 (Phase 1A 完了後、Chain ALL DONE 後に実施)
+
+### Step 6: 統合テスト (約 1-2 時間)
+
+- 9 Skill chain の動作確認 (line-notify ↔ price-monitor ↔ position-check 等)
+- 想定 cron シナリオ rehearsal (`fire_morning_scan` → daytrade-score → candidate-filter → order-generator → line-notify)
+- F012 FIRE Runner からの Skill 呼び出しテスト
+- price-monitor / order-generator の実機実行 (Chain 完了後、DB 競合無し状態で)
+
+### Step 7: agent_registration_guide.md 最終化 (約 30 分)
+
+- Section 9 拡充: 9 Skill レシピ集 (各 Skill の責務 + 呼び出し例)
+- IDENTITY.md 案 B 経緯のまとめ
+- F265 dotenv 経緯のまとめ
+- Phase 1B 繰延項目の明示
+
+### Step 8: TODO 更新 / F261 完了確定 (約 15 分)
+
+- ~/fire-vault/02_todo/F261_*.md (詳細メモ) 作成
+- CLAUDE.md の完了テーブルに F261 1 行追加
+- Google Sheets TODO_Master 更新 (Fujiwara 手動)
+
+## Phase 1B 繰延項目 (F267 候補で正式起票予定)
+
+### 未実装 5 エージェント (本体 + Skill + IDENTITY 全部繰延)
+
+- F112 Swing Selection Agent (`agents/swing/` 空)
+- F113 Long-term Selection Agent (本体無し)
+- F114 Portfolio Balance Agent (本体無し)
+- F118 Goal Tracking Agent (本体無し)
+- F072 Review & Journal Agent (`agents/review/` 不在、新規作成必要)
+
+### 既存実装の Skill 化
+
+- `pattern-research-daily-report` (F035 `daily_research_report()` ラップ)
+- `pattern-decay-scan` (F035 `detect_pattern_decay()` ラップ、週次)
+- `pattern-rehab-scan` (F035 `propose_rehab_revival()` ラップ)
+- `pattern-adopt-request` (F035 `submit_adopt_approval_request()` ラップ)
+- `evaluation-run` (F119 `orchestrator.run_evaluation()` ラップ、cron `fire_eod_review` 連携)
+- `evaluation-approve` (F119 `EvaluationApprovalManager` 経由の承認操作)
+
+### 共通基盤改善
+
+- F063 LINE コマンド受信 (Webhook 公開設計と連動、約定報告の手動入力経路)
+- F072 引け後レビュー (Review & Journal Agent 新規実装)
+
+## 別タスク候補 (F268 候補)
+
+### F268-A: pattern_research.py 重複メソッド整理
+
+`~/fire/agents/pattern_research.py` 行 333 と 415 で `research_sector_individuality`
+が重複定義 (415 のみ有効、333 は dead code、Step 1 で発見)。
+
+- 影響: コード理解の障害、実害なし (415 が動いている)
+- 優先度: 中
+- 工数: 30 分 (333 行目削除 + 該当テスト追加 + 既存テスト確認)
+
+### F268-B: F140 fail-open → fail-closed 切替検討
+
+Step 5-A の risk-validator 実機テストで判明:
+- F140 `risk/execution_gate.check_execution_gate` は features 不在で fail-open (warning + 通過)
+- Phase 1 では妥当だが、**Stage 3 移行 (F266 / 実弾運用) で fail-closed への切替検討必要**
+- F141/F144 (執行品質追加実装) と一緒に設計すべき
+- 別タスク化推奨
+
+## F053 Run 1 結果 (F266 判断材料、既記録、Step 5-D 第 2 陣で再掲)
+
+batch_replay 20 営業日 (run_id: PL-20260503111212-D43E) F053 Promotion Check:
+
+- **sample_size**: FAIL (n_days=0, n_trades=0)
+- **expected_value**: FAIL (no closed trades)
+- **halt_function**: FAIL (halt_reason 未記録、暫定判定の仕様)
+- **close_function**: FAIL (no force_close events)
+- **simulation_accuracy**: PASS (optimistic_bias_score=0.000)
+
+推測:
+- F032 ReproducibilityEngine が動いていない or
+- 現在の active パターン 1 件 (`material_initial-strong_market-breakout-AM-highliq@v1.0`) が
+  入力データ (market_prices_daily 4400+ 銘柄 × 122 営業日) にヒットしていない
+
+→ F266 Stage 3 ゲートで再評価必要。Pattern Store 拡充 / extract_candidates のロジック確認 /
+F032 動作検証など、Fujiwara 判断。F261 のスコープ外。
+
+---
+
+**F261 Phase 1A の中断時点での状態**: Phase 1A 完了確定。
+Step 6-8 は Chain ALL DONE (翌朝予測) 後に Fujiwara が再開判断可能。
+F266 / F267 / F268 候補が log.md 上で TODO Excel 更新可能な形に整理済み。
+
