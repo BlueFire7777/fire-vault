@@ -1,8 +1,8 @@
 ---
 id: F210-PhaseB
 phase: P4: LINE/通知基盤
-priority: 中
-status: 未着手
+priority: 凍結
+status: 凍結 (2026-05-04、Dashboard 着手 / F118 設計時に再評価)
 owner: Fujiwara
 depends_on: [F210-PhaseA, F100-historical, F230]
 chapter: "01, 13, 27"
@@ -10,9 +10,69 @@ created: 2026-05-04
 updated: 2026-05-04
 ---
 
-# F210 Phase 1B: 資産履歴 DB 永続化 + 集計層
+# F210 Phase 1B: 資産履歴 DB 永続化 + 集計層 (凍結)
 
-## 概要
+## ステータス: 凍結 (2026-05-04)
+
+F210 は **Phase 1A 完了で「F210 完了」扱い**。Phase 1B は凍結し、解凍トリガーが
+発生するまで着手しない。
+
+### 凍結理由
+
+1. **F211 が F210 出力を判定材料に使わない**
+   - F211 は `severity` 不問で `reason="deviation"` 系を REJECT
+     (`goal/discipline.py:343` `if reason in DEVIATION_BASED_REASONS`)
+   - severity は rationale 文字列 (`line 350`) と
+     `EvaluationProposal.deviation_severity` 代入 (`line 565`) のみで参照、
+     `if`/`match` 分岐に未使用
+   - → **履歴トラッキング (Phase 1B の主スコープ) は F211 規律ガードに不要**
+
+2. **毎日の LINE/YAML 入力は Fujiwara の運用負荷が重い**
+   - 楽天証券アプリで残高は既に確認可能 → Fujiwara の本来運用と二重管理
+   - 半自動主軸 (R-01-08) 思想とは別軸の手作業負担 (毎朝の固定タスク化)
+   - 第 33 章 (人間の運用負荷の上限設計、穴 11 対策) と整合: 増やさない判断
+
+3. **Phase 1A の `calculate_deviation` でアドホック計算は可能**
+   - 「現在の残高 → 乖離率 / 5 段階判定」は純粋関数で 1 回計算で完結
+   - 履歴トラッキングの不在は致命的でない (毎日でなく必要時に計算で代替)
+   - F211 統合経路は Phase 1A だけで成立
+
+4. **Dashboard 自体が未着手のため F210 の出力先がない**
+   - R-13 line 67 / R-27-07 の「日/週/月の必要進捗」表示先 = Dashboard
+   - Dashboard (F310 系想定) 着手前に集計層を作っても表示先なし
+   - 表示要件確定前の集計仕様策定は手戻りリスク
+
+### 解凍トリガー (Phase 1B 再開条件)
+
+以下のいずれかが発生したら凍結解除し、本メモを再評価:
+
+- **トリガー 1**: Dashboard (F310 系想定) 着手時に「履歴トラッキング必要」と
+  判断された場合
+  - 進捗チャート / PnL 推移 / 乖離率時系列を表示する仕様確定時
+  - `goal_asset_history` の DDL と表示要件を整合させて再設計
+
+- **トリガー 2**: F118 Goal Tracking Agent オーケストレーション設計時に
+  「自動記録が必要」と判断された場合
+  - F118 が日次バッチで残高スナップショット取得・保存する設計の場合
+  - `paper_live_account` 自動連携が現実解になった時点
+
+- **トリガー 3**: 楽天証券側の API 自動取得経路が確立した場合
+  - R-01-08 半自動主軸方針の例外として Fujiwara が認めた場合
+  - 入力負荷ゼロでの履歴蓄積が可能になった時点
+
+### 凍結時の Phase 1A 機能保証
+
+凍結中も以下は Phase 1A で利用可能:
+- `calculate_deviation(current, elapsed, config)` → アドホック乖離計算
+- `classify_severity(deviation_pct)` → 5 段階判定
+- `calculate_required_weekly/monthly_progress` → 必要進捗 (円・率)
+- F211 `check_lot_increase_request` 等への入力供給
+
+→ F211 規律ガード経路 + 単発の進捗チェックは Phase 1A で完結する。
+
+---
+
+## (以下、凍結解除時の参考資料として保持) Phase 1B スコープ
 
 F210 Phase 1A (純粋関数群) の DB 連携 + 集計拡張。Stage 3 移行直後に必要となる
 資産履歴の永続化と日/週/月集計を提供する。Phase 1A は F211 統合に必要な API
