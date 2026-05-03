@@ -856,3 +856,90 @@ else:
 - ✅ F144 執行品質 3 段階監視 (R-17-09/10) 完了
 
 第 17 章 R-17-01/07/08/09/10 が網羅実装済み (R-17-02/03/04/05 は別タスク残)。
+
+## F142 発注前フィルタ 完了 (2026-05-03 22:15)
+
+優先度・高 (TODO Excel)、F140/F141/F144 の判定実装パターンを継承。第 17 章 R-17-02/03/04 を網羅実装。
+
+### 成果物 (~/fire commit 33bf767、3 files / +813 行)
+
+- 新規: `~/fire/execution/pre_trade_filters.py` (340 行)
+  - `PreTradeFilterResult` dataclass + `check_pre_trade_filters` 統合関数
+  - `check_opening_restriction` (R-17-02) / `check_special_quote` (R-17-03 hook) / `check_price_deviation` (R-17-04)
+  - 内部ヘルパー `_fetch_current_price` (market_prices_daily.close 最新値)
+- 新規: `~/fire/tests/execution/test_pre_trade_filters.py` (20 テスト全 PASS)
+- 編集: `~/fire/agents/trade_decision.py` (案 P 混合配置で F142 統合)
+  - シグネチャに `skip_pre_trade_filters: bool = False` 追加
+  - F133 時刻ガード後 / F144 スリッページ前: `check_opening_restriction` 1 回判定 (全候補一括 reject)
+  - for ループ内 F140 ゲート後: `check_pre_trade_filters` per candidate (`blocked_by` で reject、F141 hybrid 前)
+  - `TradeDecisionResult.summary` に `opening_restriction` (R-17-02 結果) を追加
+
+### 実装した要件
+
+| 要件 ID | 内容 | F142 実装 |
+|---|---|---|
+| **R-17-02** 寄り直後制限 | 9:00-9:04:59 JST reject、9:05 以降通過 | `check_opening_restriction` |
+| **R-17-03** 特買売禁止 | hook only (Phase 1A は常に通過 + warning) | `check_special_quote` |
+| **R-17-04** 価格乖離上限 | 通常 0.3%、値嵩 (>=3000円) ±20円 | `check_price_deviation` |
+
+### 設計判断 (Fujiwara 2026-05-03 確認、5 不明点 + 5 追加指針すべて推奨案採用)
+
+| # | 採用 | 内容 |
+|---|---|---|
+| 1 | 案 (a) | R-17-03 hook only、引数 `(symbol, db_path, current_datetime)` を将来拡張可能に |
+| 2 | 案 X | 9:05 JST 固定 (「初動安定後」は Phase 1B / F110 で動的化) |
+| 3 | 案 P | 混合配置 (寄り直後 = 冒頭 / 特買売+価格乖離 = per candidate) |
+| 4 | 案 M | `current_price` は `market_prices_daily.close` 最新値、`None` → fail-open fallback (F140 教訓) |
+| 5 | 3 dict | `opening_check` / `special_quote_check` / `price_deviation_check` 並行保持 (F141/F144 統一) |
+| + | プロパティ | `is_passed` / `blocked_reasons` で Dashboard 連携容易性確保 |
+
+### 連携 (F140 / F141 / F144 / F236)
+
+- **F140**: `EXPENSIVE_PRICE_THRESHOLD=3000` を F142 と整合 (値嵩株判定)
+- **F141**: `_get_entry_price` と同源 (`market_prices_daily.close`)、F142 で `_fetch_current_price` として再利用
+- **F144**: 同じ案 P 階層 (F133 → F142 → F144 → F132 → for ループ)
+- **F236**: 独立経路 (F236=launchd 緊急、F142=F115 経路の発注品質)
+
+### テスト結果 (3 段階全 PASS、+ 統合)
+
+- **F142 単体**: 20/20 PASS (寄り直後 6 + 特買売 hook 2 + 価格乖離 8 + 統合 4)
+- **F141 + F144 単体**: 48/48 PASS (回帰なし、F142 含む `tests/execution/`)
+- **F115 trade_decision 既存**: 22/22 PASS (回帰なし、`skip_pre_trade_filters=False` default で破壊しない)
+- **F115 統合**: 寄り直後 (9:03) → 全候補 reject ✅ / 価格乖離 (1.0%) → per candidate reject ✅
+
+### 第 17 章 R-17 進捗 (11 項目中 9 項目完了)
+
+| 要件 | タスク | 状態 |
+|---|---|---|
+| R-17-01 成行乱用禁止 | F141 | ✅ |
+| R-17-02 寄り直後制限 | F142 | ✅ (本日) |
+| R-17-03 特買売禁止 | F142 hook | ✅ (本日、Phase 1A hook、本格化は F100/F235) |
+| R-17-04 価格乖離上限 | F142 | ✅ (本日) |
+| R-17-05 部分約定処理 | F143 | ❌ 未着手 (R-17 章で唯一の実装系残課題) |
+| R-17-06 強制クローズ | F236 | ✅ (Stage 3 Block 3 で完了) |
+| R-17-07 Execution Quality Gate | F140 | ✅ |
+| R-17-08 ENTRY 指値必須 | F141 | ✅ |
+| R-17-09 3 段階監視 | F144 | ✅ |
+| R-17-10 30 日後実測ベース | F144 | ✅ |
+| R-17-11 Dashboard 可視化 | (将来) | ❌ Dashboard 整備で別領域 |
+
+→ **執行品質設計の実装系は F143 (部分約定処理) のみが残課題**。
+
+### 残課題 / 将来タスク
+
+- **F143** R-17-05 部分約定処理: F105 (発注管理) 連携前提のため先行価値小、優先度・高だが順序として後回し可
+- **F100 拡張 / F235**: R-17-03 本格化 (special_quote データソース)
+- **F110**: R-17-02 動的化 (「初動安定後」の柔軟判定)
+- **Stage 3 楽天 API 連携**: `current_price` をリアルタイム値に置換 (現状は `market_prices_daily.close` = 前日終値で代用)
+- **Dashboard 整備**: R-17-11、F141 HybridExecutionDecision / F144 SlippageAlertResult / F142 PreTradeFilterResult を可視化
+
+### 今夜の達成サマリ更新 (2026-05-03 全体、F142 追加)
+
+- ✅ Stage 3 Block 3 完全完了
+- ✅ F100 historical 6 ヶ月分 + Run 1 (20d) 完了 / Run 2 (60d) 進行中
+- ✅ F261 Phase 1A 完了 (Skill 9 個 + IDENTITY 6 本 + F265 + Section 12 ガイド拡充)
+- ✅ F141 ハイブリッド執行方針 (R-17-01/08)
+- ✅ F144 執行品質 3 段階監視 (R-17-09/10)
+- ✅ **F142 発注前フィルタ (R-17-02/03/04)** ← 本タスク
+
+第 17 章実装系: 9/10 完了 (残 F143 のみ、F142 で R-17 設計の主要部分はほぼ完成)。
