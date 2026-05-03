@@ -93,3 +93,15 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
 - ~/fire/docs/openclaw/agent_registration_guide.md (11 節構成、トークンマスク済)
 - ~/.openclaw/agents/ 配下に 11 エージェント (main + 10 サブ)、auth main 共有
 - F012 FIRERunner から全 10 エージェント呼び出し可能
+
+## Stage 3 Block 3 進捗 (2026-05-03 案Y 採用)
+
+- LINE 5 部屋作成 + Bot 招待 完了
+- ただし OpenClaw が groupId 取得には Webhook 公開が必要と判明 (LINE Messaging API 仕様)
+  - 「Bot 参加グループ一覧 API」は存在せず、Webhook の join イベント経由のみ
+  - 私の手順書のバグ (Webhook OFF を推奨していた)
+- 案Y を採用: 緊急アラートは LINE_USER_ID 直送で運用、5 部屋運用は Stage 3 後に別途構築
+- cron 3 ジョブ (fire_morning_scan / fire_intraday_monitor / fire_eod_review) は disable 済み
+  → 案 A のまま、agent 系は将来 F261 / F104 完了後に有効化
+- 5 部屋自体は LINE 上に既に作成済み、将来 Webhook 公開設計時に再利用可能
+- 次は emergency_alert.py のフォールバック実装確認 → Phase 4 (launchctl 5plist load)
