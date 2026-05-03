@@ -226,3 +226,52 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
 - Step 5: 残り 5 IDENTITY.md (daytrade_selection / trade_decision / pattern_research / sector_research / evaluation)
 - Step 6: 統合テスト (Chain 完了後)
 - Step 7: agent_registration_guide.md 最終化
+
+## F261 Step 5-A 完了 (2026-05-03 20:35 頃)
+
+### trade_decision 系 3 Skill 完成 + 実機動作確認
+
+- `~/fire/scripts/wrapper/lot_calculator.py` (F130 許容損失計算 + 株数算出)
+- `~/fire/scripts/wrapper/risk_validator.py` (F140 R-17-07 Execution Quality Gate)
+- `~/fire/scripts/wrapper/order_generator.py` (F115 decide_orders ラップ、TradeOrder 11 項目構築)
+- `~/.openclaw/workspace/skills/lot-calculator/SKILL.md` (✓ Ready)
+- `~/.openclaw/workspace/skills/risk-validator/SKILL.md` (✓ Ready)
+- `~/.openclaw/workspace/skills/order-generator/SKILL.md` (✓ Ready)
+
+### 実機動作確認 (read-only、Chain 並行 OK)
+
+- **lot-calculator**: 余力 100 万円 / daytrade × 通常 → allowable_loss = 4000 円。
+  entry/SL = 2500/2450 (リスク 50 円/株) → raw_qty=80 株 → 100 株未満 → status: error (insufficient_funds、期待通り)。
+  entry/SL = 100/99 (リスク 1 円/株) → raw_qty=4000 株 → 余力内、status: ok、required_capital=400,000。
+- **risk-validator**: 7203 long 100 株 → passed=true, reason="features 不在のため通過 (warning)"、
+  追加 attribute `data_available=false`, `metrics={}`, `warnings=["execution_features_unavailable"]`。
+  F140 fail-open 仕様通り。
+- **order-generator**: 7203 (skip-time/loss-control) → 1 order 生成完了。
+  entry=1520 (market_prices_daily から自動取得)、quantity=100、sl=1489.6、tp=1596、
+  margin_type=信用買建、valid_until=12:50 まで、invalid_condition=1512 を割れたら見送り、
+  allowable_loss=4000、estimated_pnl=7600、RR=2.5、gate_passed=true。
+  summary: orders=1, rejected=0, remaining_equity=848,000。
+
+### InsufficientFundsError 扱い (補足2 準拠)
+
+exit code 0 + JSON `{"status": "error", "error_type": "insufficient_funds", "message": ...}` 形式に統一。
+LLM (OpenClaw agent) が解釈しやすい設計。exit code 非ゼロは pip install 失敗等の異常系のみに限定。
+
+### Custom Skills 認識状態 (6/9 Phase 1A 進捗)
+
+```
+✓ ready  📣 line-notify       (Step 3)
+✓ ready  💴 lot-calculator    (Step 5-A)
+✓ ready  📝 order-generator   (Step 5-A)
+✓ ready  👀 position-check    (Step 4)
+✓ ready  📡 price-monitor     (Step 4)
+✓ ready  🛡️ risk-validator    (Step 5-A)
+```
+
+### 残作業 (F261 Phase 1A の続き)
+
+- Step 5-B: daytrade_selection 系 2 Skill (daytrade-score + candidate-filter)
+- Step 5-C: sector_research 系 1 Skill (sector-flow-analysis、責務確認も兼ねて)
+- Step 5-D: IDENTITY.md 6 本量産 (案 B 統一: ~/fire/docs/openclaw/agents/<agent>_identity.md)
+- Step 6: 統合テスト (Chain 完了後)
+- Step 7: agent_registration_guide.md 最終化
