@@ -58,3 +58,15 @@
 - F242 scope upgrade ループは再発なし (doctor 確認)、orphan transcripts 124 件は別判断
 - 既存 3 cron は agent dir 不在で delivery 失敗中 → Block 2 で agents add → Block 3 で cron edit
 - 次は Block 2 (既存3エージェント中身実装) へ
+
+## [2026-05-03] decision | F260 Block 2 完了 (3エージェント初期化)
+
+- 3エージェント (market_intelligence / monitoring_alert / review_journal) を `openclaw agents add` で初期化
+- agent/ 配下 (models.json/auth-profiles.json/auth-state.json) は **初回 invoke 時に lazy 生成** (確定)
+- auth は main から **自動継承** (sha256 完全一致): c23c3c70...
+- test ping 3 件すべて 200 OK (claude-opus-4-7 / 247-463 token)
+- 「pong」は返らず BOOTSTRAP.md ルールで identity 確立要求 → 設計通り
+- 既存 sessions/ は破壊されず、openclaw.json は自動 backup
+- バックアップ (.{name}.bak) は Block 4 まで保持
+- cron 3 件は依然 `delivery: announce -> last (no route, fail-closed)` 状態 → Block 3 で `--to <userId|groupId|roomId>` 修正
+- 次は Block 3 (cron delivery 設定 = LINE 部屋 binding)
