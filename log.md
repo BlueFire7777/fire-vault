@@ -670,3 +670,74 @@ Edit で全置換 → `## 12. F261 OpenClaw Skill 統合 (Phase 1A 実装記録)
 - Step 8-B: ~/fire-vault/02_todo/F261_*.md 詳細メモ作成
 - Step 8-C: CLAUDE.md の完了テーブルに F261 1 行追加
 - Step 8-D: Google Sheets TODO_Master 更新 (Fujiwara 手動)
+
+## F141 ハイブリッド執行方針 完了 (2026-05-03 21:42)
+
+優先度・最優先 (TODO Excel)。F140 ✅ 完了に依存して着手、Phase 1A の終了後に Chain Run 2 並行で実装。
+
+### 成果物 (~/fire commit 932adb6)
+
+- 新規: `~/fire/execution/__init__.py` (F141 package、20 行)
+- 新規: `~/fire/execution/hybrid.py` (本体、302 行、`HybridExecutionDecision` + `decide_hybrid_execution`)
+- 新規: `~/fire/tests/execution/__init__.py` (空)
+- 新規: `~/fire/tests/execution/test_hybrid.py` (13 テスト、278 行、全 PASS)
+- 初 commit: `~/fire/agents/trade_decision.py` (528 行、F115 全体 + F141 組み込み)
+  - `TradeDecisionResult` に `hybrid_decisions: list` フィールド追加
+  - `decide_orders` で `_build_order` 完了後に F141 後処理を呼び出し
+  - **注: trade_decision.py は元々 untracked、F141 commit で初めて git 追跡 (528 行が追加扱い)**
+
+### 実装した要件
+
+- 第 1 章 line 84-85「ハイブリッド執行方針 (Sランクはブレイク狙い、通常は指値主体)」
+- 第 17 章 R-17-01 (成行乱用禁止・指値標準)
+- 第 17 章 R-17-08 (執行ルール: ENTRY 指値/利確指値/損切逆指値必須)
+
+### 判定ロジック
+
+| 条件 | entry_method | rationale |
+|---|---|---|
+| `Rank.S` (通常) | `stop_market` + `max_slippage_pct=0.3%` | 第 1 章ハイブリッド例外、ブレイク狙い |
+| `Rank.S` + 値嵩株 (>=3,000円) + 高スリッページ (>30bps) | `limit` (`fallback_to_limit=True`) | R-17-04 整合、安全側 |
+| `Rank.A/B/C/D/X` | `limit` | R-17-01 通常運用 |
+| `pattern_rank=None` (DB 引きも失敗) | `limit` (`warnings=["pattern_rank_unknown"]`) | 安全側、R-17-01 標準 |
+| `side=="short"` | `limit` (`warnings=["short_side_not_supported_by_F141"]`) | v3.4 F320/F352 系で別途整備、F141 非対応 |
+
+### ブレイク基準価格 (`breakout_trigger_price`) 段階的フォールバック
+
+1. 引数 `breakout_trigger_price` (最優先、`source="argument"`)
+2. `order.candidate.breakout_trigger_price` (将来 F111 拡張時用、`source="candidate"`)
+3. `market_prices_daily.high` 当日最新値 (AM 高値の代用、`source="am_high"`、F100 minute Phase 2 で精緻化予定)
+4. `entry_price * (1 + 0.005)` (`source="default_pct"`)
+
+### 設計判断 (Fujiwara 2026-05-03 確認、不明点 5 への回答)
+
+- **不明点 1**: 案 A (stop_market) 採用、`max_slippage_pct=0.3%` (R-17-04 整合) でスリッページ防御
+- **不明点 2**: 段階的フォールバック (引数 → candidate → AM 高値 → entry_price*1.005)
+- **不明点 3**: 案 Y 採用、`HybridExecutionDecision` を `TradeDecisionResult.hybrid_decisions` に並行保持。`TradeOrder` の R-06-03 11 項目は変更せず
+- **不明点 4**: 案 Q 採用、`_build_order` 完了後に `decide_hybrid_execution(order)` を後処理として呼ぶ
+- **不明点 5**: R-17-08 通常運用 + 第 1 章ハイブリッド例外として記述、要件書 17 章本体は未改訂 → F269 候補に記録
+
+### テスト結果
+
+- F141 単体テスト: **13/13 PASS** (Rank.S/A/B/C/D/unknown + breakout fallback 3 種 + short + 値嵩株 fallback 境界 + DB 引き)
+- F115 trade_decision 既存テスト: **22/22 PASS** (回帰なし、`TradeDecisionResult` への新フィールド追加で破綻せず、`default_factory=list` で空リスト初期化)
+- 統合テスト: `TradeDecisionAgent.decide_orders(candidates=[7203 SimpleNamespace])` → `hybrid_decisions=[HybridExecutionDecision(entry_method="limit", rank="unknown", warnings=["pattern_rank_unknown"])]` 期待通り
+
+### F269 候補 (技術的負債、要件書改訂候補)
+
+**R-17-08「ENTRY 指値必須」と第 1 章 line 85「Sランクはブレイク狙い」の整合性整理**
+
+- 現状: F141 docstring に「R-17-08 通常運用 + 第 1 章ハイブリッド例外」と明記
+- 要件書 17 章本体には Sランク例外の明文化なし
+- 17 章改訂時に R-17-01 / R-17-08 の例外条項としてハイブリッド執行を追記すべき
+- 優先度: 中 (実害なし、コード上は F141 docstring + 第 1 章で根拠示される、ただし要件書整合性の観点で改善余地)
+
+### F141 と F140 の連携 (現状と将来)
+
+現状: `decide_orders` 内で F140 (`_check_execution_gate`) → F141 (`decide_hybrid_execution`) の順で呼ぶ。F141 は F140 の features (`entry_slippage_estimate`) を読んで値嵩株+高スリッページ時のフォールバック判定。
+
+将来 (F141.B): F141 の `entry_method=stop_market` 結果を F140 が読んで「stop_market 時は別の閾値」(例: `EXPENSIVE_SLIP_BPS_CRITICAL` を厳しめに) で判定する経路。今回は F140 改修せず、F141 単体で fallback 判定を完結。
+
+### 残作業 (本タスクで完了、次タスクへ)
+
+なし (F141 完了)。F142 (寄り直後制限 / 特買売禁止 / 価格乖離上限) が次の R-17 系候補。
