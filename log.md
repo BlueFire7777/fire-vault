@@ -181,3 +181,48 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
 - `python-dotenv` が `.venv` 未インストール、wrapper 単体実行時は `set -a; source .env; set +a` 必須
 - F265 完全消化のため `~/fire/.venv/bin/pip install python-dotenv` を別途検討
 - 現状の wrapper は try/except で dotenv import を回避、未インストール時は env export を要求
+
+## F261 Step 4 完了 (2026-05-03 20:30 頃)
+
+### 成果物 (monitoring_alert 系 Skill 2 本完成、3 Skill 体制で line-notify/price-monitor/position-check 揃う)
+
+- `~/fire/scripts/wrapper/price_monitor.py` (paper_live_results → MonitoringAlertAgent.process_events)
+- `~/fire/scripts/wrapper/position_check.py` (paper_live_positions read-only query)
+- `~/.openclaw/workspace/skills/price-monitor/SKILL.md` (✓ Ready)
+- `~/.openclaw/workspace/skills/position-check/SKILL.md` (✓ Ready)
+- `~/fire/requirements.txt` 新規作成 (pip freeze ベース 32 行、python-dotenv==1.2.2 含む)
+- `~/fire/scripts/wrapper/line_notify.py` コメント追記 (requirements.txt 追加済明示)
+- `~/.openclaw/workspace/skills/line-notify/SKILL.md` Commands から `set -a; source .env; set +a` 削除 (dotenv 自動読込前提に簡素化)
+- `~/fire/docs/openclaw/agent_registration_guide.md` に F261 検証結果追記 (IDENTITY.md Kit スタイル限定、Custom Skills 配置先確定、Wrapper 規約)
+
+### F265 完全消化
+
+- `~/fire/.venv` に python-dotenv 1.2.2 インストール
+- `requirements.txt` に追記 (Mac mini 再構築時の再発防止)
+- 全 wrapper で `.env` 自動読込 (`set -a; source` 不要)
+- 動作確認: `set -a; source` なしで `dotenv 自動 .env 読込み確認` DRY 送信成功
+
+### IDENTITY.md 完了基準の修正 (Step 3 で発覚した制約)
+
+- 旧仕様: `~/.openclaw/agents/<agent>/agent/IDENTITY.md` (公式仕様未対応)
+- 新仕様: `~/fire/docs/openclaw/agents/<agent>_identity.md` (案 B、git 管理下、機密情報なし)
+- 理由: OpenClaw `set-identity --identity-file` は **Kit スタイル (Name/Creature/Vibe/Emoji/Avatar) のみ** パース、FIRE のロール定義 markdown は受け付けず
+- F261 完了基準は「IDENTITY.md ファイル作成完了」のみとする
+- 6 本すべて案 B で作成する方針は継続
+
+### Custom Skills 認識状態
+
+```
+✓ ready  📣 line-notify       openclaw-workspace
+✓ ready  👀 position-check    openclaw-workspace
+✓ ready  📡 price-monitor     openclaw-workspace
+```
+
+3 件すべて `Source: openclaw-workspace`、`Requirements: ✓ python3`。
+
+### 残作業 (F261 Phase 1A の続き)
+
+- Step 5: 残り 6 Skill (lot-calculator / order-generator / risk-validator / daytrade-score / candidate-filter / sector-flow-analysis)
+- Step 5: 残り 5 IDENTITY.md (daytrade_selection / trade_decision / pattern_research / sector_research / evaluation)
+- Step 6: 統合テスト (Chain 完了後)
+- Step 7: agent_registration_guide.md 最終化
