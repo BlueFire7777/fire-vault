@@ -275,3 +275,60 @@ LLM (OpenClaw agent) が解釈しやすい設計。exit code 非ゼロは pip in
 - Step 5-D: IDENTITY.md 6 本量産 (案 B 統一: ~/fire/docs/openclaw/agents/<agent>_identity.md)
 - Step 6: 統合テスト (Chain 完了後)
 - Step 7: agent_registration_guide.md 最終化
+
+## F261 Step 5-B 完了 (2026-05-03 20:42 頃)
+
+### daytrade_selection 系 2 Skill 完成
+
+- `~/fire/scripts/wrapper/daytrade_score.py` (生スコア確認、フィルタ無し、デバッグ寄り)
+- `~/fire/scripts/wrapper/candidate_filter.py` (F111 select_candidates ラップ、1-3 銘柄厳選 + 戦略コメント生成)
+- `~/.openclaw/workspace/skills/daytrade-score/SKILL.md` (✓ Ready)
+- `~/.openclaw/workspace/skills/candidate-filter/SKILL.md` (✓ Ready)
+
+### 責務分担 (補足3 準拠、Option 3: scoring と selecting を分離)
+
+- **daytrade-score**: paper_live_results CANDIDATE → 生スコア top-N (read-only、フィルタなし)
+- **candidate-filter**: 同 CANDIDATE → 1-3 銘柄厳選 + 戦略コメント (R-07-01 + R-07-04)
+
+統合せず分離した理由: デバッグ用途 (スコア確認) と本番用途 (厳選) で利用シーンが
+明確に異なる。daytrade-score は LLM が「なぜこの symbol が選ばれた/外れた」を理解
+する際の前段 inspection、candidate-filter は実運用 cron `fire_morning_scan` で呼ぶ。
+
+### Custom Skills 認識状態 (8/9 Phase 1A 進捗、残り 1 = sector-flow-analysis)
+
+```
+✓ ready  📣 line-notify       (Step 3)
+✓ ready  💴 lot-calculator    (Step 5-A)
+✓ ready  📝 order-generator   (Step 5-A)
+✓ ready  👀 position-check    (Step 4)
+✓ ready  📡 price-monitor     (Step 4)
+✓ ready  🛡️ risk-validator    (Step 5-A)
+✓ ready  📊 daytrade-score    (Step 5-B)
+✓ ready  🎯 candidate-filter  (Step 5-B)
+```
+
+### 気づき: F140 Execution Quality Gate の fail-open 挙動 (補足4)
+
+Step 5-A の risk-validator 実機テストで確認:
+
+```
+{"status": "ok", "passed": true, "reason": "features 不在のため通過 (warning)",
+ "data_available": false, "warnings": ["execution_features_unavailable"]}
+```
+
+F140 (`risk/execution_gate.check_execution_gate`) は **features テーブルにデータが
+無い銘柄に対して fail-open** で通過させる現行設計。FIRE Phase 1 では features の
+拡充が間に合っていないため fail-open は妥当だが、**Stage 3 移行 (F266 / 実弾運用)
+時には fail-closed (features 不在で reject) への切り替えを検討**すべき。
+
+F261 のスコープ外。F141/F144 (執行品質関連の追加実装) と一緒に判断する別タスクと
+してログに残す (このまま見過ごすとリスク管理上の盲点になる)。
+
+### 残作業 (F261 Phase 1A の続き)
+
+- Step 5-C: sector-flow-analysis 1 Skill (sector_research.py 574 行を Read 後に設計)
+- Step 5-D: IDENTITY.md 6 本量産
+  - 第 1 陣 (5-B 直後): daytrade_selection / trade_decision / monitoring_alert / pattern_research
+  - 第 2 陣 (5-C 後): sector_research / evaluation
+- Step 6: 統合テスト (Chain 完了後)
+- Step 7: agent_registration_guide.md 最終化
