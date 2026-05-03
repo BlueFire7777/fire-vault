@@ -619,3 +619,54 @@ F032 動作検証など、Fujiwara 判断。F261 のスコープ外。
 Step 6-8 は Chain ALL DONE (翌朝予測) 後に Fujiwara が再開判断可能。
 F266 / F267 / F268 候補が log.md 上で TODO Excel 更新可能な形に整理済み。
 
+
+## F261 Step 6 read-only 部分 + Step 7 完了 (2026-05-03 21:25 頃)
+
+### Step 6 read-only 動作再確認 (Chain Run 2 並行 OK)
+
+全 9 Skill `openclaw skills list` 認識確認 ✅ (Source: openclaw-workspace × 9 件)
+
+実機 read-only 5 件 PASS:
+- `position-check --json`: `{"total":0, "n_open":0, "n_closed":0, "positions":[]}` (案 A3 クリーン状態維持)
+- `daytrade-score --top 5 --json`: `{"n_raw_input":0, "n_top":0, "candidates":[]}` (Run 1/2 でも CANDIDATE 未生成)
+- `candidate-filter --json`: `{"status":"no_candidates", "message":"入力候補なし"}` (空完走)
+- `sector-flow-analysis --mode pattern --pattern-id <active>`: `{"status":"ok", "finding":{"has_individuality":false}, "proposals":{"rationale":"個別性なし、フィルタ提案不要"}}`
+- `sector-flow-analysis --mode scan`: `{"status":"ok", "n_findings":0, "findings":[]}`
+
+`line-notify --dry-run`: `{"status":"dry_run", "to":"Ud6bfa86...", "preview":"F261 Step 6 read-only test (DRY)"}` ✅
+
+### Step 6-4 (lot-calculator / risk-validator / order-generator) はスキップ
+
+Step 5-A で実機 PASS 済 (4,000 円許容損失 / 7203 fail-open / TradeOrder 11 項目構築)。
+Run 2 並行で書き込み発生のリスク回避のため再実行はせず、Step 6 統合テストの範囲は
+read-only に限定。書き込みを伴うフルテストは Chain ALL DONE 後 (Step 8 で実施)。
+
+### Step 6-5 Skill chain 論理接続レビュー
+
+agent_registration_guide.md Section 12.6 で図示。3 cron シナリオ (朝 / 場中 / 夕)
+の Skill 接続が JSON 出力統一で実現可能と確認。要注意点:
+- candidate-filter の `candidates[].symbol` → order-generator の `--symbols` 変換は
+  agent (LLM) の責務 (wrapper では一括 chain しない設計)
+- TP/SL 価格の上書き経路は order-generator 引数拡張が必要 (Phase 1B 候補)
+- evaluation-run Phase 1B 繰延 → fire_eod_review cron は当面 position-check +
+  sector-flow-analysis のみで運用
+
+### Step 7 agent_registration_guide.md Section 12 本格拡充
+
+旧 Step 4 で line 711 に追加した `## 9. F261 検証結果` (3 サブセクション、56 行) は
+**Section 番号衝突** (line 559 既存 `## 9. identity 設定方式` と重複) があったため、
+Edit で全置換 → `## 12. F261 OpenClaw Skill 統合 (Phase 1A 実装記録)` にリネーム。
+
+12.1 概要 / 12.2 9 Skill レシピ集 (絵文字+引数+output 一覧表) / 12.3 Wrapper 規約
+(共通テンプレ提示) / 12.4 IDENTITY.md 案 B 採用経緯 / 12.5 SKILL.md フォーマット
+(bundled weather 参照) / 12.6 cron シナリオ設計 (9 Skill chain 接続図) /
+12.7 既知の制約と Phase 1B 繰延項目 / 12.8 トラブルシューティング (5 ケース)。
+
+ガイド総行数: 767 → 990 行 (+223 行、F261 統合記録として整理)。
+
+### 残作業 (Step 8、Chain ALL DONE 後の明朝)
+
+- Step 8-A: 統合テスト残り (price-monitor / order-generator フル実行、DB 競合無し状態で)
+- Step 8-B: ~/fire-vault/02_todo/F261_*.md 詳細メモ作成
+- Step 8-C: CLAUDE.md の完了テーブルに F261 1 行追加
+- Step 8-D: Google Sheets TODO_Master 更新 (Fujiwara 手動)
