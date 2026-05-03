@@ -47,3 +47,14 @@
 - タイムライン: 2026-05-10 買い側 Stage 3 → 2026-06 中旬 空売り Phase 1 完了 → 2026-07 中旬 Phase 2 → 2026-07 下旬 Stage 3 (M+2) → 2026-08 中旬 本格運用 (M+3)
 - 着手判定: Stage 3 安定運用 (M=0 で問題なし) を確認してから Phase 1
 - 撤退基準: Paper Live 20 営業日で期待値マイナス / 踏み上げ 5 回 / 楽天在庫データ取得不可 / 買い側 ROI 優先判断
+
+## [2026-05-03] decision | F260 Block 1 完了 (OpenClaw 仕様調査)
+
+- ~/fire/docs/openclaw/agent_registration_guide.md を新規作成 (7 節構成)
+- openclaw agents サブコマンド全 7 件 (add/bind/bindings/delete/list/set-identity/unbind) 仕様確定
+- main エージェントの 3 設定 JSON (models.json/auth-profiles.json/auth-state.json) 構造把握、Anthropic key はマスク
+- cron add/edit の delivery オプション (--channel/--to/--account/--announce 等) 仕様確定
+- routing/workspaces サブコマンドは存在せず → bind/bindings/unbind と --workspace で代替
+- F242 scope upgrade ループは再発なし (doctor 確認)、orphan transcripts 124 件は別判断
+- 既存 3 cron は agent dir 不在で delivery 失敗中 → Block 2 で agents add → Block 3 で cron edit
+- 次は Block 2 (既存3エージェント中身実装) へ
