@@ -105,3 +105,13 @@ Block 4: 残り 7 エージェント登録 + identity + Skills 仕様調査 + F0
   → 案 A のまま、agent 系は将来 F261 / F104 完了後に有効化
 - 5 部屋自体は LINE 上に既に作成済み、将来 Webhook 公開設計時に再利用可能
 - 次は emergency_alert.py のフォールバック実装確認 → Phase 4 (launchctl 5plist load)
+
+## Stage 3 Block 3 Phase 4-1 + 4-2 案C 完了 (2026-05-03)
+
+- launchctl 5plist load 完了 (~/Library/LaunchAgents/ に配置、launchctl list で5件確認)
+- 発火時刻: 14:45 / 14:55 / 15:05 / 15:10 / 15:15 (月-金)
+- emergency_alert.py DRY mode 実行成功
+  - router 経路: LINE_ROOM_EMERGENCY (空) → LINE_EMERGENCY_GROUP_ID (空) → LINE_USER_ID にフォールバック
+  - 解決された宛先: Ud6bfa86... (Fujiwara 個人 1:1 トーク)
+- 実 LINE 通知は送信せず、コードパス検証のみ
+- 次: 案 A (実機 LINE 通知テスト) 実行可否を Anthropic Claude (このチャット) で判断
