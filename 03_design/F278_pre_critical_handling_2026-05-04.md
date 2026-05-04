@@ -716,6 +716,40 @@ def aggregate_events(...) -> dict:
 - F241 Live Advisory: Advisory の出力可否判定が is_go 同型なら適用
 - F054 Paper Live tick: tick 結果の判定 (TickResult.status) が部分判定なら適用
 
+### §3.6.10 (補足) 設計意図と要件根拠の混同警戒 ★F241 で発見
+
+**問題**: 「環境固有プレフィックス」「ローカル設定前提」等の設計意図を理由に
+部分判定 (substring 一致 / 時刻のみ判定) を許容すると、要件根拠 (具体的な
+登録名 / 期待件数) を満たさない偽 PASS を生む。F271 §6-2 違反 + F058 is_go
+常時 NO-GO 化と対称的な「常時 OK 化」リスク。
+
+**設計原則**:
+- 設計意図 (= なぜそう実装するか) と要件根拠 (= 何を検証すべきか) を分離
+- 部分判定は「要件根拠の証明として不十分」が前提、デフォルト避ける
+- 環境固有性が必要な場合は「具体的な期待値セット」を定数化
+
+**判定基準**:
+- substring 一致 / 部分一致のみで判定 → 要件根拠の証明として不十分、CRITICAL 候補
+- 期待値セット (具体名 / 件数) を定数化していれば適切
+- 設計意図のコメントがあっても、要件根拠の証明性を別途確認
+
+**該当箇所**: F241 _has_bluefire_launchd 厳密化 (commit 後追補)
+- 旧: `"bluefire.fire" in proc.stdout` (部分一致、関連 plist だけで PASS)
+- 新: `EXPECTED_LAUNCHD_PLISTS = {jp.fire.emergency-1445/1455/1505/1510/1515}`
+  との厳密 set 比較
+- 旧: OpenClaw cron は schedule.expr の時刻のみ判定 (無関係ジョブで偽 PASS)
+- 新: command/script に "emergency_alert" / "scripts.emergency_alert" 含む
+  ジョブのみカウント
+
+**事前 grep の限界 6 度目実証**:
+- 本部が「設計意図 (環境固有プレフィックス) 維持」と判定したが誤り
+- F230 §3.6.11 で学んだ「コメントへの過信警戒」と同型の認知バイアス
+- F271 v1.2 アンチパターンとして追加検討候補
+
+**残り 1 件への適用方針**:
+- F054 Paper Live tick: 設計意図と要件根拠の分離を事前 grep に追加、
+  部分判定 / substring 一致 / 時刻のみ判定がないか厳密確認
+
 ### §3.6.11 state-ful システムの時系列順実行原則 ★F230 で発見
 
 **問題**: state-ful システム (仮想建玉・資金・履歴を保持する Paper Live 等) で
