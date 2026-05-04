@@ -2253,4 +2253,24 @@ F276 / F277 / F278 / F279 の着手前に議論記録を残し忘却リスクを
 - 起点: [[03_design/F275_similarity_optimization_complete_2026-05-04]] /
   [[03_design/task_completion_criteria]]
 
+## [2026-05-04] decision | F277 Phase 1 設計記録を作成
+
+F277 (paper_live 例外伝播設計 + マルチプロセス stale cache 対策) の
+Phase 1 中間報告と本部レビュー結果を Vault 化。
+
+- 作成: [[03_design/F277_phase1_design_2026-05-04]]
+- A: tick.py raise 対象は 4 箇所に確定。`_has_features` は外部 API 互換性で残存
+- B: PositionTracker `_insert_position` / `_update_position` 末尾で
+  `reset_trade_stats_cache()` を呼ぶ方針に確定
+- C: signature SQL 復活は `patterns/similarity.py`
+  `DEFAULT_SIGNATURE_TTL_SEC = 5.0` のみ。`reproducibility.py` に signature 関数復活なし
+- LINE 通知: `Room.SYSTEM` 主、建玉残あり時のみ `Room.EMERGENCY` 併送。
+  メッセージ本文は共通テンプレート
+- 個別銘柄エラー閾値: `tick_failure_threshold_per_run = 50`
+  (総銘柄数約 4,000 の 1.25% 超を構造的問題と判断)
+- sqlite3 例外階層: `sqlite3.DatabaseError` 配下を構造的エラーとして raise 対象にする方針。
+  `sqlite3.InterfaceError` は Phase 2 commit 1 着手時に既存 catch 粒度と合わせて最終確認
+
+Phase 2 commit 1 (A) は、既存 paper_live テスト全件 PASS の baseline を取得してから
+実装に着手する。
 
