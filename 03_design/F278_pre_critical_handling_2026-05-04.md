@@ -409,6 +409,7 @@ F236 で発見された新規パターン 3 件 + F116 で発見された §3.6.
 | §3.6.2 launchd env | F057 / F058 | cron 経由実行が絡むタスク (Scheduler / E2E smoke) |
 | §3.6.3 DB エラーレイヤ別 | F130-F140 / F054 | DB 操作が複雑なタスク (Risk / Paper Live tick) |
 | §3.6.5 戻り値 status 検証 | F119 / F230 / F241 / F054 / F277 残作業 | graceful 戻り値関数を呼ぶ側の検証要確認 |
+| §3.6.6 後知恵バイアス防止 | F230 / F241 / F054 / F277 残作業 | as_of_dt / 基準時刻フィルタの SQL 適用要確認 |
 
 各タスク着手時に事前 grep でパターン該当を確認、本部修正方針確認に含める。
 
@@ -461,6 +462,77 @@ result.n_sent += 1
   検証要確認
 - F054 Paper Live tick: position 更新の戻り値検証要確認
 - F277 残作業 (commit 2/3/4): cache invalidation 後の戻り値検証要確認
+
+### §3.6.6 後知恵バイアス (look-ahead bias) 防止 ★F119 で発見
+
+**問題**: 評価ロジックで「この時点までの情報で評価する」基準時刻 (例:
+`as_of_dt`) を引数で受け取るが、各 SQL の WHERE 条件で適用していないと、
+評価対象期間内で `as_of_dt` より後のデータが混入する。Replay / Paper Live
+の評価・提案が構造的に歪み、F271 §6-2 (動いた / 機能した混同) の重大違反。
+
+**設計原則**:
+
+- `as_of_dt` 等の基準時刻引数を受け取る関数は、**すべての SQL の WHERE 条件**
+  に適用必須
+- 動的データ (positions / results / features / observed_at) は基準時刻で
+  フィルタ
+- 静的データ (patterns 等の確定済みマスタ) はフィルタ不要 (ただし設計判断を
+  コメントで明示)
+
+**判定基準**:
+
+- 関数が「特定時刻までの情報で評価する」契約を持つ → 全 SQL に時刻フィルタ必須
+- フィルタ不要のデータは設計コメントで明示 (静的マスタ等)
+
+**検証方法**:
+
+- `as_of_dt` 境界値テスト必須 (`as_of_dt` より後のデータが除外されることを実証)
+- mock ではなく **実 DB に未来データを INSERT** して検証 (F271 §6-6 偽 PASS
+  見逃し回避)
+
+**該当箇所**: F119 `aggregators.py` (commit 予定、retroactive 同時)
+
+**実装パターン**:
+
+```python
+# Before (silent look-ahead bias)
+cursor = conn.execute(
+    """
+    SELECT COUNT(*) FROM paper_live_positions
+    WHERE run_id = ? AND DATE(entry_dt) BETWEEN ? AND ?
+    """,
+    (run_id, period_start.isoformat(), period_end.isoformat()),
+)
+
+# After (F119 commit)
+cursor = conn.execute(
+    """
+    SELECT COUNT(*) FROM paper_live_positions
+    WHERE run_id = ? AND DATE(entry_dt) BETWEEN ? AND ?
+      AND entry_dt <= ?
+    """,
+    (run_id, period_start.isoformat(), period_end.isoformat(),
+     as_of_dt.isoformat()),
+)
+```
+
+**TZ 考慮**:
+
+`as_of_dt` (UTC) と DB の dt (ISO 文字列、TZ あり) を比較する場合、
+SQL は文字列比較で動作する。同じ TZ 表記 (`+00:00` 等) なら辞書順で
+正確に比較できる。
+
+集計関数で `_resolve_period` が JST 換算で period を決める場合、
+`as_of_dt` (UTC) を JST date に変換してから period 算出するため、
+テストの `as_of_dt` は UTC 14:59:59 (= JST 23:59:59) のように設定する
+必要がある (F119 retroactive で発見)。
+
+**残り 7 件への適用方針**:
+
+- F230 Batch Replay: バックテストの基準時刻フィルタ必須、要確認
+- F241 Live Advisory: 推奨時刻基準の評価フィルタ必須、要確認
+- F054 Paper Live tick: tick 時刻基準のデータ参照、F277-B との関連
+- F277 残作業: cache 経由のデータ参照に基準時刻があるか要確認
 
 ---
 
