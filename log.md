@@ -1189,3 +1189,49 @@ market_prices_daily は 4452 銘柄キープ。
 Chain 再走 5 時間 = 約 11 時間で events>0 達成見込み。Run a (20 営業日)
 だけで先行確認すれば 1.5 + 0.5 時間で events>0 / events=0 の結論が出る。
 
+## [2026-05-04] milestone | F233 週次レビューテンプレ整備 完了
+
+Run a 再走中の並行作業として F233 (M-3〜M+3 週次レビューテンプレ整備、
+0.5 日タスク) を実施・完了。Fujiwara さんが毎週日曜夜 (or 月曜朝) に
+Obsidian で記入する週次レビュー用テンプレ一式を Vault 内に整備。
+
+### 経緯
+
+- F267 実装 (extract_features batch 化) + backfill 完了後、Run a (20 営業日)
+  再走中の空き時間を活用
+- 本来の成果物パスは `~/fire/docs/` だが、Obsidian で記入する運用上
+  Vault 内が適切と判断し `_templates/weekly_review/` 配下に作成
+- ~/fire 側は Run a 走行中のため一切触らず
+
+### 成果物
+
+- `_templates/weekly_review/weekly_review_template.md` — 本体テンプレ
+  (8 セクション: ステージ位置 / 開発進捗 / 運用成績 / データ・パイプライン
+  健全性 / リスク・ブロッカー / 学び・改善 / 来週計画 / メタ・ジャーナル)
+- `_templates/weekly_review/README.md` — 使い方・命名規則・Templater 対応・
+  TODO Excel 連携・データ取得 SQL
+- `_templates/weekly_review/examples/weekly_review_2026-05-04_W18.md` —
+  W18 (2026-04-27〜05-03) の記入例。F267 実装途中・Run a 再走中の
+  現状をそのまま反映
+
+### 設計判断 (主要 3 点)
+
+- **Stage 別の記入セクション目安をテンプレ冒頭にマトリクスで明示**:
+  Stage 0/1 で運用成績欄 (セクション 3) が空白になる挫折を防ぐ
+- **Obsidian core Templates plugin の `{{date:...}}` 構文採用**: Templater
+  未導入で動作。Templater 導入時の置換ルールも README 完備
+- **TODO Excel との結合は ID + Wikilink (`[[F267|F267]]`)**: 02_todo/ に
+  ノート未作成でもリンク切れで OK 運用
+
+### 次回実施
+
+- 初回運用日: 2026-05-10 (日) 夜 21:00 推奨 (Stage 3 開始前の現状から運用
+  開始するか、Stage 3 開始月 (M=0) からにするかは Fujiwara 判断)
+- 配置場所の確定: `_templates/weekly_review/` で問題なければ確定、別案
+  (`04_review/` のようなトップレベルカテゴリ作成) 検討余地あり
+
+### 関連
+
+- 元タスク: [[02_todo/F233_週次レビューテンプレ整備]]
+- 要件書: 第 32 章 / 第 38 章 / 第 40 章
+
