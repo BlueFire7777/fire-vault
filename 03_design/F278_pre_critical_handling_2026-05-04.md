@@ -412,6 +412,7 @@ F236 で発見された新規パターン 3 件 + F116 で発見された §3.6.
 | §3.6.6 後知恵バイアス防止 | F230 / F241 / F054 / F277 残作業 | as_of_dt / 基準時刻フィルタの SQL 適用要確認 |
 | §3.6.7-9 daemon パターン | F054 / F230 / F241 / F277 残作業 | SIGTERM ハンドラ / stale tick 防止 / 分割 sleep 要確認 |
 | §3.6.10 判定ロジックの判定基準完全性 | F230 / F241 / F054 | is_go / is_success 等の部分判定リスク確認 |
+| §3.6.11 state-ful 時系列順実行原則 | F241 / F054 | state-ful システムの時系列逆順実行による look-ahead bias 確認 |
 
 各タスク着手時に事前 grep でパターン該当を確認、本部修正方針確認に含める。
 
@@ -714,6 +715,60 @@ def aggregate_events(...) -> dict:
 - F230 Batch Replay: バックテストの成功判定が is_go 同型なら適用
 - F241 Live Advisory: Advisory の出力可否判定が is_go 同型なら適用
 - F054 Paper Live tick: tick 結果の判定 (TickResult.status) が部分判定なら適用
+
+### §3.6.11 state-ful システムの時系列順実行原則 ★F230 で発見
+
+**問題**: state-ful システム (仮想建玉・資金・履歴を保持する Paper Live 等) で
+時系列逆順実行 + 同一 run_id 維持を行うと、未来日の state が過去日に引き継がれる。
+SQL レベルの look-ahead bias を `as_of_dt` フィルタ (§3.6.6) で解消しても、
+state レベルで再導入される構造的問題。F271 §6-2 重大違反。
+
+F119 §3.6.6 で SQL レベル look-ahead bias を解消したが、F230 の「最新→過去
+順遡及 + 同一 run_id 貫通」設計で state レベル look-ahead bias が再導入されて
+いた事例。
+
+**設計原則**:
+
+- state-ful システムは時系列順 (過去→最新) で実行する
+- 順序を逆にする必要がある場合は、各時点で state リセット (新 run_id 等)
+- コメントで「look-ahead bias なし」と主張していても、**state 引き継ぎ構造を
+  実装で確認** する (Codex が設計意図と実装の矛盾を検出)
+
+**判定基準**:
+
+- `runner.tick(as_of_dt=...)` のような関数を時系列逆順で呼ぶ → 設計違反
+- バッチ実行で複数日を貫通する場合、各日の state 整合性を確認
+- 「古いデータ過学習回避」目的で逆順を選ぶ場合、state 影響を別途解消
+
+**該当箇所**: F230 `batch_replay.py` 順序変更 (commit `bb4d00d`)
+
+**実装パターン**:
+
+```python
+# Before (state レベル look-ahead bias)
+def list_business_days_descending(...) -> list[date]:
+    """end_date から遡って最新→過去の順で返却"""
+    # SQL: ORDER BY date DESC で最新 N 日取得
+    return [date.fromisoformat(d) for d in rows]  # descending
+
+# After (F230 commit bb4d00d)
+def list_business_days_chronological(...) -> list[date]:
+    """最新 N 日を時系列順 (過去→最新) で返却"""
+    # SQL は DESC (最新 N 日取得) のまま、Python 側で sorted() で ASC
+    return sorted(date.fromisoformat(d) for d in rows)  # chronological
+```
+
+**残り 2 件への適用方針**:
+
+- F241 Live Advisory: 状態保持の有無確認、time-series 順実行原則適用候補
+- F054 Paper Live tick: tick loop が state-ful そのもの、★最重要適用候補
+  (F230 と同じく仮想建玉・資金保持、tick の as_of_dt 順序を確認)
+
+**教訓 (F271 v1.2 提案候補)**:
+
+「コメント主張への過信警戒」: 「look-ahead bias なし」とコメントに書いて
+あっても、構造で実証されているか確認する。SQL レベルだけでなく state レベル
+も含めた多層的検証が必要。
 
 ---
 
