@@ -228,6 +228,62 @@ F271 §6-2 (exit code 0 偽成功) を回避するには、batch レベルでの
 
 ---
 
+## 3.5 graceful degradation 設計の取り扱い (F101 で確立)
+
+F101 retroactive commit で発覚した追加論点。一部の関数 (XBRL パース系) は
+**意図的に graceful degradation 設計** を採用しており、broad except
+を限定形に絞るか broad のまま維持するかの判断軸を整理。
+
+### graceful degradation の判定基準
+
+以下を全て満たす場合に graceful degradation 設計と認定:
+
+1. **コメント明記の意図的設計**
+   (例: xbrl_parser.py docstring「パース失敗時は raise せずに parse_error
+    を XbrlParseResult に格納 (degradation)」)
+2. **試行錯誤の前提**
+   (リトライ可能、失敗が予期事象、外部標準仕様の不確実性に依存)
+3. **失敗を記録して処理継続が運用上妥当**
+   (例: `xbrl_parse_error` カラムに記録、`success=False` で上位伝達、
+    複数 announcement のうち一部失敗は許容)
+
+### broad except を限定形に絞る vs broad 維持の判断軸
+
+| 状況 | 判断 | 例 |
+|---|---|---|
+| 例外型が網羅可能 (5 種程度以下) | **限定形に絞る** | xbrl_parser.py: zipfile.BadZipFile / KeyError / OSError / ValueError / ET.ParseError |
+| 例外型が多岐で網羅困難 | **broad 維持 + 構造的エラーのみ raise** | fetcher.py:423 (XBRL DL): requests / zipfile / OSError / ValueError 等多数、sqlite3.Error のみ raise に変更 |
+
+### sqlite3.Error 等の構造的エラーの原則
+
+graceful degradation 内でも以下は raise:
+
+- `sqlite3.Error` 全般 (DB 構造的エラー)
+- `JQuantsAuthError` / `JQuantsRateLimitError` (認証/レート制限)
+- 各 schema error (`MarketDataSchemaError` / `MaterialsSchemaError` 等)
+
+graceful 内 raise の実装パターン:
+
+```python
+try:
+    zip_bytes = client.fetch_xbrl_zip(xbrl_url)
+except sqlite3.Error:
+    raise  # 構造的エラーは graceful 内でも raise
+except Exception as e:
+    # graceful degradation: DB に xbrl_parse_error 記録
+    self._record_xbrl_error(announcement_id, str(e))
+```
+
+### F278-Pre 残り件で graceful degradation 採用可能性
+
+- **F260 OpenClaw agents**: ドキュメント主、graceful 採用低
+- **F230 Batch Replay**: 過去日付バッチ、リトライ可能性あり、graceful 検討
+- **F236 LINE 5 段階**: 通知失敗の扱い、graceful 採用可能性中
+
+各タスク着手時に上記判断軸を適用する。
+
+---
+
 ## 4. 残り 13 件への適用判断基準
 
 各 retroactive commit で Codex pre-commit hook が CRITICAL を出した場合の判断:
