@@ -2274,3 +2274,78 @@ Phase 1 中間報告と本部レビュー結果を Vault 化。
 Phase 2 commit 1 (A) は、既存 paper_live テスト全件 PASS の baseline を取得してから
 実装に着手する。
 
+## [2026-05-04] decision | F277 Phase 2-A commit 1 完了
+
+F277 Phase 2 commit 1 (A) として、paper_live tick 例外伝播設計、runner 集約
+catch、LINE SYSTEM/EMERGENCY 通知、個別銘柄エラー閾値処理を実装。
+
+- code commit: `fa771a8` (`feat(F277-A): tick.py 例外伝播設計 + 集約 catch + LINE 通知`)
+- pre-commit: Codex review 厳格通過 (`--no-verify` 不使用)
+- Codex review 1 回目 CRITICAL:
+  `_count_open_positions()` 失敗時に EMERGENCY が抑止される問題を指摘
+- 修正: 建玉数確認不能時は安全側に倒して SYSTEM + EMERGENCY 併送。
+  テンプレートは `※ 建玉確認不能: 監視機能停止中` を出力
+
+### 着手前 baseline
+
+- 指定コマンド `pytest tests/simulation/paper_live/ -v`:
+  `pytest` は PATH になく、`.venv/bin/python -m pytest tests/simulation/paper_live/ -v`
+  では `file or directory not found` (該当ディレクトリなし、0 collected)
+- 実在する paper_live 系 baseline:
+  `.venv/bin/python -m pytest tests/simulation/test_paper_live.py
+  tests/simulation/test_paper_live_batch_replay.py
+  tests/simulation/test_paper_live_positions.py
+  tests/simulation/test_paper_live_promotion.py
+  tests/simulation/test_paper_live_strict_integration.py
+  tests/simulation/test_tick_internals.py tests/simulation/test_scheduler.py
+  tests/simulation/test_live_advisory_check.py -v`
+  → 150 collected / 150 passed / 2.56s
+
+### sqlite3 例外境界
+
+- grep: `sqlite3.InterfaceError|sqlite3.Error|sqlite3.DatabaseError` は既存コードで hit なし
+- 採用: `sqlite3.Error` 配下を構造的エラーとして即 raise
+- 理由: `sqlite3.InterfaceError` は `DatabaseError` 配下ではないが DB API 層の
+  構造的エラーであり、tick 継続対象にしない方が安全
+
+### PositionTracker 4 経路 grep
+
+`grep -rn "INSERT INTO paper_live_positions|UPDATE paper_live_positions" ~/fire/`
+の結果、実装コードの hit は `simulation/paper_live/position.py` のみ。
+その他 hit はテスト fixture の直接 INSERT のみ。
+
+実装コード:
+- `simulation/paper_live/position.py:236` `INSERT INTO paper_live_positions`
+- `simulation/paper_live/position.py:259` `UPDATE paper_live_positions`
+
+テスト fixture hit:
+- `tests/notifications/test_emergency_alert.py`
+- `tests/evaluation/test_aggregators.py`
+- `tests/risk/test_loss_control.py`
+- `tests/agents/test_monitoring_alert.py`
+- `tests/evaluation/test_orchestrator.py`
+- `tests/simulation/test_tick_internals.py`
+- `tests/simulation/test_paper_live_promotion.py`
+
+### A 単独計測
+
+- `ReproducibilityEngine.evaluate()` 経由 per-call:
+  `dt=2026-05-01T09:00:00+09:00`, `n_calls=100`,
+  `total_sec=0.353853`, `per_call_ms=3.539`
+- failure 経路所要時間:
+  LINE dry-run SYSTEM + EMERGENCY 送信込み、`n_runs=20`,
+  `avg_failure_path_ms=1.365`, `max_failure_path_ms=1.657`
+
+### テスト
+
+- 新規/関連 targeted:
+  `tests/simulation/test_tick_failure.py tests/notifications/templates/test_error.py -v`
+  → 13 passed / 0.18s
+- paper_live + 新規:
+  `... test_tick_failure.py tests/notifications/templates/test_error.py -q`
+  → 163 passed / 2.56s
+- 全体:
+  `.venv/bin/python -m pytest` → 1066 passed / 1 failed。
+  失敗は既存 `tests/risk/test_execution_gate.py::TestF115Integration...` で、
+  F142 寄り直後制限が先に発火し期待 reason と異なるもの。F277-A 変更範囲外。
+
