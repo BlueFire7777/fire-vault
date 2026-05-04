@@ -101,7 +101,7 @@ weekly_review_YYYY-MM-DD_WNN.md
 
 ```markdown
 - [x] [[F267_features_pipeline|F267]]: extract_features batch モード + universe
-- [ ] [[F268|F268]]: announcements 過去 6 ヶ月遡及取得
+- [ ] [[F268_announcements_backfill|F268]]: announcements 過去 6 ヶ月遡及取得
 ```
 
 ノートが `02_todo/` に未作成でも記入可 (リンク切れ表示になるが、将来
@@ -203,7 +203,7 @@ cd ~/fire
 
 ## 月次レビューとの関係
 
-月初の月次レビュー ([[06_monthly/]]) は本週次レビュー 4〜5 件を集約して
+月初の月次レビュー (`06_monthly/` 配下、現状未作成) は本週次レビュー 4〜5 件を集約して
 書く。月次レビュー側で「今月の学び」を要件書 v3.x への反映候補として
 正式起票する流れ。
 
