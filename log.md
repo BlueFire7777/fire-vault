@@ -1617,4 +1617,57 @@ F266 再評価 → Stage 3 移行可否判断
 - F273 ステータス変更: 「実装中」→「完了 (期待値部分達成、F275 へ移管)」で OK?
 - 副案 F104 (regime 解禁) を F275 と並走させるか、F275 完了後に着手か?
 
+## [2026-05-04] decision | F274 Phase 1 完了 → 案 P3-A 強化版 (numpy + cache) 採用、Phase 2 GO 推奨
+
+- F274 (SimilarityEngine 最適化) Phase 1 (現状調査 + 案確定) 完了。
+  Phase 2 着手前に Fujiwara レビューを挟む (F271 § 5 二段確認制)。
+- per-pattern 0.58 ms 内訳実測: **SQL fetch_pattern_feature_vector が 98.4%
+  (2,833 ms)、Python similarity_score は 0.8% (22 ms)、SELECT * は 0.3%
+  (9 ms)**。1 pattern あたり 2 SQL × 4,709 件 = 9,418 query/search() が
+  真のボトルネック。
+- 3 案比較 (実測ベース):
+  - **案 P3-A 強化版 (推奨)**: キャッシュ + numpy 行列演算、per-call 2-3 ms、
+    Run a **約 56 分** (90 分以内達成)、工数 6h
+  - 副案 P3-A pure (numpy なし): 実測 per-call 26.6 ms、Run a **約 5 時間**
+    (目標未達だが実行可能、夜間投入向け)、工数 4h
+  - P3-B (SQL JOIN のみ、キャッシュなし): 推定 70-100 ms/call、Run a 14 時間、
+    不採用
+  - P3-C (numpy のみ、キャッシュなし): 起動コスト毎回かかり効果薄、不採用
+- 採用案 P3-A 強化版の理論計算:
+  - 起動時 load: 67 ms (1 SQL JOIN + group by) — 実測済
+  - per-call: vec_now SQL 1 ms + numpy 行列演算 1-2 ms = **約 5 ms** (バッファ込)
+  - 1 tick × 500 銘柄: 2.5 秒
+  - 1340 tick: **約 56 分**
+  - メモリ: 4,709 × 18 × 8 byte = 約 680 KB (許容)
+- Phase 2 着手前提リスク:
+  - numpy 導入 (`requirements.txt` 追加) — 科学計算標準、Dashboard でも必要
+  - キャッシュ無効化ロジック (seeder で patterns 増加時の再構築)
+  - 線形外挿楽観視の再発 → Phase 2-A/B/C 段階試走 (10 → 100 → 500 銘柄) で
+    per-call 線形性を確認、各段階合格基準 (5 ms 以内 / 線形性 ±20%) を事前定義、
+    未達なら Phase 2-D (Run a) には進まない
+- F271 § 5 二段確認制で Fujiwara レビュー待ち。
+
+### F271 完了基準による F274 Phase 1 自己評価
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | 現状コード読解完了、per-pattern 内訳を実測で立証 |
+| 機能した | ✅ | 案 P3-A 強化版が目標達成可能と理論+実測ベースで確定 |
+| 期待値達成 | ✅ | Phase 2 着手 GO/NO-GO 判断材料完備、Fujiwara レビュー材料揃う |
+
+### 関連
+
+- 詳細レポート: [[03_design/F274_phase1_design_2026-05-04]]
+- 直接の前提: [[03_design/F273_phase2bc_results_2026-05-04]]
+- 完了基準: [[03_design/task_completion_criteria]]
+
+### Fujiwara への確認事項 (Phase 2 着手前)
+
+- Phase 2 着手 GO? (案 P3-A 強化版採用)
+- numpy 導入を許容するか? (Stage 3 後の Dashboard でも必要)
+- 副案 P3-A pure を fallback として保留しておくか?
+- Phase 2 段階試走の合格基準 (Phase 2-A/B/C で per-call 5 ms / 線形性 ±20%) 同意?
+- Phase 2-D Run a 走行時間 56 分 ± 30% = 40〜75 分、超過時の中止判断は?
+- F271 § 6-5 (線形外挿楽観視) を完了基準仕様書に追記する起票案を Phase 2 完了後に検討?
+
 
