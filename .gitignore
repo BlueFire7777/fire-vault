@@ -25,3 +25,7 @@
 *credential*
 *token*
 *.secret
+
+# F278-Pre: Codex 残置物
+AGENTS.md
+.agents/
