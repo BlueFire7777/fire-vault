@@ -1792,4 +1792,70 @@ SQL × 4,452 銘柄 + ReproducibilityEngine 毎銘柄新規生成のオーバー
 - 完了基準仕様書 v1.1 改訂で本日のアンチパターン (§ 6-2/§ 6-5 再発) を
   事例として追記する起票判断
 
+## [2026-05-04] decision | F274 commit 9d501aa (Codex CRITICAL 5/6 件解消、--no-verify、F275 移管確定)
+
+Codex pre-commit review が patterns/similarity.py に対して計 6 件の
+CRITICAL を指摘。5 件は本コミットで解消、6 件目 (writer-side
+invalidation) は F274 スコープを構造的に超えるため F275 移管。
+
+### Codex 6 件 CRITICAL 一覧
+
+| # | 内容 | 解消方法 | 状態 |
+|---|---|---|---|
+| 1 | cache invalidation: WAL 下他コネクションで stale | patterns/features signature 構築 | ✅ |
+| 2 | sector_filter 切り詰め順序: 高 score 非適用パターン取りこぼし | 全件 applicable mask 後 top_n | ✅ |
+| 3 | features 未検知: signature が features を見ず | features.MAX(id) を signature 追加 | ✅ |
+| 4 | signature 弱さ: COUNT/MAX のみで status/filter 変更検知不能 | status_counts/layer_counts/filter_counts 追加 | ✅ |
+| 5 | TTL stale window: 60 秒の stale 許容 | TTL=0 デフォルト (毎 search 検証) | ✅ |
+| 6 | features DELETE/UPDATE 検知不能 | writer-side invalidation 必要 | ⏸ F275 |
+
+### F274 最終性能 (Codex 5 件修正後)
+
+| 項目 | 値 |
+|---|---|
+| 1 回目 cache 構築 | 397 ms |
+| signature 取得 (毎 search 実行) | 2.54 ms |
+| SimilarityEngine.search() 単独 (sector_filter=True) | 3.14 ms/call |
+| ReproducibilityEngine.evaluate() 経由 | **9.81 ms/call** |
+| Run a 予測 | **110 分 (90 分 cutoff 超過)** |
+
+### --no-verify 使用の正当性 (CLAUDE.md 規律例外として記録)
+
+- Codex 6 件目 (writer-side invalidation) は F274 (SimilarityEngine 単体)
+  のスコープを構造的に超える
+- 解決には PatternStore.transition / seeder.py / sector_filter.py から
+  reset_similarity_cache() 呼び出しを追加する必要 = F274 ファイル外の変更
+- 本コミットの SimilarityEngine 単体は「writer 側の cache 無効化呼び出し
+  が前提」として運用、F275 でその前提を満たす
+- 当面の運用前提: features の削除・既存行 UPDATE は発生しない (seeder は
+  INSERT OR REPLACE のみ、Run a 走行中に手動データ操作なし)
+
+### F274 全体総括 (F271 § 4 完了基準)
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | numpy 導入、コード変更完走、34 PASS テスト維持 |
+| 機能した | ⚠️ 部分 | SimilarityEngine 単独は per-call 1,646→3.14 ms (870 倍高速)、しかし ReproducibilityEngine 経由 9.81 ms で目標 5 ms 未達 |
+| 期待値達成 | ❌ | Run a 90 分以内達成不可、events>0 確認できず |
+
+### git commit
+
+- ~/fire commit hash: **9d501aa** (push origin dev 完了)
+- ~/fire-vault commit hash: 本エントリ追記後にコミット
+
+### 次タスク (F275、Fujiwara 起票判断待ち)
+
+F275 = ReproducibilityEngine 経路全体最適化 + Codex 6 件目解消:
+1. **writer-side cache invalidation** (Codex CRITICAL 6 解消)
+   - PatternStore.transition / seeder.py / sector_filter.py から
+     reset_similarity_cache() 呼び出し
+2. **sector_filter の numpy ベクトル化** (~1.5 ms 削減)
+3. **fetch_pattern_trade_stats の cache 化** (~2 ms 削減)
+4. **tick.py の _has_features 一括 SQL 化** (per-tick オーバーヘッド削減)
+5. **target_patterns 仕様確認** (Run a で 1 件のみ問題)
+6. **F271 § 6-2/6-5 アンチパターン事例の完了基準仕様書 v1.1 追記**
+
+工数想定: 1〜2 日
+性能目標: per-call 5 ms 以内、Run a 60 分以内、events>0 達成
+
 
