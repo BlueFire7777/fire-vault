@@ -1858,4 +1858,112 @@ F275 = ReproducibilityEngine 経路全体最適化 + Codex 6 件目解消:
 工数想定: 1〜2 日
 性能目標: per-call 5 ms 以内、Run a 60 分以内、events>0 達成
 
+## [2026-05-04] decision | F275 Phase 1 完了 → スコープ修正提案 (events 達成は F276 移管、Fujiwara レビュー待ち)
+
+F275 起票後 Phase 1 (現状計測 + スコープ確定) 完了。
+F274 で発生した「計測対象取り違え」アンチパターン再発防止のため、
+最初に運用経路 (ReproducibilityEngine.evaluate()) で cProfile 内訳実測。
+
+### Phase 1-A 結果 (per-call 9.58 ms / cProfile 12.12 ms)
+
+cProfile 上位 (50 calls 集計):
+- evaluate() ROOT: 12.12 ms/call (cProfile 込み)
+- similarity.search(): 6.86 ms (56.6%)
+- **sqlite execute 全 SQL: 5.48 ms (45.2%、40 SQL/call)**
+- fetch_pattern_feature_vector: 2.94 ms (top_match 5 件)
+- **sector_filter.is_applicable: 2.42 ms (235,000 calls = 4,700 × 50)**
+- _patterns_signature (TTL=0): 1.94 ms
+- fetch_pattern_trade_stats: 1.86 ms (top_match 5 件)
+- _compute_scores_vectorized (numpy): 0.74 ms
+
+→ 真のボトルネック: SQL 40 回/call、sector_filter Python loop 4,700 件/call
+
+### Phase 1-B 結果 (target_patterns 実体)
+
+- `tick.py:51` TickContext.target_patterns は metadata 専用
+- `extract_candidates()` で target_patterns を**参照していない**
+- ReproducibilityEngine / SimilarityEngine も引数として受けない
+- → **F273/F274 報告時の「1 件のみ問題」は誤検知、評価本体に影響なし**
+- F273 seed 4,700 件は既に SimilarityEngine の対象 (前回 events=0 と無関係)
+- → **F275 スコープ 5 (target_patterns 仕様確認・修正) は対応不要**
+
+### Phase 1-C 結果 (削減分配計画)
+
+スコープ別削減見込み:
+| スコープ | 内容 | 削減 |
+|---|---|---|
+| 1 | writer-side invalidation + TTL=0 撤廃 | -1.94 ms |
+| 2 | sector_filter numpy 化 | -1.5 ms |
+| 3 | trade_stats cache + top_match features 再取得撤廃 | -4.0 ms |
+| 4 | _has_features 一括 SQL | tick オーバーヘッド -0.3 秒/tick |
+
+→ per-call **9.81 ms → 約 1.5〜2.5 ms** (目標 5 ms 大幅達成)
+→ Run a **110 分 → 約 17〜25 分** (目標 60 分大幅達成)
+
+### Phase 1-C 重大発見 — events_total >= 50 達成不可能 (F275 スコープ外)
+
+72030/2026-04-30 評価実測:
+```
+score = 0.2*1.0 (similarity max)
+      + 0.25*0.5 (win_rate, positions 空 default)
+      + 0.2*0.5 (expected_value, default)
+      + 0.1*0.5 (regime_fit, F104 未稼働 default)
+      + 0.1*0.5 (fill_quality, default)
+      + 0.1*0.1867 (priority_boost, active=1 のみ)
+      + 0.05*0.7 (risk_fit)
+      = 0.5787 < SCORE_THRESHOLD_EXECUTE=0.65
+```
+
+→ **F275 で性能改善しても decision="execute" 到達不可能**
+→ events_total >= 50 達成には:
+  - positions テーブル seeding (Backtest 経由) → win_rate / expected_value 稼働
+  - F104 (regime collector 解禁) → regime_fit 稼働
+  - Layer 3 active 拡大 → priority_boost 強化
+
+### F275 スコープ修正提案
+
+**修正前** (元スコープ): 性能目標 + events_total >= 50 達成
+**修正後** (推奨): 性能目標のみ、events 達成は **F276 (新規)** へ移管
+
+修正後 F275 スコープ:
+1. ✅ writer-side cache invalidation (Codex CRITICAL 6)
+2. ✅ sector_filter numpy 化
+3. ✅ trade_stats cache + top_match features 再取得撤廃
+4. ✅ _has_features 一括 SQL
+5. ❌ target_patterns 不要 (Phase 1 で確定)
+6. ✅ F271 v1.1 改訂 (§ 6-2/6-5 事例 + § 6-6 新設)
+
+F276 (新規) スコープ:
+- positions seeding (Backtest 経由 = F040 既実装活用)
+- F104 (regime collector 解禁、副案で起票済)
+- Layer 3 active 拡大 (R-13-08 規律下で priority_boost 強化)
+- 工数 2〜3 日
+- これで events_total >= 50 / Stage 3 ブロッカー解消の道筋が見える
+
+### F271 完了基準による F275 Phase 1 自己評価
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | cProfile 計測完走、target_patterns 仕様調査完了 |
+| 機能した | ✅ | 運用経路 9.81 ms 内訳特定、target_patterns 影響なし確定、score 頭打ち理由確定 |
+| 期待値達成 | ✅ | スコープ修正提案 + 性能目標達成可能性立証 + events 不可能性発覚で F276 起票根拠 |
+
+### 関連
+
+- 詳細レポート: [[03_design/F275_phase1_design_2026-05-04]]
+- 完了基準: [[03_design/task_completion_criteria]]
+- F274 終結: 同 log.md 上方 `[2026-05-04] decision | F274 commit 9d501aa`
+
+### Fujiwara への確認事項 (Phase 2 着手前)
+
+1. **F275 スコープ修正同意?**: 性能目標のみに絞り、events 達成は F276 へ移管
+2. **F276 (新規) 起票同意?**: positions seeding + F104 + Layer 3 拡大の統合タスク
+3. **target_patterns 対応不要の確認**: F273/F274 報告時の「1 件のみ問題」は誤検知
+4. **Phase 2 段階試走の合格基準同意**:
+   - Phase 3-A (10 銘柄): per-call 2.5 ms 以内 (理論 1.5 ms ± 67%)
+   - Phase 3-B (100 銘柄): 線形性 ±20%
+   - Phase 3-C (500 銘柄): 1 tick 1.5 秒以内
+5. **Run a 走行判断**: 性能目標達成後に Run a を投入する場合 events=0 のまま予想 (17〜25 分で完走 → 失敗確認コスト軽微)。F276 完了後に投入する選択もあり
+6. **F275 修正後の完了水準**: 動いた + 機能した + 期待値達成 (性能目標のみ) を満たせば F275 完了、events は F276 で対応で OK?
+
 
