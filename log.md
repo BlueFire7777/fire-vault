@@ -2067,4 +2067,109 @@ F276 = positions seeding + F104 + Layer 3 拡大 = events_total >= 50 達成:
 3. F276 サブタスク分割 (F276-A/B/C) はどう切り分けるか?
 4. F271 v1.1 改訂内容 (§ 6-7/6-8) のレビュー
 
+## [2026-05-04] decision | F275 案 D 確定 commit (3a222cb) → --no-verify 例外承認 + F277 移管
+
+aab0aac vault push 後の Codex pre-commit 5 周目以降 (writer-side
+invalidation のマルチプロセス制限 + tick.py 例外伝播 + _TRADE_STATS_CACHE
+positions invalidation) が出ていたが、Fujiwara レビューで「F275 着手前
+からの既存問題 + 過剰防御」と判明したため、案 D で再 commit。
+
+### 案 D 確定の判断根拠 (調査結果、Fujiwara 承認)
+
+1. **CLAUDE.md 規律スコープ**: 「致命的指摘 → 修正完了まで commit しない」
+   は「自分の変更で導入した致命的指摘」が対象。F275 スコープ外の既存
+   問題は別タスクで対応可能。
+
+2. **Codex 5/6/7 周目指摘の本質**:
+   - tick.py の `_fetch_all_symbols / _fetch_symbols_with_features /
+     _fetch_ohlc / _has_features` の例外握り潰しは F275 着手前 (作業
+     ツリー、未 commit 状態) から存在する既存問題
+   - F275 では `logger.error()` 追加でむしろ改善 (沈黙 → ログ出力)
+   - 例外伝播 + `run status='failed'` DB 反映は F277 で本格設計
+
+3. **緊急クローズ通知漏れリスクの実態**:
+   - 現状運用 (Stage 0-2): batch_replay 単一プロセス、events=0 で
+     TP/SL/force_close 経路は動かず (F275 Run a 21 分で events=0 確認)
+   - LINE 緊急アラート (F236) は launchd plist 経由で別経路、
+     SimilarityEngine cache とは無関係
+   - → 現状実害なし、F277 で体系対応
+
+4. **signature SQL 復活は過剰防御**:
+   - 単一プロセス構成 (Stage 0-2、現状運用) では writer-side invalidation
+     で十分機能、stale cache 発生経路なし
+   - マルチプロセス (FIRE Runner Stage 3+) は F277 で対応
+   - aab0aac vault commit の Run a 21 分実測値は **正常な計測値**
+     (stale cache 許容ではない)
+
+### --no-verify 使用記録 (CLAUDE.md 規律例外)
+
+`scripts/hooks/pre-commit` line 534「`git commit --no-verify` (常用しない)」
+の例外として、Fujiwara 承認下で使用。F274 commit `9d501aa` に続く 2 回目の
+例外。F275 commit hash: **3a222cb** (push origin dev 完了)。
+
+両ケース共通で「Codex review 指摘が本タスクスコープを構造的に超える」が
+共通根拠。F274 では writer-side invalidation 自体が F275 へ移管、F275 では
+例外伝播 + マルチプロセス対策が F277 へ移管。
+
+### F275 commit 内容 (3a222cb)
+
+実装スコープ:
+- Phase 2-A: writer-side cache invalidation (PatternStore / FeatureWriter / seeder)
+- Phase 2-B: sector_filter numpy 化 (4,700 件 Python loop → 0 件)
+- Phase 2-C: trade_stats cache + top_match features 再取得撤廃
+- Phase 2-D: tick.py _has_features 一括 SQL + logger 例外記録
+
+性能改善 (運用経路 ReproducibilityEngine.evaluate() 実測):
+- per-call: 9.81 → 3.13 ms (-68%)
+- 1 tick × 500 銘柄: 4.9 → 約 1.6 秒 (-67%)
+- Run a 1340 tick 予測: 35 分 (aab0aac の実測 21 分は stale cache 許容
+  ではなく、writer-side invalidation で正常動作した正常な計測値)
+- 既存テスト 550 PASS 維持
+
+### F277 (新規) スコープ
+
+F275 で残した課題を体系的に解消する後続タスク:
+
+1. **F277-A**: tick.py 例外伝播設計
+   - `_fetch_ohlc` / `_fetch_all_symbols` / `_fetch_symbols_with_features` /
+     `engine.evaluate` の `except Exception` を sentinel return から
+     例外伝播 + caller catch + run status='failed' DB 反映に変更
+   - F236 緊急アラート連携で「tick 失敗 → LINE 警告」経路を追加
+
+2. **F277-B**: positions 書き込み経路からの reset_trade_stats_cache() 統合
+   - PaperLivePositionTracker._insert_position / _update_position 末尾で
+     `reset_trade_stats_cache()` を呼出
+   - tick.py の TP/SL/force_close 後の cache invalidate を保証
+   - Stage 3+ で events 発生開始時の stale 防止
+
+3. **F277-C**: マルチプロセス stale cache 対策
+   - FIRE Runner (Stage 3+) で SimilarityEngine cache が複数プロセス間で
+     不整合になるリスクへの対策
+   - 案: signature SQL 復活 (低 TTL) / shared memory (mmap) /
+     Redis-like cache server / etc
+   - Stage 3 移行前に決定
+
+工数想定: **1〜2 日** (Stage 3 移行前に着手必要)
+
+### F271 完了基準による F275 自己評価 (案 D 確定後)
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | 4 スコープ実装 + 550 PASS + Run a 完走 (aab0aac 21 分実測 + 案 D 復元 35 分予測) |
+| 機能した | ✅ | per-call 3.13 ms / 1 tick 1.6 秒、運用経路 (ReproducibilityEngine.evaluate()) で計測、F271 § 6-8 厳守 |
+| 期待値達成 | ✅ | Run a 60 分以内達成 (35 分予測、aab0aac の 21 分実測値も併記)、Stage 3 性能ブロッカー解消、events_total=0 は F275 スコープ外 (F276 で対応) |
+
+### 関連
+
+- ~/fire commit hash: **3a222cb** (push origin dev 完了)
+- ~/fire-vault commit hash: aab0aac (F275 完了レポート + 仕様書 v1.1)
+- 詳細レポート: [[03_design/F275_similarity_optimization_complete_2026-05-04]]
+- 完了基準 v1.1: [[03_design/task_completion_criteria]]
+
+### 次タスク (Fujiwara 起票判断待ち)
+
+- **F276**: events_total >= 50 達成 (positions seeding + F104 + Layer 3 拡大)
+- **F277**: paper_live 例外伝播設計 + マルチプロセス stale cache 対策
+- F278/F279: ID 整理で 1 個ずらし (元 F277 → F278、元 F278 → F279)
+
 
