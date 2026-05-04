@@ -485,6 +485,15 @@ F278-Pre スコープ外として F278 本体で対応する事項:
 - **CLAUDE.md 完了表更新ワークフロー再整備**
   : タスク完了時に「実装ファイル commit 確認」を組み込む。
 - **dev → main merge 戦略整備 + tag**
+- **TODO Excel 乖離問題の解消** (F111 着手時に発見、2026-05-05 追加)
+  : Mac mini Vault 内 `02_todo/FIRE_開発TODO_v9.xlsx` (2026-04-26 更新、F243 まで)
+    と Fujiwara 手元最新版 `FIRE_開発TODO_v9_20_F274-F279追加.xlsx` の乖離。
+    F111 retroactive commit 時に AI ファンダ統合構想の起票 ID 確認で発覚した
+    構造的問題。
+    - Vault 内 v9.xlsx を最新版に同期する手順整備
+    - Vault 内 Excel と Fujiwara 手元 Excel の同期ルール (どちらをマスター)
+    - Mac mini Claude Code から最新版 ID を参照する手段 (運用アクセス確保)
+    - ファイル名規約統一 (`v9_20` → `v9.20` 等の SemVer 系命名)
 
 ### F271 v1.2 改訂候補 (F278 本体で検討)
 
