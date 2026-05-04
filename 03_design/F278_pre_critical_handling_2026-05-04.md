@@ -398,17 +398,69 @@ except sqlite3.Error as e:
     raise  # Stage 0-2: launchd に委ねる
 ```
 
-### §3.6.4 残り 10 件への適用方針
+### §3.6.4 残り適用方針 (パターン → 検討タスクの対応表)
 
-F236 で発見された新規パターン 3 件は、以下のタスクで適用検討:
+F236 で発見された新規パターン 3 件 + F116 で発見された §3.6.5 を含めた
+適用検討マッピング:
 
 | パターン | 適用検討タスク | 理由 |
 |---|---|---|
 | §3.6.1 Stage 別 layer | F119 / F230 / F241 | Stage 3 移行で挙動変更が必要 (Evaluation/Batch Replay/Live Advisory) |
 | §3.6.2 launchd env | F057 / F058 | cron 経由実行が絡むタスク (Scheduler / E2E smoke) |
 | §3.6.3 DB エラーレイヤ別 | F130-F140 / F054 | DB 操作が複雑なタスク (Risk / Paper Live tick) |
+| §3.6.5 戻り値 status 検証 | F119 / F230 / F241 / F054 / F277 残作業 | graceful 戻り値関数を呼ぶ側の検証要確認 |
 
 各タスク着手時に事前 grep でパターン該当を確認、本部修正方針確認に含める。
+
+### §3.6.5 戻り値 status 検証 (silent fail 防止) ★F116 で発見
+
+**問題**: graceful degradation 設計で `status=ok / status=error` を戻り値辞書で
+返却するパターンを採用した時、呼び出し側が status を検証しないと silent fail
+発生。例外なしで処理継続 → 「送信済」と誤認 → 利確/損切指示等の永久欠落リスク。
+
+**設計原則**:
+
+- graceful 戻り値関数 (status を辞書で返却) を呼ぶ側は必ず status 検証
+- status が `("ok", "dry_run")` 等の成功扱い値以外なら失敗処理
+  (リトライ / アラート / 記録)
+- duplicate 記録や「送信済」フラグ更新は status 成功時のみ実施
+
+**判定基準**:
+
+- 呼び出し関数が graceful 戻り値関数を使用 → status 検証必須
+- status を見ずに副作用 (duplicate 記録 / フラグ更新) を実行 → CRITICAL
+
+**該当箇所**: F116 `_send_to_execution_room` (commit `e1b360a`)
+
+**実装パターン**:
+
+```python
+# Before (silent fail リスク)
+self._send_to_execution_room(message)  # status を見ない
+self._record_notified(...)  # 失敗でも duplicate 記録される
+result.n_sent += 1
+
+# After (F116 commit e1b360a)
+send_result = self._send_to_execution_room(message)
+status = (
+    send_result.get("status")
+    if isinstance(send_result, dict) else None
+)
+if status not in ("ok", "dry_run"):
+    result.n_failed += 1
+    result.failed_events.append({...})
+    continue  # duplicate 記録なし、再試行可能性を保つ
+self._record_notified(...)  # 成功時のみ
+result.n_sent += 1
+```
+
+**残り 8 件への適用方針**:
+
+- F119 Evaluation 3 Phase: 評価結果を辞書で返却するパターン要確認
+- F230 Batch Replay / F241 Live Advisory: graceful 戻り値関数呼び出し側の
+  検証要確認
+- F054 Paper Live tick: position 更新の戻り値検証要確認
+- F277 残作業 (commit 2/3/4): cache invalidation 後の戻り値検証要確認
 
 ---
 
