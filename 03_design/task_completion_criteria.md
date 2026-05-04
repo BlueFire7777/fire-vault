@@ -1,7 +1,7 @@
 ---
 type: spec
 id: task_completion_criteria
-version: v1.0
+version: v1.1
 created: 2026-05-04
 updated: 2026-05-04
 related_task: F271
@@ -10,8 +10,8 @@ tags: [spec, completion_criteria, governance]
 
 # タスク完了基準仕様書 (Task Completion Criteria)
 
-**バージョン**: v1.0 (2026-05-04 制定)
-**起票タスク**: [[F271_タスク運用ルール改訂|F271]]
+**バージョン**: v1.1 (2026-05-04 改訂、§ 6-7/6-8 追加 by F275)
+**起票タスク**: [[F271_タスク運用ルール改訂|F271]] / [[F275_SimilarityEngine_optimization|F275]]
 **位置付け**: タスク運用ルール.md `§ 8. タスク完了基準 (2026-05-04 v1.0)` の
 詳細仕様書
 
@@ -408,6 +408,75 @@ positions の件数) を確認していない。
 > は events=0 由来の **偽 PASS** (optimistic_bias_score=0.000、評価対象
 > なし)。実質 0/5 PASS と扱う。
 
+### 6-7. 「線形外挿で楽観視」 (v1.1 追記、F273/F274 事故から制定)
+
+**NG 例**:
+
+> 13 件の patterns で per-call 8 ms (smoke test 完走)。
+> 4,700 件にしても線形に増えるはずだから、Run a 全体 91 分 × 360 倍 =
+> 大丈夫でしょう、Phase 2-B 進行します。
+
+**原因**: 小規模試走の所要時間を線形外挿し、性能オーダーの破綻を検証
+していない。実際は O(N) スキャンで 4,700/13 = 360 倍 = 21 日に膨張する
+ケースを想定外にしている。
+
+**事例**:
+
+- **F273 Phase 2-C** (2026-05-04 朝): patterns 13 件で per-call 0.58 ms
+  を確認 → 4,700 件にしたら 2,733 ms/call、Run a 全体 21 日見積と判明、
+  走行前中止
+- **F274 Phase 2-D** (2026-05-04 夕): SimilarityEngine 単独 1.5 ms から
+  「Run a 17 分」と外挿 → 実 ReproducibilityEngine 経由は 9.81 ms、Run a
+  102 分で中止
+
+**正例**:
+
+> 13 件 per-call 0.58 ms。4,700 件で **理論的に 2,733 ms/call** (O(N) 線形
+> スキャンの場合) → Run a 全体 21 日見積。**走行前中止**、最適化必須。
+> 段階試走 (10 → 100 → 500 件) で per-call が銘柄数依存 (線形 N) か独立
+> (定数) かを実測してから本走行する。
+
+**原則**:
+
+- 性能オーダー (O 記法) を **理論計算してから** 実装に入る
+- 段階試走で per-call の **線形性** (10 銘柄時 ≒ 100 銘柄時 ≒ 500 銘柄時)
+  を確認、±20% 超過は警告
+- 実用可能ライン (Run a 90 分以内 等) を事前定義し、未達なら別案検討
+
+### 6-8. 「計測対象の取り違え」 (v1.1 追記、F274 事故から制定)
+
+**NG 例**:
+
+> SimilarityEngine.search() の per-call 1.5 ms 達成、Run a 17 分で完走
+> 確実です。
+
+**原因**: 計測対象が運用で支配的な経路ではなく、サブモジュール単独。
+本番ループで呼ばれるのは ReproducibilityEngine.evaluate() であり、
+SimilarityEngine.search() はその一部に過ぎない。
+
+**事例**:
+
+- **F274 Phase 2-A/B/C** (2026-05-04 夕): SimilarityEngine.search() の
+  per-call 1.5 ms を測って合格判定 → 実 Run a で per-tick 4.57 秒 (期待
+  2.5 秒の 1.83 倍) で中止判断。本来計測すべきは ReproducibilityEngine.
+  evaluate() 経由 (9.81 ms)、追加 SQL (fetch_pattern_trade_stats × 5 +
+  sector_filter × 4,700) を考慮していなかった
+
+**正例**:
+
+> ReproducibilityEngine.evaluate() (運用経路) で cProfile 内訳測定:
+> per-call 9.81 ms、内訳 SQL 40 回 + sector_filter Python loop 4,700 回。
+> SimilarityEngine 単独 (3.14 ms) は補助情報として扱い、F275 で
+> 運用経路のボトルネックを特定して -7.58 ms 削減 → 2.23 ms/call 達成。
+
+**原則**:
+
+- **最終的に運用で呼ばれる経路** で計測する (本タスク以外で呼ばれる
+  サブモジュール単独計測は補助情報のみ)
+- エンドツーエンドの実測値で目標達成判定する
+- 計測前に「**この計測値は本番で実際に支配的な経路の値か**」を自問する
+- cProfile などのプロファイラで内訳を取り、隠れたコストを発見する
+
 ---
 
 ## 7. 既存タスクへの遡及適用
@@ -432,6 +501,7 @@ positions の件数) を確認していない。
 | 版 | 日付 | 主な変更 | 起票 |
 |---|---|---|---|
 | v1.0 | 2026-05-04 | 新規制定 (events=0 事故 + F233 完了基準甘さ事故から起票) | F271 |
+| v1.1 | 2026-05-04 | § 6-7「線形外挿で楽観視」+ § 6-8「計測対象の取り違え」追加 (F273 Phase 2-C / F274 Phase 2-D の 2 連続再発から制定) | F275 |
 
 ### 改訂方針
 

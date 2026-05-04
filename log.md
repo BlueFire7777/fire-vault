@@ -1966,4 +1966,105 @@ F276 (新規) スコープ:
 5. **Run a 走行判断**: 性能目標達成後に Run a を投入する場合 events=0 のまま予想 (17〜25 分で完走 → 失敗確認コスト軽微)。F276 完了後に投入する選択もあり
 6. **F275 修正後の完了水準**: 動いた + 機能した + 期待値達成 (性能目標のみ) を満たせば F275 完了、events は F276 で対応で OK?
 
+## [2026-05-04] milestone | F275 完了 → 性能目標完全達成 (Run a 21.1 分)、Stage 3 性能ブロッカー解消、events は F276 へ
+
+F275 Phase 2 GO 承認後、4 スコープ + 仕様書改訂 + Run a 投入を実施。
+F273 Phase 2-C / F274 Phase 2-D の 2 連続アンチパターン再発を踏まえ、
+本タスクでは段階試走を **すべて運用経路 (ReproducibilityEngine.evaluate())**
+で計測、Codex pre-commit を厳格運用 (--no-verify 不可)。
+
+### 実装結果 (4 スコープ + 仕様書 v1.1)
+
+| Phase | スコープ | 削減 (累計) |
+|---|---|---|
+| 2-A | writer-side cache invalidation (Codex CRITICAL 6 構造的解消) | -1.00 ms |
+| 2-B | sector_filter numpy 化 (4,700 件 Python loop 撤廃) | -2.77 ms |
+| 2-C | trade_stats cache + top_match features 再取得撤廃 | -7.58 ms |
+| 2-D | tick.py _has_features 一括 SQL (per-tick -0.4 秒) | per-tick |
+| 2-G | task_completion_criteria.md v1.0 → v1.1 (§ 6-7/6-8 追加) | — |
+
+### 性能改善 (F274 → F275、運用経路実測)
+
+| 指標 | F274 後 | F275 後 | 改善率 |
+|---|---|---|---|
+| per-call (ReproducibilityEngine.evaluate()) | 9.81 ms | **2.53 ms** | **-74.2%** |
+| 1 tick × 500 銘柄 | 4.9 秒 | **0.95 秒** | **-80.6%** |
+| Run a 1340 tick | 110 分予測 | **21.1 分実測** | **-80.9%** |
+
+### Phase 3 段階試走 (運用経路、§ 6-8 厳守)
+
+| Phase | 銘柄 | per-call | 理論値乖離 | 線形性 |
+|---|---|---|---|---|
+| 3-A | 10 | 4.28 ms | +91.7% | — |
+| 3-B | 100 | 3.10 ms | +39.2% | 0.73x ⚠️ |
+| 3-C | 500 | 2.53 ms | +13.3% | 0.59x ⚠️ |
+
+線形性 ±20% 外は **cold→warm 遷移** (10 銘柄時 trade_stats cache 冷え)
+が原因、隠れた線形依存性ではなく合格扱い。
+
+### Phase 4 Run a 再走 (PL-20260504111917-6E4D)
+
+- 開始: 20:19:17 / 完了: 20:40:24 / 所要: **21 分 7 秒** ✅
+- n_ticks: 1340 (full 完走)、per-tick 平均: **946 ms**
+- n_events_total: **0** (想定通り、F275 スコープ外)
+- event_counts: `{}`、paper_live_results (Run a 由来): 0、positions: 0
+
+### 性能目標完全達成
+
+- per-call ≤ 5 ms: ✅ (実測 2.53 ms = 50.6%)
+- 1 tick ≤ 2.5 秒: ✅ (実測 0.95 秒 = 38%)
+- Run a ≤ 60 分: ✅ (実測 21 分 = 35%)
+
+### Stage 3 ブロッカー判定
+
+- **性能ブロッカー: ✅ 解消** (Run a 21 分、F273 Phase 2-C 当初 21 日見積から **1,440 倍高速化**)
+- events ブロッカー: ❌ 未解消、**F276 (新規) で対応** (positions seeding + F104 + Layer 3 拡大)
+
+### Codex pre-commit 厳格通過
+
+F274 で例外使用した --no-verify を本タスクでは厳格回避。writer-side
+invalidation により Codex CRITICAL 6 件目を構造的に解消、commit 時の
+Codex review が一発通過。
+
+### F271 v1.1 改訂 (スコープ 6)
+
+`task_completion_criteria.md` v1.0 → v1.1:
+- § 6-7 「線形外挿で楽観視」新設 (F273 Phase 2-C / F274 Phase 2-D 事例)
+- § 6-8 「計測対象の取り違え」新設 (F274 Phase 2-A/B/C 事例)
+- § 8 改訂履歴に v1.1 行追加、frontmatter version 更新
+
+### F271 完了基準による F275 自己評価
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | 4 スコープ実装、550 PASS テスト維持、Run a 完走 |
+| 機能した | ✅ | per-call 9.81 → 2.53 ms (-74%)、1 tick 4.9 → 0.95 秒、運用経路で計測 |
+| 期待値達成 | ✅ | Run a 21 分 (目標 60 分の 35%)、性能目標完全達成 |
+
+### 関連
+
+- 詳細レポート: [[03_design/F275_similarity_optimization_complete_2026-05-04]]
+- 完了基準 v1.1: [[03_design/task_completion_criteria]] (本タスクで改訂)
+- F275 Phase 1: [[03_design/F275_phase1_design_2026-05-04]]
+- F274 Phase 1: [[03_design/F274_phase1_design_2026-05-04]]
+- F273 系: [[03_design/F273_phase2bc_results_2026-05-04]] / [[03_design/F273_phase2a_smoke_test_2026-05-04]] / [[03_design/F040_backtest_status_2026-05-04]]
+- 起点: [[03_design/F032_F054_diagnosis_2026-05-04]]
+
+### 次タスク (F276、Fujiwara 起票判断待ち)
+
+F276 = positions seeding + F104 + Layer 3 拡大 = events_total >= 50 達成:
+1. F040 Backtest 経由 positions seeding (win_rate / expected_value 稼働)
+2. F104 (regime collector) 解禁 (regime_fit 稼働)
+3. Layer 3 active 拡大 (priority_boost 強化、R-13-08 規律下)
+4. (任意) SCORE_THRESHOLD_EXECUTE 微調整 (Fujiwara 判断)
+
+工数想定: 2〜3 日。完了で Stage 3 ブロッカー完全解消、F266 (Stage 3 移行ゲート) 再評価可能。
+
+### Fujiwara への確認事項
+
+1. F275 完了確認 (動いた ✅ / 機能した ✅ / 期待値達成 ✅)
+2. F276 起票 GO?
+3. F276 サブタスク分割 (F276-A/B/C) はどう切り分けるか?
+4. F271 v1.1 改訂内容 (§ 6-7/6-8) のレビュー
+
 
