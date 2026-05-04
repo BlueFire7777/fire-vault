@@ -411,6 +411,7 @@ F236 で発見された新規パターン 3 件 + F116 で発見された §3.6.
 | §3.6.5 戻り値 status 検証 | F119 / F230 / F241 / F054 / F277 残作業 | graceful 戻り値関数を呼ぶ側の検証要確認 |
 | §3.6.6 後知恵バイアス防止 | F230 / F241 / F054 / F277 残作業 | as_of_dt / 基準時刻フィルタの SQL 適用要確認 |
 | §3.6.7-9 daemon パターン | F054 / F230 / F241 / F277 残作業 | SIGTERM ハンドラ / stale tick 防止 / 分割 sleep 要確認 |
+| §3.6.10 判定ロジックの判定基準完全性 | F230 / F241 / F054 | is_go / is_success 等の部分判定リスク確認 |
 
 各タスク着手時に事前 grep でパターン該当を確認、本部修正方針確認に含める。
 
@@ -634,6 +635,85 @@ if self.sleep_until_next_tick:
     if self._stop_requested:
         break
 ```
+
+### §3.6.10 判定ロジックの判定基準完全性 ★F058 で発見
+
+**問題**: 「Go/No-Go」「成功/失敗」等の判定関数で、判定に必要な要素を全て参照
+していない場合、特定条件下で常時誤判定 (例: 常時 NO-GO 化、常時 OK 化) する。
+F271 §6-2 (動いた / 機能した混同) の典型違反。
+
+F058 で発覚したパターン:
+- `is_go(session_result)` が session_result のみ参照 → readiness / events /
+  promotion が 0 件でも GO 出力リスク
+- 加えて `aggregate_events` に `events_total` 不在で `is_go(events=events)`
+  時に常時 NO-GO 化 (集計関数と判定関数の戻り値構造の不整合)
+
+**設計原則**:
+
+- 判定関数は判定に関わる **全要素** を引数として受け取る
+- 部分情報のみで判定する場合は「未確定」「保留」等の中間状態を返す
+- 後方互換のために Optional 引数とする場合、**全要素 None 時の挙動を明示**
+- 集計関数 → 判定関数のデータフローで、戻り値構造の不整合がないか確認
+
+**判定基準**:
+
+- `is_go` / `is_success` / `is_valid` 等の判定関数 → 判定要素の網羅性確認必須
+- 判定要素を集計関数等に依存する場合、集計関数の戻り値構造を確認
+- 判定基準を「session_result のみ」のような部分情報で行うのは CRITICAL
+
+**該当箇所**: F058 `is_go` 判定 + `aggregate_events` events_total
+(commit `f4754c4`)
+
+**実装パターン**:
+
+```python
+def is_go(
+    session_result: dict,
+    readiness: Optional[dict] = None,
+    events: Optional[dict] = None,
+    promotion: Optional[dict] = None,
+) -> bool:
+    """全要素 AND で判定 (Optional 引数は後方互換)"""
+    session_ok = (
+        len(session_result.get("errors", [])) == 0
+        and session_result.get("tick_count", 0) > 0
+        and not session_result.get("stopped_by_request", False)
+    )
+    if not session_ok:
+        return False
+
+    if readiness is not None:
+        if (readiness.get("market_listings", 0) <= 0
+                or readiness.get("features_for_date", 0) <= 0
+                or ...):
+            return False
+
+    if events is not None and not events.get("events_total"):
+        return False
+
+    if promotion is not None and "error" in promotion:
+        return False
+
+    return True
+```
+
+集計関数側の補完:
+
+```python
+def aggregate_events(...) -> dict:
+    return {
+        "events_by_type": events_by_type,
+        # 判定関数で参照される集計値を露出
+        "events_total": sum(events_by_type.values()),
+        ...
+    }
+```
+
+**残り 3 件への適用方針**:
+
+- F230 Batch Replay: バックテストの成功判定が is_go 同型なら適用
+- F241 Live Advisory: Advisory の出力可否判定が is_go 同型なら適用
+- F054 Paper Live tick: tick 結果の判定 (TickResult.status) が部分判定なら適用
 
 ---
 
