@@ -284,6 +284,134 @@ except Exception as e:
 
 ---
 
+## 3.6 F236 で発見された新規パターン (3 件)
+
+F236 retroactive commit で Codex pre-commit が連続発覚した新規 CRITICAL を
+分類。F100/F101 で確立した「broad except / pydantic / silent success」とは
+異なる、運用ステージや実行環境に絡む構造的問題。
+
+### §3.6.1 Stage 別 layer ハンドリング
+
+**問題**: 仮想ポジション数 = 0 を「建玉なし」と即断する設計は、Stage 3
+(Live Advisory) 移行後に実建玉が楽天証券側に存在する場合 silent suppress
+の致命リスク。FIRE 内部 0 件 ≠ 実建玉 0 件。
+
+**設計原則**:
+
+- `OPERATIONAL_STAGE = m0/m1/m2_plus` では count = 0 でも通知
+- メッセージに「FIRE 認識 0 件、楽天確認」を併記
+- paper_live モード (Stage 0〜2) では従来通り skip
+
+**判定基準**:
+
+| 運用ステージ | 内部状態の信頼性 | count=0 時の挙動 |
+|---|---|---|
+| Stage 0〜2 (paper_live) | 内部状態を信用 | skip OK |
+| Stage 3 以降 (m0/m1/m2_plus) | 内部状態を疑う | 通知必須 (人間確認を促す) |
+
+**該当箇所**: F236 `scripts/emergency_alert.py` (Stage 別分岐)
+
+**実装パターン**:
+
+```python
+STAGE3_OPERATIONAL_MODES = frozenset({"m0", "m1", "m2_plus"})
+
+def _is_stage3() -> bool:
+    return os.getenv("OPERATIONAL_STAGE", "paper_live") in (
+        STAGE3_OPERATIONAL_MODES
+    )
+
+# send_emergency_alert 内
+if n_open == 0 and not _is_stage3():
+    return {"status": "skipped", ...}
+if n_open == 0 and _is_stage3():
+    message += "\n※ FIRE 認識 0 件、実建玉は楽天証券で確認してください"
+```
+
+### §3.6.2 launchd / cron 経由実行時の env ロード
+
+**問題**: launchd plist の `EnvironmentVariables` に `PYTHONPATH` のみ設定し、
+`LINE_*` / `DB_PATH` / `FIRE_HOME` 等が読まれない。秘密情報を plist に書くのは
+禁忌 (logs に出る、git tracked 化リスク等)。
+
+**設計原則**:
+
+- plist 側は `PYTHONPATH` / `WorkingDirectory` のみ
+- Python 側で `from utils.config import Config` import 時に
+  `load_dotenv()` で `.env` 自動ロード
+- 秘密情報は `.env` のみで管理、plist には書かない
+
+**該当箇所**: F236 `docs/launchd/*.plist` + `scripts/emergency_alert.py` +
+`utils/config.py:14-20`
+
+**実装パターン**:
+
+```python
+# scripts/emergency_alert.py 冒頭
+from utils.config import Config  # noqa: F401  -- dotenv 自動ロード起動
+```
+
+```xml
+<!-- plist 側 -->
+<key>EnvironmentVariables</key>
+<dict>
+    <key>PYTHONPATH</key>
+    <string>/Users/bluefire/fire</string>
+</dict>
+```
+
+### §3.6.3 DB エラー時のレイヤ別ハンドリング (3 層分離)
+
+**問題**: DB 不調時の例外処理を単一レイヤで扱うと、Stage 3 で「建玉数不明 +
+楽天確認」緊急通知が silent fail する。逆に Stage 0〜2 で raise しすぎると
+launchd の再試行機構が機能しない。
+
+**設計原則 (3 層分離)**:
+
+| レイヤ | 関数 | 挙動 |
+|---|---|---|
+| Layer 1 | `count_open_positions` | `sqlite3.Error` は raise (構造的エラーは隠さない) |
+| Layer 2 | `send_emergency_alert` | catch、Stage 別に分岐 |
+| Layer 3 | `main` (launchd 起動点) | 致命エラー catch、stack trace ログ記録 |
+
+**Layer 2 の Stage 別分岐**:
+
+- Stage 3 (m0/m1/m2_plus): 「建玉数不明 + 楽天確認」緊急通知
+- Stage 0〜2 (paper_live): raise (launchd 次回 cron で再試行、R-22-09)
+
+**該当箇所**: F236 `scripts/emergency_alert.py` (3 層分離)
+
+**実装パターン**:
+
+```python
+# Layer 2: send_emergency_alert
+try:
+    n_open = count_open_positions(db_path)
+except sqlite3.Error as e:
+    if _is_stage3():
+        # 建玉数不明として緊急通知
+        message = template.format(n="?") + (
+            f"\n※ DB 取得失敗 ({type(e).__name__}): {e}"
+            "\n※ 実建玉は楽天証券で確認してください"
+        )
+        return send_to_room(...)
+    raise  # Stage 0-2: launchd に委ねる
+```
+
+### §3.6.4 残り 10 件への適用方針
+
+F236 で発見された新規パターン 3 件は、以下のタスクで適用検討:
+
+| パターン | 適用検討タスク | 理由 |
+|---|---|---|
+| §3.6.1 Stage 別 layer | F119 / F230 / F241 | Stage 3 移行で挙動変更が必要 (Evaluation/Batch Replay/Live Advisory) |
+| §3.6.2 launchd env | F057 / F058 | cron 経由実行が絡むタスク (Scheduler / E2E smoke) |
+| §3.6.3 DB エラーレイヤ別 | F130-F140 / F054 | DB 操作が複雑なタスク (Risk / Paper Live tick) |
+
+各タスク着手時に事前 grep でパターン該当を確認、本部修正方針確認に含める。
+
+---
+
 ## 4. 残り 13 件への適用判断基準
 
 各 retroactive commit で Codex pre-commit hook が CRITICAL を出した場合の判断:
