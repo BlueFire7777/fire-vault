@@ -2172,4 +2172,85 @@ F275 で残した課題を体系的に解消する後続タスク:
 - **F277**: paper_live 例外伝播設計 + マルチプロセス stale cache 対策
 - F278/F279: ID 整理で 1 個ずらし (元 F277 → F278、元 F278 → F279)
 
+## [2026-05-04] milestone | F275 完了 + 設計議論記録 3 件 Vault 化 + スタブ 5 件作成
+
+F275 完了 (Stage 3 性能ブロッカー解消、commit 3a222cb) を区切りに、
+2026-05-04 中に Claude.ai 側で発生した 3 つの設計議論を Vault 化。
+F276 / F277 / F278 / F279 の着手前に議論記録を残し忘却リスクを排除。
+
+### 議論記録 3 件 Vault 化 (03_design/)
+
+1. **[[03_design/operation_mode_holiday_intensive_draft_2026-05-04]]** (F279 草案)
+   - 5 モードスペクトラム ([休止][旅行][兼業][休日専業][フル専業 (将来)])
+   - 確定方針 4 点 (本質 = 戦略の質的変化、手動切替、回数 2.5x + 保有 3x +
+     リスク 2x、Stage 3 安定後 (M+1) 着手)
+   - パラメータ詳細表 (兼業 vs 休日専業)
+   - リスク管理ガード (連敗 3 / DD -2% / +5% で兼業強制降格)
+   - 検証仮説 X / Y / Z (再現性相性 / 心理負荷 / 生活習慣)
+
+2. **[[03_design/git_governance_2026-05-04]]** (F278 設計記録)
+   - 遡及レビュー対象 5 本 (F050/F051/F053/F141/F142、F144 オプション)
+   - .gitignore 必須項目 (`.env*` / `*credential*` / `data/*.db-shm` /
+     `.claude/` / 他)
+   - 段階 commit 順 (Phase 1〜6、2〜3 日)
+   - dev → main マージ戦略 (一括 PR + Codex 全体レビュー + tag v0.1-stage3-ready)
+   - F271 v1.2 改訂候補 (§ 6-9 「コード読解せず仮説」/ § 6-10 「untracked 放置」)
+
+3. **[[03_design/root_cause_hierarchy_2026-05-04]]** (F273-F275 振り返り)
+   - 9 層整理 (Layer 1 表面 → Layer 9 F275 完了)
+   - 各レイヤーで判明した真因 (D' 誤認 → D'' 訂正 → D''' SQL N+1 →
+     計測対象取り違え → score 構造的停滞)
+   - F271 § 6-7 「線形外挿楽観視」/ § 6-8 「計測対象取り違え」の制度化経緯
+   - Stage 3 残ブロッカー (events / 例外処理 / git ガバナンス / 休日モード) の
+     F276/F277/F278/F279 マッピング
+
+### 02_todo スタブ 5 件作成
+
+| ID | 名称 | 状態 | 着手時期 |
+|---|---|---|---|
+| F275 | SimilarityEngine 最適化 | ✅ 完了 (3a222cb) | — |
+| F276 | events>0 達成 (positions seeding + F104 + Layer 3) | 未着手 | F277 完了後 |
+| F277 | paper_live 例外伝播 + マルチプロセス cache | 未着手 | F275 完了後 (最優先) |
+| F278 | git ガバナンス整備 | 未着手 | F275/F276/F277 完了後 |
+| F279 | 休日専業モード設計仕様書 | 未着手 (草案) | M+1 以降 |
+
+各スタブには 03_design/ の該当議論記録への Wikilink を含む。F271 で確立した
+形式 (基本情報 / タスク詳細 / 成果物 / 関連リンク / 進捗チェックリスト /
+作業ログ / 完了条件) を採用。
+
+### Chapter 38 拡張
+
+[[01_requirements/FIRE_要件書_第38章_運用モード___休止___旅行モード方針]]
+の末尾に「拡張予定: 休日専業モード」セクションを追記。M+1 以降に F279 で
+本格改訂 (v3.3 → v3.4) する際の起点。
+
+### 次タスク優先順位 (Fujiwara 起票判断待ち)
+
+1. **F277** (Stage 3 移行前必須、例外伝播 + マルチプロセス cache、1〜2 日)
+2. **F276** (events>0 達成、positions seeding + F104 + Layer 3、2〜3 日)
+3. **F278** (F277/F276 完了後の git 整備、2〜3 日)
+4. **F266** (Stage 3 移行ゲート再評価、F275/F276/F277/F278 すべて完了後)
+5. F279 (M+1 以降、休日モード本格設計)
+
+### F271 完了基準 (本タスク = vault 整理作業の自己評価)
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | 8 ファイル作成 (03_design 3 + 02_todo 5) + Chapter 38 拡張 + log 追記 |
+| 機能した | ✅ | Wikilink 健全性検証 (各スタブ → 03_design 設計記録 → 関連要件書 → 完了基準) |
+| 期待値達成 | ✅ | F276/F277/F278/F279 着手準備完了、TODO Excel 起票材料 vault に揃う |
+
+### 関連リンク
+
+- 詳細レポート: [[03_design/operation_mode_holiday_intensive_draft_2026-05-04]] /
+  [[03_design/git_governance_2026-05-04]] /
+  [[03_design/root_cause_hierarchy_2026-05-04]]
+- スタブ: [[02_todo/F275_SimilarityEngine_最適化]] /
+  [[02_todo/F276_events達成_positions_seeding]] /
+  [[02_todo/F277_paper_live例外伝播_マルチプロセスcache]] /
+  [[02_todo/F278_git_ガバナンス整備]] /
+  [[02_todo/F279_休日専業モード設計仕様書]]
+- 起点: [[03_design/F275_similarity_optimization_complete_2026-05-04]] /
+  [[03_design/task_completion_criteria]]
+
 
