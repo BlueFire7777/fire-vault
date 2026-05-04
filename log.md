@@ -1670,4 +1670,126 @@ F266 再評価 → Stage 3 移行可否判断
 - Phase 2-D Run a 走行時間 56 分 ± 30% = 40〜75 分、超過時の中止判断は?
 - F271 § 6-5 (線形外挿楽観視) を完了基準仕様書に追記する起票案を Phase 2 完了後に検討?
 
+## [2026-05-04] incident | F274 Phase 2-D 即時中止 + 正直な振り返り (アンチパターン § 6-2/§ 6-5 再発)
+
+Fujiwara から Phase 2-D 即時中止指示。別ターミナルでの進捗確認で
+重大問題判明 (per-tick 4.57 秒 = 期待 2.5 秒の 1.83 倍、target_patterns
+1 件のみ、完了予測 102 分で 90 分 cutoff 超過)。
+
+### STEP 1: 即時中止結果
+
+- PID 78654 に SIGINT → 効かず → SIGTERM で停止
+- 中断時点: 246/1340 ticks (18.4%)、経過 18.8 分
+- per-tick 実測 **4.57 秒** (F274 期待 2.5 秒の **+83%**、Phase 2-C 単独計測
+  0.77 秒/tick の **5.9 倍**)
+- target_patterns: `["material_initial-strong_market-breakout-AM-highliq@v1.0"]`
+  (**1 件のみ** = F273 seed 4,700 件を含めず)
+- DB status='aborted' に更新、error_msg に中止理由記録
+
+### STEP 2: 正直な振り返り (再発防止のため)
+
+#### なぜ Phase 2-A/B/C をスキップしたのか
+
+実は Phase 2-A/B/C 段階試走自体は実施した。**しかし計測対象が
+SimilarityEngine.search() 単独 (1.5 ms/call、Run a 17.2 分予測) であり、
+本来計測すべき ReproducibilityEngine.evaluate() 経由ではなかった**。
+
+これは F271 § 6-2「動いた ≠ 機能した」アンチパターンの典型再発:
+- SimilarityEngine.search() は「動いた + 機能した」(per-call 1.5 ms 達成)
+- しかし Run a 内の本来の評価経路は ReproducibilityEngine.evaluate() →
+  SimilarityEngine.search() + 追加 SQL (fetch_pattern_trade_stats × 5 +
+  sector_filter)
+- → 単独計測値だけで 「Run a で events>0 達成」を結論したのが誤り
+
+#### Phase 1 設計書の段階性ガード違反
+
+Phase 1 設計書 § 4-5 で書いた段階試走の合格基準は「per-call 5 ms 以内 +
+線形性 ±20%」だが、これは **何の per-call か** を明示していなかった。
+SimilarityEngine.search() を per-call と勘違いした。本来は
+ReproducibilityEngine.evaluate() を per-call として測るべきだった
+(tick.extract_candidates が呼び出すのは evaluate())。
+
+#### F271 § 6-5 アンチパターン回避の意図がどこで崩れたか
+
+F273 Phase 2-C 走行前中止 (21 日見積) の教訓を反映して F274 Phase 1 で
+段階試走を組み込んだはずが、**「線形外挿せず段階試走で確認」の対象を
+SimilarityEngine 単独に絞ってしまい、Run a の真の経路を測らなかった**。
+教訓: 「最終 Run a の per-call は最終 Run a が呼ぶ関数で測る」。
+
+#### target_patterns の選定経緯 (なぜ F273 seed 4,700 件を含めなかったか)
+
+paper_live --batch-replay 起動時の target_patterns 既定値が
+`status='approved_active'` の 1 件のみを抽出する仕様 (推定、未検証)。
+F273 seed の 4,700 件は status='candidate' なので含まれない。
+これも F274 Phase 1 で見落とした (target_patterns の仕様を確認せず、
+SimilarityEngine.search() が patterns 全件を対象とするから問題ないと
+楽観視)。実は target_patterns は run_id メタデータとしてだけ記録されて
+いる可能性もあるが、未検証。
+
+### STEP 3: Phase 2-A 正規戻り (ReproducibilityEngine 経由)
+
+| 項目 | 値 |
+|---|---|
+| per-call (ReproducibilityEngine.evaluate()) | **7.46 ms** (min 6.93 / max 8.92) |
+| F274 期待値 | 5 ms |
+| 乖離 | +49% (10 ms 以内で「隠れた問題」域には未達) |
+| SimilarityEngine.search() 単独 | 1.66 ms |
+| ReproducibilityEngine 追加コスト | **5.80 ms/call** |
+| 追加コスト内訳 | fetch_pattern_trade_stats × 5 = 1.86 ms + sector_filter + Python 計算 |
+| 1 tick × 500 銘柄 | 3.73 秒 |
+| Run a 1340 tick 予測 | **83 分** ⚠️ 75 分警告超過、90 分以内 |
+
+ただし実 Run a tick.py 経由では更に遅い (4.57 秒/tick = 9.14 ms/call、
+102 分予測)。残り 1.7 ms/call の差は tick.py の `_has_features`
+SQL × 4,452 銘柄 + ReproducibilityEngine 毎銘柄新規生成のオーバーヘッド
+と推定。
+
+### F271 完了基準による F274 自己評価
+
+| 段階 | 結果 | 根拠 |
+|---|---|---|
+| 動いた | ✅ | numpy 導入、SimilarityEngine cache 化、34 PASS テスト維持、コード変更完走 |
+| 機能した | ⚠️ 部分 | SimilarityEngine 単独は per-call 1,646 倍高速化 (2,733→1.66 ms)、しかし Run a 経路は per-tick 4.57 秒で目標 2.5 秒未達 |
+| 期待値達成 | ❌ | Run a 90 分以内達成不可、events>0 確認できず、Stage 3 ブロッカー解消なし |
+
+### F274 拡張 (Phase 3 候補) の必要性
+
+真の Run a 高速化には ReproducibilityEngine.evaluate() の追加 SQL も
+キャッシュ化する必要:
+- `fetch_pattern_trade_stats` をキャッシュ (positions テーブルが空なら全
+  pattern_id に対して空 stats を返す前提なので簡単)
+- `sector_filter.filter_applicable_patterns` を numpy ベクトル化
+- tick.py の `_has_features` を 1 SQL 化 (4,452 銘柄一括チェック)
+
+これは F274 のスコープではなく F275 (新規) として起票推奨。
+
+### 関連
+
+- 詳細レポート: 本 incident エントリ自体が振り返り (新規ファイル不要、
+  Phase 2-D 中止のため成果物薄)
+- 起点: [[03_design/F274_phase1_design_2026-05-04]] (Phase 1 設計書、
+  段階試走対象指定の不備が露呈)
+- 完了基準: [[03_design/task_completion_criteria]]
+
+### 次タスク候補
+
+- **F275 (推奨、新規)**: ReproducibilityEngine 経路全体の最適化
+  (fetch_pattern_trade_stats キャッシュ + sector_filter 高速化 + tick.py
+  `_has_features` 一括化) → Run a 真の高速化
+- F274 を「実装中」のまま残し F275 と統合するか、F274 を「機能した部分達成、
+  F275 へ移管」として完了するか Fujiwara 判断
+- F271 § 6-2/§ 6-5 アンチパターン再発の教訓を完了基準仕様書 v1.1 に
+  反映 (Fujiwara 確認事項 6 で「F275 (git ガバナンス) で対応」と決定済)
+
+### Fujiwara への確認事項 (再発防止 + 次フェーズ)
+
+- 中止判断 (Phase 2-D 18.8 分時点で停止) の妥当性確認 (F273 Phase 2-C と
+  同じ規律、14 分の損失受け入れ)
+- F274 ステータス: 「機能した部分達成、F275 へ移管」で完了 OK?
+- F275 (新規、ReproducibilityEngine 経路全体最適化) 起票判断
+- target_patterns 1 件のみ問題: 仕様確認 (cli.py 引数 / tick.py 参照箇所)
+  を F275 のスコープに含めるか?
+- 完了基準仕様書 v1.1 改訂で本日のアンチパターン (§ 6-2/§ 6-5 再発) を
+  事例として追記する起票判断
+
 
