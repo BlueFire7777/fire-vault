@@ -2403,6 +2403,36 @@ TODO Excel 起票: Fujiwara 手動で対応 (本部から起票案提供済)
      構造化 JSON 出力。sunaiper80 系の AI 決算翌日株価予想を網羅 + 大幅
      アップグレードする設計。
 
+## [2026-05-05] milestone | F276 Step 2 + Step 3 完了 (TOPIX 58 行 fetch 成功、Run a events_total=0、ケース 4-B 確定)
+
+F276 Step 2 (60 営業日 TOPIX fetch) + Step 3 (Run a 1 day 実測) 連続実行
+完了。J-Quants V2 Standard プランで TOPIX 取得経路完全動作確認、ただし
+Run a で events_total = 0 (paper_live_results 0 行)、ケース 4-B 確定。
+
+実測結果 (詳細: ~/fire-vault/03_design/F276_runa_2026-05-05.md):
+- TOPIX index_data 58 行 (2026-02-05 ~ 2026-05-01)
+  close 範囲 3486.44~3938.68、change_pct -3.80%~+4.95% (実値化確認)
+- Run a (--days-back 1、67 tick): events_total=0、新規建玉 0、決済 0
+  paper_live_results 0 行 (candidate 抽出すら未発生)
+
+ケース 4-B 仮説:
+1. extract_features 経路で build_snapshot_from_db が呼ばれていない可能性
+   (Phase 2-B Vault handover §4-2 で wiring 別 task として明記済)
+2. score 0.5787 + regime_fit 改善 (+0.04) でも 0.65 未達 (悲観シナリオ確定)
+3. patterns 4,708 件の candidate 抽出経路の構造的問題
+
+本部判断要請 (Q-step-4-fix):
+  案 4-1: SCORE_THRESHOLD_EXECUTE 0.65→0.55 直接 (Fujiwara 承認、F275 line 161)
+  案 4-2 (Mac mini 推奨): extract_features wiring 確認 → 必要なら追加 → 微調整
+  案 4-3: Fujiwara 戦略判断 (events 達成 vs 構造的健全性)
+
+commit:
+- ~/fire dev = 7da77bb (Step 1c-1-fix、本 milestone は実測のみコード変更なし)
+- ~/fire-vault main = 後続 commit (本 log 追記 + F276_runa_2026-05-05.md)
+
+F271 §6-7 適用検証: Phase 1 推定 50-100 件 vs 実測 0 件、悲観シナリオ
+さらに下回り、案 4-2 で構造的健全性確認が必須。
+
 ## [2026-05-05] milestone | F300 + F300-race 完結 → tag v0.2-stage3-wrapper-ready (Stage 3 移行ゲート 1 段階クリア)
 
 F300 (CLI safety hardening) + F300-race (atomic reservation + crash recovery) を
