@@ -2403,4 +2403,71 @@ TODO Excel 起票: Fujiwara 手動で対応 (本部から起票案提供済)
      構造化 JSON 出力。sunaiper80 系の AI 決算翌日株価予想を網羅 + 大幅
      アップグレードする設計。
 
+## [2026-05-05] milestone | F300 + F300-race 完結 → tag v0.2-stage3-wrapper-ready (Stage 3 移行ゲート 1 段階クリア)
+
+F300 (CLI safety hardening) + F300-race (atomic reservation + crash recovery) を
+一括 main merge + tag 発行。Phase 1 inventory 15 件全数解消、Codex CRITICAL ゼロ通過。
+
+完結 commit (~/fire):
+- 5ce8d99 fix(F300): price_monitor full hardening (CLI + LEFT JOIN unsent)
+- 1b8912c fix(F300): wrapper group production CLI safety hardening (8 + docs)
+- 6f7cc82 fix(F300-race): atomic reservation + crash recovery via status/TTL
+- 156b879 Merge F300 + F300-race: wrapper safety + race + crash recovery (main)
+
+tag: v0.2-stage3-wrapper-ready (push 済)
+
+inventory 15 件 内訳:
+- 致命 4: --skip-send / --dry-run / sentinel run_id=None / hardcoded equity
+- 高 7: --skip-time-guard / --skip-loss-control / silent return 0 (4) /
+        sector multi-exit / line dry_run exit
+- 中 3: annotations / docs exit code 規約 / wrapper 概要
+- race 1: SELECT-INSERT 別 transaction → F300-race で解消 (Q8=C 経由)
+
+F300-race 設計 (案 ψ + R-4):
+  pending  ← _try_reserve (INSERT OR IGNORE + rowcount 原子的予約)
+   ↓ send 成功 → mark_sent → sent (永続記録)
+   ↓ send 成功 + mark_sent 失敗 → release + log.error (二重 1 回容認、Q4=X 整合)
+   ↓ mark_sent + release 二段失敗 → log.critical (TTL cleanup 委任、R-4)
+   ↓ send 失敗 → release (F278-Pre L149-152 哲学維持)
+   ↓ crash / kill → cleanup wrapper (TTL 30 分 DELETE)
+
+判断履歴:
+- Phase 2 Q1=A-1 (MVP, status カラム不要) → Phase 3 Codex CRITICAL 検出 →
+  Q5=案 ψ Q1=A-2 切替 (status pending/sent + TTL recovery)
+- Q5=案 ψ 内 Codex 連鎖 2 件 → Q6=R-4 即採用 (mark_sent 失敗時 release +
+  log.error、scope 拡大ゼロで構造的解消)
+- 同一番号系列内の起票連鎖 (F300-race-recovery への scope 分割) は
+  F261-fix 系の負のループ再発として回避、案 ψ 単一 commit 統合で完結
+
+test 状況:
+- tests/agents/test_monitoring_alert_race.py 24 件 (新規追加 14 + R-4 拡張 3)
+- 既存 test 影響なし、tests 全体 1200 PASS (e2e_smoke skip)
+
+所要時間:
+- F300 全体: 累計約 6 時間
+- F300-race Phase 1〜3 累計: 約 3 時間 (本部見積 1.0-1.5 日 = 8-12 時間 内)
+
+HQ-Lean ルール 5 自己検証:
+- F300 内連鎖 3 件 (Codex 検出) → Q8=C で別タスク送り
+- F300-race 内連鎖 2 件 → Q5=案 ψ + Q6=R-4 で構造的解消、scope 切り直しなし
+
+残 Stage 3 ブロッカー (本 milestone 未含):
+- F276 (events ≥ 50 / 3.0 日)
+- F235 (Stage 3 設計判断、並走可)
+- F266 (Fujiwara 最終決裁)
+- Fujiwara 手動: cleanup cron 登録 (`openclaw cron add --name fire_notification_cleanup
+  --cron "0 * * * *" --tz Asia/Tokyo --no-deliver`)、production DB migration
+  (agent 自動 migration でも代替可)
+
+F271 v1.3 候補追加 (Vault 一括化予定):
+- §6-19 v2: 同一番号系列 scope 分割の負のループ (F261-fix → F300-race-recovery
+  回避の判断記録)
+- §6-20: Phase 1 inventory に combination viewpoint (inter-process race / DB tx
+  境界 race) 必須化
+- §6-21: 本部側ミス Q1=A-1 確定逆転、Codex CRITICAL 検出による新規事実発覚での
+  本部判断更新の正当化記録
+
+Vault 関連:
+- 03_design/F300-race_phase1_2026-05-05.md (Phase 1 handover、commit 477871c)
+
 
