@@ -2403,6 +2403,34 @@ TODO Excel 起票: Fujiwara 手動で対応 (本部から起票案提供済)
      構造化 JSON 出力。sunaiper80 系の AI 決算翌日株価予想を網羅 + 大幅
      アップグレードする設計。
 
+## [2026-05-05] milestone | F276 Phase 4-α 完了 (events_total=103,312 達成、ただし期待値 -10,367 円で F266 通過要件未達)
+
+F276 案 4-2 Phase 1-4-α 完遂 (Phase 1 wiring → Phase 2 backfill 57,000 行 →
+Phase 3 Run a 0 件 → Phase 4-α SCORE 0.55 で events_total=103,312)。
+F276 完了基準 (events ≥ 50) は達成、ただし F266 Stage 3 移行ゲート
+(R-32-01 主戦略期待値プラス) は未達。
+
+実測値 (詳細: ~/fire-vault/03_design/F276_phase4_2026-05-05.md):
+- events_total: 103,312 (1 day 67 tick × Core500、SCORE 0.55 override)
+- candidate: 28,500 / virtual_entry: 27,075 / virtual_sl: 9,348 /
+  virtual_tp: 684 / force_close: 299 / notification: 37,406
+- 勝率: 6.6% (684 / 10,331 closed)
+- 平均期待値: -10,367 円 (主戦略期待値プラス要件 ❌)
+
+本部判断要請 (Q-step-4-α-result):
+  案 R-α-1: Phase 2-C 直行 (events 達成扱い、Layer 3 拡大で score 改善)
+  案 R-α-2 (★Mac mini 推奨): SCORE 0.60 中間値再走で期待値プラス追求
+  案 R-α-3: Fujiwara 戦略判断 (events vs 期待値トレードオフ)
+
+commit:
+- ~/fire dev = cadfe61 (env override 実装、Codex 一発通過)
+- ~/fire-vault main = 後続 commit (本 log 追記 + F276_phase4_2026-05-05.md)
+
+F271 §6-7 適用検証完了:
+  Phase 1 推定 50-100 件 vs 実測 103,312 件 = 1000 倍超過の楽観視ズレ。
+  閾値依存性を考慮していなかった見積り、§6-7 事例集に「閾値依存系の events
+  推定は 1 桁単位の振れ幅明記」を追加候補。
+
 ## [2026-05-05] milestone | F276 Step 2 + Step 3 完了 (TOPIX 58 行 fetch 成功、Run a events_total=0、ケース 4-B 確定)
 
 F276 Step 2 (60 営業日 TOPIX fetch) + Step 3 (Run a 1 day 実測) 連続実行
