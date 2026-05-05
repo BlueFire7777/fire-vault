@@ -2403,6 +2403,42 @@ TODO Excel 起票: Fujiwara 手動で対応 (本部から起票案提供済)
      構造化 JSON 出力。sunaiper80 系の AI 決算翌日株価予想を網羅 + 大幅
      アップグレードする設計。
 
+## [2026-05-05] milestone | F276 Phase 4-β 完了 (SCORE=0.60、events 39,420 維持 + 期待値 -10,108 円構造不変、ケース 4-β-B 確定)
+
+F276 Phase 4-β 完了 (本部 Q-step-4-α-result=案 R-α-2 確定後)。
+SCORE_THRESHOLD_EXECUTE_OVERRIDE=0.60 で Run a 再走、events ≥ 50 維持
+(39,420)、ただし勝率 6.5% / 期待値 -10,108 円で構造不変、ケース 4-β-B 確定。
+
+実測 0.55 vs 0.60 比較:
+  events_total:    103,312 → 39,420 (-62%)
+  勝率:            6.6%   → 6.5%   (微差のみ)
+  期待値:          -10,367 → -10,108 (-2.5%、微改善のみ)
+
+★ 重要発見: SCORE 微調整は events 数の桁オーダーを変えるが、勝率 / 期待値
+の構造は変えない。閾値依存性 1 桁内変動 + 勝率 1% 内不変。F271 v1.3
+§6-7-quaternary 候補事例化:「閾値微調整 = 構造不変」原則。
+
+本部判断要請 (Q-step-4-β-result):
+  案 P-β-1: Phase 2-C 直行 (events 達成扱い、Layer 3 拡大で score 改善)
+            → 期待値マイナスで負けパターン増殖リスク (案 R-α-1 と同型棄却)
+  ★案 P-β-2 (Mac mini 推奨): 案 R-α-3 戦略判断発動
+            (Premium 加入 / TradingView MCP / score 設計変更 / Pattern
+             再 seeding 等、Fujiwara 戦略判断、本部側起案)
+  案 P-β-3: Phase 4 内中間値探索継続 (0.62/0.58 等)
+            → 構造不変確認済、無意味
+
+R-32-01 7 項目判定 (0.55 / 0.60 共通):
+  項目 1 (サンプル数): ✅
+  項目 2 (期待値プラス): ❌
+  項目 3 (最大ドローダウン): △ (force_close 悪化)
+
+commit: コード変更なし (env 値変更のみ、Phase 4-α env override 経路再利用)
+Vault 更新: F276_phase4_2026-05-05.md §8 追記、log.md 本エントリ
+
+Stage 3 開始日見通し:
+  案 P-β-2 採用 → 1-3 週間級 scope 拡大、Stage 3 開始日大幅後ろ倒し
+  案 P-β-1 採用 → 最速だが Run b/c 完了時に期待値プラス再検証必要
+
 ## [2026-05-05] milestone | F276 Phase 4-α 完了 (events_total=103,312 達成、ただし期待値 -10,367 円で F266 通過要件未達)
 
 F276 案 4-2 Phase 1-4-α 完遂 (Phase 1 wiring → Phase 2 backfill 57,000 行 →
