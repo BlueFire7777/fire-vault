@@ -2671,3 +2671,77 @@ F058 e2e smoke test 由来の approved_active pattern (material_initial-strong_m
 関連:
 - Run a 結果: events 0 / closed 0 / F053 1/5 PASS (sample_size/expected_value/halt/close FAIL、accuracy のみ PASS)
 - F058 cleanup 仕様欠落: 今後の e2e test では「テスト後 archive 化」を完了基準に含めること (HQ-Lean ルール 14 候補)
+
+## [2026-05-08] milestone | F282 環境分離 (3 環境化) 完了
+
+Fujiwara 戦略判断 (2026-05-07) で確定した F282 環境分離を実装完了。
+Stage 3 実弾運用開始前のクリーンアップ + 構造的本部側ミス再発防止策。
+
+実装範囲:
+- branch: dev → develop rename + staging 新設、main は production 専用
+  (~/fire develop / staging / main、~/fire-vault main only 維持)
+- DB: fire.db (production) / fire.staging.db / fire.develop.db の 3 ファイル
+  (各 354 MB、整合性 ok、初期 snapshot 完了)
+- wrapper script: bin/fire-env-switch.sh、fire-check-env.sh、fire-dev、
+  fire-staging、fire-prod、fire-snapshot-staging.sh、fire-init-develop.sh
+  (snapshot/init は SQLite Online Backup API `.backup` で writer 並行
+   動作下も整合性保証、Codex CRITICAL × 4 を経て確定)
+- pytest: 8 test 追加 (test_fire_env_switch.py 6 + test_db_path_consistency.py 2)
+  全体 1295 → 1303 PASS、regression なし
+- cron 設定ファイル: docs/cron/f282_cron.txt (Fujiwara 手動 install 依頼、
+  Mac mini 直接 install は macOS Full Disk Access セキュリティで hang)
+- .gitignore: DB ファイル + snapshot ログ + cron ログ除外
+- F282 設計記録 (10 章) + F271 v1.6 化 (ルール 16 + 観点 12) Vault 化
+
+案 Q 適用結果:
+- scripts/seed_pattern_layer1.py:40: 維持 (Q2 案 b 保護、F271 v1.6 ルール 16
+  例外 + F282 §8 リスク 7 で技術的負債記録、F281 Phase 3 で解消予定)
+- 分類 B コメント 2 件 (slippage_monitor.py:15 / emergency_alert.py:14-16)
+  は段階 4 で fire-prod 経由表記に修正、scripts/seed_pattern_layer1.py:26
+  は Q2 維持で touch せず
+- 技術的負債 Vault 化: F282 §8 リスク 7 + F271 v1.6 ルール 16 例外記録 +
+  本 milestone 1 行追記
+
+Fujiwara 手動作業残 (3 件、Stage 3 開始前必須):
+1. GitHub default branch を develop に変更
+   https://github.com/BlueFire7777/fire/settings → Branches → Default branch
+2. GitHub branch protection 設定:
+   - main: Require pull request、approvals 1+、Restrict pushes (Fujiwara のみ)
+   - staging: Require pull request、approvals 1+
+   - develop: 直接 push 許可 (Mac mini 開発用、protection なし)
+3. cron 手動 install:
+   `cat ~/fire/docs/cron/f282_cron.txt | crontab -` 実行 (macOS Full Disk
+   Access 許可確認後)、`crontab -l | grep fire-` で 2 行確認
+
+完了済 commit (~/fire develop):
+- e05ef11 chore(f282): .gitignore に DB ファイル除外を追加 (環境分離準備)
+- a26438f feat(f282): wrapper scripts for environment switching
+  (Codex CRITICAL × 4 を経て .backup + sidecar 削除で確定)
+- eb5f5d1 test(f282): environment switching tests + db_path consistency
+- 5896de3 chore(f282): cron 設定ファイル (Fujiwara 手動 install 依頼)
+
+完了済 commit (~/fire-vault main):
+- a046562 docs(f282): 環境分離 (3 環境化) 設計記録 v1.0 (10 章構成)
+- fb3d426 docs(f271): F271 v1.6 ルール 16 + 観点 12 追加 (環境分離 MR 規律)
+- (本 commit) chore(log): F282 環境分離完了 milestone 追記 (2026-05-08)
+
+Codex pre-commit:
+- 段階 2: 一発通過
+- 段階 3: 4 往復 (CRITICAL 1=WAL checkpoint なし / 2=結果検証なし /
+  3=cp + writer 並行で WAL 欠落 / 4=stale sidecar 残置) → .backup +
+  sidecar rm -f で全解消、最終通過
+- 段階 4: 一発通過
+- 段階 5: docs のみ skip 対象
+- --no-verify は全 commit で不使用
+
+MR 承認モデル:
+- Phase 1 開始 (環境分離直後 ~ Stage 3 開始 1 ヶ月後 = 2026-06-30 頃まで)
+  全 MR で Fujiwara 承認必須 (案 A)
+- 2026-06-30 頃に Phase 切替判定 5 項目を本部 + Fujiwara で確認、
+  OK なら Phase 2 (案 C ラベル制) 移行
+
+次工程:
+- Fujiwara 手動作業 3 件完了
+- 短縮版 Phase 3 (F281-Phase2-B-mini) 着手 = target_patterns 拡張 +
+  F273_BRE 4,700 件評価 (staging 環境で実施)
+- Stage 3 開始経路 5/30 ± 数日
