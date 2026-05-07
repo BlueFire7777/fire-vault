@@ -2403,6 +2403,91 @@ TODO Excel 起票: Fujiwara 手動で対応 (本部から起票案提供済)
      構造化 JSON 出力。sunaiper80 系の AI 決算翌日株価予想を網羅 + 大幅
      アップグレードする設計。
 
+## [2026-05-07] milestone | F281 新方針切替発動 + プラン A 採用 (Lane A1 単独 Stage 3 開始経路、5/14 頃)
+
+### F276 案 d 中止 + F281 切替発動
+
+  - F276 案 d (Pattern Layer 1 再 seeding) 中止確定
+  - F281「複数戦略レーン管理型資産運用 OS」即時切替発動
+  - 採用根拠: Phase 4-α/β 構造不変実証 + Vault §6-3 警告 + Fujiwara 戦略観
+              (a 懐疑/b 確信、機械学習未来予知不採用、FIRE は日本株で稼げ
+               るシステム)
+  - プラン A 採用: 最小 MVP 4 項目 (3.5 日) で Lane A1 単独 Stage 3 開始
+                   5/14 頃
+
+### Premium 加入 → Standard 復帰経緯 (sunk cost 教訓)
+
+  - 2026-05-05: 案 a (本部推奨) で J-Quants Premium 加入 (月額 +13,200 円)
+  - 2026-05-05: Mac mini Phase 4-γ ステップ a 公式 spec WebFetch で N225
+                取得不可確定 (Premium でも不可、Standard/Premium 区分の
+                問題ではない)
+  - 2026-05-05: Standard 復帰、sunk cost 約 13,200 円 (1 ヶ月分) 発生
+  - 教訓: F271 v1.3 §6-22-最重大事例として記録、コスト発生案件三重確認
+          の HQ-Lean v1.1 ルール 11 化
+
+### F271 v1.3 化発動
+
+  - F271 v1.2 → v1.3 へ一括化
+  - 統合内容: §6-7-bis/quaternary/quinary、§6-22-a/b/c/d/最重大事例/bis/
+              tertiary/quaternary/quinary/senary、§6-23-a/b/c/d、§6-24、
+              観点 v3 拡張 (7 → 9)、HQ-Lean v1.1 ルール 6-12
+
+### Phase 4-α/β 実測値 + 構造不変実証
+
+  - Phase 4-α (env=0.55): events 103,312、勝率 6.6%、期待値 -10,367 円
+  - Phase 4-β (env=0.60): events 39,420、勝率 6.5%、期待値 -10,108 円
+  - 結論: 閾値依存性 = 構造不変、§6-7-quaternary 実証
+
+### 本部側ミス累積 8 項目 (本セッション、教訓)
+
+  1. Q1 events ≥ 50 解釈再議論化 (Vault 確定済再議論)
+  2. Q5 案 a/b/c circular dependency
+  3. G-4 TOPIX + N225 MVP 承認時 Vault 突合不在
+  4. 案 a J-Quants Premium 加入推奨で 158,400 円/年 sunk cost 推定
+     (実発生は 13,200 円 1 ヶ月分で復帰)
+  5. 段階 2 MVP 過小評価バイアス (Lane A 単独構造誤認)
+  6. 6 レーン同時開始誤解 (新方針本来の独立稼働思想を本部誤認)
+  7. R-32-01 過去データ判定経路逆転理解 (実取引 20 営業日待ち誤認)
+  8. 本部側保守バイアス過剰 (Stage 3 開始遅延見積、Fujiwara 指摘で修正)
+
+  教訓:
+  - 新メモリ #23 ルール厳格適用 (本部記憶ベース推測禁止)
+  - F271 v1.3 §6-22 系 (Vault 突合義務 + 核心定義文要素分解 + 新方針 MVP
+    過小評価回避 + 独立稼働思想理解 + Vault 確定済事実逆転理解回避 +
+    保守バイアス過剰回避)
+  - Fujiwara 戦略観/方針が本部側保守バイアスを正しく修正する構造
+
+### Fujiwara 戦略判断による損益直結優先の整理
+
+  - 損益直結優先、贅肉削減
+  - オミット 6 項目 (目標 3000 万トラッキング / monthly_contribution /
+    Dashboard 総資産進捗率 / KPI 月次目標進捗率 / Dashboard 見送り失敗
+    候補分析 / 攻守判定高度ロジック)
+  - 朝レポート維持 (本業中の情報収集軽減目的)
+  - 新メモリ #24 (コスト許容、ただし三重確認) と整合
+
+### commit (本日)
+
+  - bba98d5 feat(F281): todo 起票
+  - f18b4c4 feat(F281): 設計記録 (21 章)
+  - 44fe9c7 feat(F271-v1.3): 一括化
+  - (本 commit) docs: log.md milestone 追記
+
+### Stage 3 開始経路 (プラン A)
+
+  - Phase 1 (本日): Vault 化完了 (本 milestone)
+  - Phase 2-A (3.5 日): 最小 MVP 4 項目 (lane_id 設計 / レーン別成績集計 /
+                       Do Not Trade 3 分類 / Pattern Store lane_id 対応)
+  - Run a/b/c (約 5 時間): 過去データ Backtest で R-32-01 7 項目達成判定
+  - F235 + F266 (並走): 楽天証券連携 + 最終ゲート
+  - **Stage 3 開始 5/14 頃**
+
+  Stage 3 開始凍結条件 (4 段階):
+  1. Run a/b/c 期待値プラス未達 → 本質課題対応 5-7 日 → 5/22 頃まで遅延
+  2. 再実測でも未達 → 戦略再設計
+  3. Stage 3 開始後 1 ヶ月で実取引マイナス → 全レーン Paper Only 降格
+  4. Stage 3 開始後 3 ヶ月で月次累計マイナス → FIRE 一時休止
+
 ## [2026-05-05] milestone | F276 Phase 4-β 完了 (SCORE=0.60、events 39,420 維持 + 期待値 -10,108 円構造不変、ケース 4-β-B 確定)
 
 F276 Phase 4-β 完了 (本部 Q-step-4-α-result=案 R-α-2 確定後)。
