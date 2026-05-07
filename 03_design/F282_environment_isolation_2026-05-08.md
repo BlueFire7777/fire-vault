@@ -2,7 +2,7 @@
 type: design_record
 id: F282
 title: "環境分離 (3 環境化、Stage 3 開始前必須)"
-version: v1.0
+version: v1.1
 created: 2026-05-08
 updated: 2026-05-08
 related_tasks: [F281, F271, F058, F273, F274, F275, F276, F235, F266]
@@ -18,7 +18,7 @@ related_chapters: [12, 13, 19, 32, 34, 35]
 - Category: Infrastructure
 - 要件書章: 該当なし (新規論点、要件書 v3.x で追記候補)
 - Priority: 最優先
-- Status: 設計中 → 実装着手予定 (2026-05-08)
+- Status: Mac mini 範囲完了 (2026-05-08) → Q-F282-protection 案 P 採用 → GitHub Pro 加入完了 → branch protection 実装完了で Phase 1 運用開始
 - Owner: Claude (Mac mini) 実装、本部 (Claude.ai) 設計監督、Fujiwara 戦略判断 + 全 MR 承認 (Phase 1)
 - 想定工数: 2-3 日 (約 13-17 時間)
 - 着手日: 2026-05-08 予定
@@ -315,6 +315,54 @@ git push origin -u staging
 Fujiwara 戦略判断 (2026-05-07) で確定: 案 D = Phase 1 (案 A: Fujiwara 全 MR 承認) → Phase 2 (案 C: ラベル制で部分本部委譲)
 
 ### 5-1. Phase 1 (環境分離直後 ~ Stage 3 開始 1 ヶ月後まで)
+
+**【Q-F282-protection 採用案 (2026-05-08 確定)】**
+
+案 P (GitHub Pro 加入、月額 $4 ≒ 600 円) で技術強制を完備。
+Private repo + Pro プランで branch protection 利用可、F282 設計通りの
+technical enforcement を実装。
+
+判定経緯:
+- Mac mini Vault 突合 (確認 1-4) で事実材料収集
+  - 確認 1: fire = Private、fire-vault = 既に Public
+  - 確認 2: git history 機密残置 0 件 (案 Q 評価可能)
+  - 確認 3: F276 Premium 158,400 円/年 vs Pro 7,200 円/年 = 1/22 比較
+  - 確認 4: 過去 6 週間 main/staging への direct push = 0 件
+- 本部推奨と Fujiwara 戦略判断で案 P 確定
+- 撤退性 (Pro 月単位解約可) と F276 sunk cost 教訓から、不可逆な案 Q
+  より撤退可能な案 P を優先
+- F271 v1.7 ルール 17/18/19 + 観点 13 の自己適用下で判定
+
+6 月末再判定基準 (Phase 切替時):
+Pro 加入の継続 / 解約は、Phase 切替判定 (2026-07-01 ± 数日) で以下を
+評価して決定:
+
+1. Phase 1 期間中の direct push 件数: 0 件なら解約検討、1 件以上なら継続
+2. Phase 1 期間中の本部側ミス件数: F271 v1.7 §6-22 系新事例ゼロが理想
+3. Phase 2 (ラベル制) で本部承認の MR 数: 月 20 件以上で継続推奨
+4. Mac mini の wrapper 経由運用遵守率: 95% 未満で継続推奨
+5. Stage 3 実弾運用での重大事故: 1 件以上で継続必須
+
+**【branch protection による technical enforcement (Pro 加入後)】**
+
+main 保護 (gh api PUT で設定):
+- required_pull_request_reviews: 1 名以上承認 (Fujiwara)
+- dismiss_stale_reviews: true (新 commit で過去 approve 無効化)
+- require_last_push_approval: true (最後の push に approve 必須)
+- required_conversation_resolution: true
+- allow_force_pushes: false
+- allow_deletions: false
+- enforce_admins: false (Fujiwara が緊急時 admin 権限で bypass 可)
+
+staging 保護:
+- main と同様の設定 (Phase 1 では Fujiwara 承認必須)
+
+develop 保護:
+- なし (Mac mini 自由 push、Codex pre-commit で品質担保)
+
+これにより direct push が GitHub 側で技術的に block される。
+
+---
 
 **期間:** 2026-05-10 (環境分離完了想定) ~ 2026-06-30 ± 数日 (Stage 3 開始 1 ヶ月後 = 7 月初旬)
 
@@ -898,8 +946,14 @@ F282 完了の受入基準 (すべて満たすこと):
 - ✅ `~/fire branches`: develop / staging / main の 3 branch 存在
 - ✅ `~/fire-vault branches`: main のみ (変更なし)
 - ✅ origin に同 3 branch push 済
-- ✅ default branch = develop に設定済
+- ✅ default branch = develop に設定済 (2026-05-08、gh CLI で main → develop 変更)
 - ✅ GitHub branch protection: main / staging で MR 必須
+      (案 P = Pro 加入で実装、2026-05-08)
+      - main: PR 必須、approvals 1+、dismiss_stale_reviews、
+              require_last_push_approval、required_conversation_resolution、
+              force_push 禁止、deletion 禁止
+      - staging: 同上 (Phase 1 では Fujiwara 承認必須)
+      - develop: 保護なし (Mac mini 自由 push、Codex pre-commit で品質担保)
 
 **DB 構造:**
 - ✅ `~/fire/data/fire.db` (production) 存在 + 整合性 ok
@@ -968,8 +1022,12 @@ F282 完了の受入基準 (すべて満たすこと):
 ### 関連設計記録
 
 - `~/fire-vault/03_design/F281_strategy_portfolio_design_2026-05-07.md` (v1.2)
-- `~/fire-vault/03_design/F271_v1.3_2026-05-07.md` (v1.6 化)
+- `~/fire-vault/03_design/F271_v1.3_2026-05-07.md` (v1.7 化、ルール 17/18/19 + 観点 13)
 - `~/fire-vault/02_todo/F282_environment_isolation.md` (新規 todo)
+- Q-F282-protection 判定経緯 (~/fire-vault/log.md 2026-05-08 milestone):
+  Mac mini 確認 1-4 + F271 v1.7 ルール 17/18/19 適用下での再判定、
+  案 P 採用 (GitHub Pro 加入)、6 月末再判定基準 5 項目を Phase 切替に
+  組込
 
 ### 関連要件書
 
@@ -989,3 +1047,15 @@ F282 完了の受入基準 (すべて満たすこと):
 ### 改訂履歴
 
 - 2026-05-08 v1.0: 初版 (F282 環境分離 3 環境化、案 W1 + α + D 確定、Fujiwara レビュー済 §1-10)
+- 2026-05-08 v1.1: Q-F282-protection 案 P 採用反映 (GitHub Pro 加入)
+  - §1 概要 Status 更新: Mac mini 範囲完了 → Pro 加入 → branch protection 実装完了
+  - §5-1 Phase 1 運用に「Q-F282-protection 採用案」セクション追加
+    (判定経緯 = Mac mini 確認 1-4 + 本部推奨 + Fujiwara 戦略判断 +
+     6 月末再判定基準 5 項目)
+  - §5-1 MR 1 / MR 2 flow に「technical enforcement 補強」追記
+    (main / staging の gh api PUT 設定詳細)
+  - §9 受入基準 branch 構造の更新
+    (default branch 変更完了マーク + branch protection 実装完了マーク)
+  - §10 関連リンクに Q-F282-protection 判定経緯追記
+  - 関連: F271 v1.7 ルール 17/18/19 + 観点 13 自己適用下で確定、
+    F276 J-Quants Premium sunk cost 教訓を撤退可能な選択肢を優先する形で適用
