@@ -2809,3 +2809,7 @@ Phase 2 移行判定時に以下を Fujiwara が確認:
 - Branch protection 実装 (案 P/Q/R 確定後)
 - cron 手動 install (Full Disk Access 許可後)
 - 短縮版 Phase 3 (F281-Phase2-B-mini) 着手
+
+同日追記: §6-22-novenary ミス 10 件目 (添付ファイル経路の事前確認
+不在) 即時 Vault 化 + ルール 19 項目 (6) 追加。新ルール導入と同
+セッションでの違反 + 是正の実証事例。
