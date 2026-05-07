@@ -1044,6 +1044,50 @@ F282 完了の受入基準 (すべて満たすこと):
 - F282 Phase 2 移行判定 (2026-07-01 ± 数日、Stage 3 開始 1 ヶ月後)
 - F281 Phase 3: score モデル感度分析 + features 寄与度 + patterns 抽出ロジック (Stage 3 開始後、staging 環境で並走実施)
 
+---
+
+## 既知の制約と運用ガイド (2026-05-08 追記)
+
+### 1. branch と FIRE_ENV の関係
+
+bin/fire-staging / bin/fire-dev / bin/fire-prod wrapper は実行 branch
+と FIRE_ENV の整合性を check する設計だが、開発進行中 (develop branch)
+で staging 環境検証が必要なケースで wrapper が reject される事象あり
+(F281-Phase2-B-mini 段階 A-fix-4 で発覚)。
+
+### 2. env 直接 export 経由の等価動作 (許容)
+
+開発中 (develop branch) で staging 環境検証が必要な場合、env 変数を
+直接 export することで bin/fire-staging と等価動作を実現可能:
+
+  FIRE_ENV=staging \
+  DB_PATH=$HOME/fire/data/fire.staging.db \
+  LINE_DRY_RUN=true \
+  .venv/bin/python -m simulation.paper_live ...
+
+この経路は branch 切替 + cherry-pick の工数削減目的で許容、ただし以下
+を遵守:
+
+- LINE_DRY_RUN=true 等の bin/fire-staging 同等の env 設定を全て明示
+- production への影響なし (DB_PATH が staging 指定で隔離)
+- A-fix-4 検証経路として実績あり
+
+### 3. 制約として明文化される運用ルール
+
+- env 直接 export 経路の使用は staging / develop 環境のみ
+- production 環境向けの env 直接 export は **禁止** (誤起動防止)
+- bin/fire-prod は必ず production branch で wrapper 経由実行
+- env 直接 export 使用時は commit message or log.md に記録推奨
+
+### 4. 後続改善候補
+
+- bin/fire-staging-dev (develop branch でも動作する staging wrapper) の
+  新規追加検討 (Phase 切替判定時)
+- F271 v1.8 候補ルール 22 (環境分離 migration 整合性) と連携
+  可能性あり
+
+---
+
 ### 改訂履歴
 
 - 2026-05-08 v1.0: 初版 (F282 環境分離 3 環境化、案 W1 + α + D 確定、Fujiwara レビュー済 §1-10)
@@ -1059,3 +1103,13 @@ F282 完了の受入基準 (すべて満たすこと):
   - §10 関連リンクに Q-F282-protection 判定経緯追記
   - 関連: F271 v1.7 ルール 17/18/19 + 観点 13 自己適用下で確定、
     F276 J-Quants Premium sunk cost 教訓を撤退可能な選択肢を優先する形で適用
+- 2026-05-08 v1.2: 既知の制約と運用ガイド追加
+  (env 直接 export = staging 等価動作の規律明文化、4 セクション)
+  - F281-Phase2-B-mini 段階 A-fix-4 (2026-05-08) で develop branch 進行中
+    に staging 環境検証が必要となった際、wrapper の branch 整合性 reject
+    を回避するため env 直接 export 経路を許容運用化
+  - LINE_DRY_RUN=true 等の同等 env を全て明示する規律
+  - production 環境向け env 直接 export は禁止 (誤起動防止)
+  - 後続改善候補: bin/fire-staging-dev (develop でも動作する staging
+    wrapper) の新規追加検討、F271 v1.8 候補ルール 22 (環境分離
+    migration 整合性) と連携可能性
