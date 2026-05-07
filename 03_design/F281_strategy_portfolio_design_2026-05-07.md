@@ -1,9 +1,11 @@
 # F281 設計記録: 複数戦略レーン管理型資産運用 OS
 
 **作成日**: 2026-05-07
+**バージョン**: v1.2 (2026-05-07 同日改訂、§5-bis Active Light 初期仕様 新設)
 **起点**: F276 案 d 中止 (Phase 4-α/β 構造不変実証) + Fujiwara 戦略判断
          「単一聖杯探索 → 複数戦略レーン管理型資産運用 OS」根本転換
-**採用プラン**: ★ プラン A (最小 MVP、Lane A1 単独 Stage 3 開始経路、5/14 頃)
+**採用プラン**: ★ プラン A (最小 MVP、Lane A1 単独 Stage 3 開始経路、5/14 頃 →
+              5/27 ± 数日 短縮版 Phase 3 経路)
 
 ---
 
@@ -101,11 +103,68 @@
 
 ---
 
+## 5-bis. Active Light 初期仕様 (Stage 3 開始時適用)
+
+F281 §6 稼働モード 6 種のうち「Active Light」(縮小ロット) を Stage 3
+開始時に適用するための具体仕様。本部判定 + Fujiwara 戦略判断 (2026-05-07)
+で確定。
+
+### 5-bis-1. 数値仕様 (初期値)
+
+| 項目 | 値 | 根拠 |
+|---|---|---|
+| 1 日最大 trade 数 | 5 件 | Fujiwara 本業通常時の処理可能数中央値 |
+| 1 trade 最大ロット | 100 株固定 | F281 §10 「実弾初月 0.2%」より絶対値で厳格化 |
+| 1 日累積損失 stop | -0.5% | F281 §10 default -1.2% より厳しめ (実弾初月想定) |
+| 連続損失 pause 条件 | 連続 3 件損失で当日終了 | Phase 4-α/β 勝率 6.5% で 3 連敗が日常的 |
+| DD pause 条件 | 総資産比 -2% で 1 週間 paper_only 降格 | R-32-01 項目 3「-5% 大きく超えない」より厳しい初期値 |
+| Fujiwara 承認経路 | LINE 通知 → 1 trade ごと iSPEED 手動発注 | F241 想定通り、自動執行なし、Computer Use 不採用 |
+
+### 5-bis-2. 見直しサイクル (重要)
+
+上記すべての項目は **初期値**であり、Stage 3 開始後 1 ヶ月で全項目を
+実取引データに基づき再評価する。Fujiwara 戦略観 (実取引始めないと
+分からない、走りながら改善する) と整合した運用方針。
+
+再評価の観点:
+- 1 日最大 trade 数: 本業との両立で実際何件処理できたか
+- 1 trade 最大ロット: 100 株固定が損益感覚にマッチするか
+- 1 日累積損失 stop / DD pause: 実発動回数と回復期間
+- 連続損失 pause: 心理的負担と機会損失のバランス
+
+再評価後の調整は F281 改訂 (v1.3 以降) で commit + Vault 化。
+
+### 5-bis-3. 状態遷移との関係
+
+F281 §9-2 状態遷移 (approved_active → watchlist → active_light →
+paper_only → rehab → frozen → death_note) における Active Light は、
+本仕様適用下の運用を指す。F281 切替時 (Stage 3 開始時) の Lane A1 は
+Active Light で開始、運用実績次第で Active Normal (通常ロット) への
+昇格、または paper_only への降格判定を Fujiwara 承認制で実施。
+
+### 5-bis-4. 損失リスク試算 (1 日 worst case)
+
+全 5 件損失 × 100 株 × 想定単価 1,000 円/株 × 損切 -1% = -5,000 円
+1 日累積損失 stop -0.5% = 投資元本 1,000 万円なら -50,000 円
+→ 損切に到達する前に 1 日累積 stop が発動する設計、実質的な 1 日損失
+   上限は -5,000〜-50,000 円範囲内で抑制される構造。
+
+### 5-bis-5. Fujiwara 承認体制 (R-13-08 関連)
+
+Active Light モードでも、以下は Fujiwara 明示承認制 (R-13-08「ユーザー
+承認後のみ設定反映」精神に整合):
+- 1 trade ごとの発注実行 (LINE 通知後、iSPEED で手動)
+- 数値仕様の変更 (Stage 3 開始後 1 ヶ月見直しタイミング)
+- 状態遷移 (active_light → active_normal 昇格、active_light →
+  paper_only 降格 等)
+
+---
+
 ## 6. 稼働モード 6 種 (Strategy Portfolio Layer 内)
 
   - **Active Aggressive**: 強気時 + 高品質パターン、ロット +25%
   - **Active Normal**: 通常運用、本部 default ロット
-  - **Active Light**: 弱気時 + 劣化兆候、ロット -50%
+  - **Active Light**: 弱気時 + 劣化兆候、ロット -50% (詳細は §5-bis 参照)
   - **Paper Only**: 実弾停止、Paper Live で検証継続
   - **Watch Only**: 監視のみ (シグナル記録、エントリーなし)
   - **Hard Stop**: 完全停止
@@ -488,14 +547,15 @@
 | 版 | 日付 | commit | 主要内容 |
 |---|---|---|---|
 | v1.0 | 2026-05-07 | f18b4c4 | 初版 (21 章、422 insertions)。F200 既存実装言及なし、本部側 Vault 突合不在 + Mac mini 側観点 8 漏れ |
-| **v1.1** | **2026-05-07** | **(本 commit)** | **F281-Phase1-bis 改訂。F200 既存実装併存方針 B 確定 + schema 案 W 確定。§17「F200 既存実装との関係 (併存方針)」新設、§17-§21 を §18-§22 にリナンバー、lane_id → lane_code 全置換、§16 既存資産再分類方針改訂 (F200 互換維持明記)、§15 Phase 2-A (1)(8) 改訂 (lane_code 新規追加 + F200 既存 lane (INTEGER) 列温存)** |
+| v1.1 | 2026-05-07 | (前 commit) | F281-Phase1-bis 改訂。F200 既存実装併存方針 B 確定 + schema 案 W 確定。§17「F200 既存実装との関係 (併存方針)」新設、§17-§21 を §18-§22 にリナンバー、lane_id → lane_code 全置換、§16 既存資産再分類方針改訂 (F200 互換維持明記)、§15 Phase 2-A (1)(8) 改訂 (lane_code 新規追加 + F200 既存 lane (INTEGER) 列温存) |
+| **v1.2** | **2026-05-07** | **(本 commit)** | **§5-bis「Active Light 初期仕様 (Stage 3 開始時適用)」新設 (5 sub-sections: 数値仕様 / 見直しサイクル / 状態遷移関係 / 損失リスク試算 / Fujiwara 承認体制)、§6 Active Light 行に脚注追加 (詳細は §5-bis 参照)。本部判定 + Fujiwara 戦略判断 2026-05-07 で確定、Stage 3 開始準備。Run a (PL-20260507062346-561A) 完了 + F058 test_e2e_smoke pattern archive 化と同期。** |
 
 ---
 
 ## 関連リンク
 
 - F281 todo: [[../02_todo/F281_strategy_portfolio_migration]]
-- F271 v1.4 (本 v1.1 改訂同期): [[F271_v1.3_2026-05-07]] (※ファイル名は v1.3 維持、内部バージョン v1.4 に更新)
+- F271 v1.5 (本 v1.2 改訂同期): [[F271_v1.3_2026-05-07]] (※ファイル名は v1.3 維持、内部バージョン v1.5 に更新)
 - F276 Phase 4-α/β: [[F276_phase4_2026-05-05]]
 - F273 phase2bc §6-3: [[F273_phase2bc_results_2026-05-04]]
 - F275 完了: [[F275_similarity_optimization_complete_2026-05-04]]
