@@ -2650,3 +2650,24 @@ Vault 関連:
 - 03_design/F300-race_phase1_2026-05-05.md (Phase 1 handover、commit 477871c)
 
 
+
+## [2026-05-07] milestone | F058 test_e2e_smoke pattern を archive 化 (Stage 3 開始前クリーンアップ)
+
+F058 e2e smoke test 由来の approved_active pattern (material_initial-strong_market-breakout-AM-highliq@v1.0) を archive 状態に降格。
+
+経緯:
+- F058 e2e smoke test (2026-05-01 完了) で --inject-test-pattern により Status.APPROVED_ACTIVE 注入済
+- F058 todo にクリーンアップ仕様欠落、F273/F274/F275/F276/F281 と 5 タスク経て残置
+- log.md 609-614 (F274/F275 文脈) で「F266 Stage 3 ゲートで再評価必要」と問題視済だが対処されないまま
+- 2026-05-07 Run a 着手前 Vault 突合で本部・Mac mini 同時に発覚
+- Run a (env=0.65 default、20 営業日、PL-20260507062346-561A) で events 0 件確認、test pattern として実機影響ゼロ
+- 本部判定 + Fujiwara 承認で archive 化 (status='archive', change_reason 記入)
+
+結果:
+- approved_active = 0 件 (実弾稼働可能 pattern ゼロ確定)
+- 短縮版 Phase 3 (2-3 週間) 経路で F273_BRE 4,700 件から approved_active 化を進める方針
+- F271 v1.5 §6-22-octonary に再発防止事例として記録
+
+関連:
+- Run a 結果: events 0 / closed 0 / F053 1/5 PASS (sample_size/expected_value/halt/close FAIL、accuracy のみ PASS)
+- F058 cleanup 仕様欠落: 今後の e2e test では「テスト後 archive 化」を完了基準に含めること (HQ-Lean ルール 14 候補)
