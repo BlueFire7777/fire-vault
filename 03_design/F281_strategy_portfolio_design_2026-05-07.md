@@ -32,7 +32,7 @@
 
   - FIRE は完全自動発注ではない (兼業前提、判断負荷制限)
   - 発注は iSPEED / 楽天証券 Web で人間 (Fujiwara) が手動実行
-  - LINE 通知で注文完成形 (lane_id / pattern_id / 稼働理由含む)
+  - LINE 通知で注文完成形 (lane_code / pattern_id / 稼働理由含む)
   - Computer Use 不採用 (発注自動化しない)
   - Playwright / Cron による強制クローズ自動化不採用
   - 強制クローズ = LINE 緊急アラート + 人間対応
@@ -215,7 +215,7 @@
   - DD 状態 (現在 + 履歴)
   - 劣化検知アラート
   - Evaluation Agent 提案 (承認待ち / 採用済み / 却下済み)
-  - LINE 通知履歴 (lane_id 別)
+  - LINE 通知履歴 (lane_code 別)
   - Stage 3 開始 / 凍結条件モニタリング
 
 ---
@@ -241,10 +241,10 @@
 
 ---
 
-## 14. LINE 通知変更 (損益直結 + 判断材料、lane_id/pattern_id/稼働理由等)
+## 14. LINE 通知変更 (損益直結 + 判断材料、lane_code/pattern_id/稼働理由等)
 
   通知に含める情報:
-  - lane_id (Lane A1 等)
+  - lane_code (Lane A1 等)
   - pattern_id (発火 pattern)
   - 稼働理由 (Active Normal で採用、強気日でロット +0.1% 等)
   - 期待値 (lane 平均)
@@ -263,10 +263,13 @@
 
 ### Phase 2-A (3.5 日、Stage 3 開始経路): 最小 MVP 4 項目
 
-  (1) lane_id 設計 + schema migration
+  (1) **lane_code (TEXT) カラム新規追加** (patterns / positions /
+      paper_live_results / paper_live_positions、F200 既存 lane (INTEGER)
+      列は温存)
   (2) レーン別成績集計 (evaluation/aggregators 拡張)
   (4) Do Not Trade 3 分類 (Hard Block / Soft Block / Paper Only)
-  (8) Pattern Store の lane_id 対応 (既存 4,700 件 → Lane A1)
+  (8) **Pattern Store の lane_code 対応** (既存 4,700 件 → lane_code='A1'
+      UPDATE、F200 既存 lane=1 INTEGER は変更しない、F200 互換維持)
 
   完了 → Run a/b/c → R-32-01 7 項目 + F053 + F241 達成判定 →
   F235 + F266 並走 → ★Stage 3 開始 5/14 頃
@@ -277,7 +280,7 @@
   (3) 稼働モード 6 種完全
   (5) Dashboard 簡易版
   (6) 朝レポート 13 順序
-  (7) LINE 通知 lane_id 追加
+  (7) LINE 通知 lane_code 追加
   (9) 劣化検知最小実装
 
   Lane G/H/B/C/D 実装 (各 1-3 日)
@@ -311,16 +314,85 @@
 
 ## 16. 既存資産の再分類方針 (廃棄せず)
 
-  - F273_BRE prefix 4,700 件 → Lane A1 として再分類
-  - その他 9 件 (template / theme_flow / policy_benefit) → Lane E 候補
+  - F273_BRE prefix 4,700 件 → **lane_code='A1' として UPDATE 再分類**
+    (既存 lane=1 INTEGER は変更しない、F200 互換維持)
+  - その他 9 件 (template / theme_flow / policy_benefit) → 暫定 lane_code
+    ='A1' default、Phase 2-B/3 で個別再分類 (Lane E 候補等)
   - F273 phase2bc の Layer 1 seeder 実装は Phase 3 patterns 抽出見直しで
     再活用 (working tree の find_firing_pairs_multi 含む)
 
 ---
 
-## 17. Stage 3 開始判定構造
+## 17. F200 既存実装との関係 (併存方針)
 
-### 17-1. 過去データ判定経路
+### 17-1. 併存方針 B (本部 F281-Phase1-bis 確定、2026-05-07)
+
+  F200 task (~/fire-vault/02_todo/F200_3レーン戦略構造.md、status=完了、
+  commit 444b83f、2026-04-25) と F281 は **2 軸独立併存**:
+
+  - **F200 Lane 1/2/3** (時間軸軸): 既存実装、変更なし
+    - Lane 1 PRIMARY: 主戦略 (material_initial / theme_lead)、本番標準
+    - Lane 2 SEMI_SCALP: 準スキャル (semi_scalp)、paper 先行・昇格制
+    - Lane 3 PURE_SCALP: 純スキャル、初期不採用・研究のみ
+
+  - **F281 Lane A-H** (戦略目的軸): 新規追加
+    - Lane A: 高品質材料初動 (買い)
+    - Lane B: 主役テーマ前場初動 (買い)
+    - Lane C: 前日強銘柄初押し再加速 (買い)
+    - Lane D: スイング順張り (買い)
+    - Lane E: 長期高配当・成長株 (買い)
+    - Lane F: 空売り Paper Live 専用 (売り)
+    - Lane G: 防御・現金化
+    - Lane H: 保有株管理
+
+  両軸は独立して併存、Phase 2-B/3 で対応関係 (例: Lane A1 銘柄が F200
+  Lane 1/2 のいずれで稼働するか) を別途定義。
+
+### 17-2. 既存資産温存範囲 (改変禁止)
+
+  以下の F200 既存実装は本 F281 で **温存** (改変しない):
+
+  | 資産 | 内容 | F281 での扱い |
+  |---|---|---|
+  | `~/fire/patterns/lanes.py` | Lane.PRIMARY/SEMI_SCALP/PURE_SCALP enum + StrategyType + STRATEGY_TO_LANE | 温存 |
+  | `~/fire/scripts/setup/migrate_lanes.py` | F200 migration (commit 444b83f) | 温存 |
+  | `patterns.lane` (INTEGER, default 1) | F200 で追加、現状全 4,709 件 lane=1 | 温存、UPDATE しない |
+  | `patterns.strategy_type` (TEXT) | F200 StrategyType enum 用、現状全 NULL | 温存、UPDATE しない |
+  | `patterns.time_horizon` (TEXT) | F200 で追加、現状全 NULL | 温存、UPDATE しない |
+  | `positions.lane` (INTEGER) + `positions.strategy_type` (TEXT) | F200 で同時追加、現状 0 行 | 温存、UPDATE しない |
+
+### 17-3. F281 新規追加 schema (案 W)
+
+  F281 では F200 既存資産を改変せず、**lane_code (TEXT) カラムを別途追加**:
+
+  | テーブル | F200 既存 | F281 新規追加 |
+  |---|---|---|
+  | patterns | lane (INTEGER, default 1) | lane_code (TEXT, default 'A1') |
+  | positions | lane (INTEGER) | lane_code (TEXT, default 'A1') |
+  | paper_live_results | (なし) | lane (INTEGER, default 1) + lane_code (TEXT, default 'A1') |
+  | paper_live_positions | (なし) | lane (INTEGER, default 1) + lane_code (TEXT, default 'A1') |
+
+  paper_live_results に F200 互換 lane (INTEGER) も追加するのは、Phase 4
+  蓄積 14,708 行と F200 既存実装との後方互換維持目的。
+
+### 17-4. 値域 + 設計意図
+
+  - `lane` (INTEGER): F200 軸、1/2/3 (時間軸: 主戦略 / 準スキャル / 純スキャル)
+  - `lane_code` (TEXT): F281 軸、A1/B1/C1/.../H1 (戦略目的軸: A-H)
+  - 命名統一: F281 設計記録内では「lane_code」表記、F200 関連の引用箇所
+    のみ「lane (INTEGER)」と区別
+
+### 17-5. F271 v1.4 §6-22-septenary 関連事例
+
+  F281 設計記録 v1.0 (commit f18b4c4) は F200 既存実装への言及完全欠落、
+  本部 F281-Phase1-bis (本日 2026-05-07) で改訂 v1.1。詳細は F271 v1.4
+  §6-22-septenary を参照。
+
+---
+
+## 18. Stage 3 開始判定構造
+
+### 18-1. 過去データ判定経路
 
   R-32-01 ※注記により、Run a/b/c (過去データ Backtest) で 20 営業日 +
   50 トレード達成可。Lane A1 単独で:
@@ -329,7 +401,7 @@
   - Run b (60 営業日): 期待値 / DD 確認
   - Run c (120 営業日): 統計的有意性確認
 
-### 17-2. ケース別経路
+### 18-2. ケース別経路
 
   - ケース 1 (R-32-01 7 項目達成): Lane A1 Stage 3 開始
   - ケース 2 (期待値プラス未達): 本質課題対応追加実施 (5-7 日遅延)
@@ -338,7 +410,7 @@
 
 ---
 
-## 18. Stage 3 開始凍結条件 (4 段階)
+## 19. Stage 3 開始凍結条件 (4 段階)
 
   1. Run a/b/c 期待値プラス未達 → 本質課題対応 5-7 日 → 5/22 頃まで遅延
   2. 再実測でも未達 → 戦略再設計
@@ -347,27 +419,27 @@
 
 ---
 
-## 19. 採用根拠
+## 20. 採用根拠
 
-### 19-1. Phase 4-α/β 実測 (Vault 一次資料)
+### 20-1. Phase 4-α/β 実測 (Vault 一次資料)
 
   - Phase 4-α (env=0.55): events 103,312、勝率 6.6%、期待値 -10,367 円
   - Phase 4-β (env=0.60): events 39,420、勝率 6.5%、期待値 -10,108 円
   - 結論: 閾値微調整で events は 1000 倍変動、勝率/期待値は構造不変
     (§6-7-quaternary)
 
-### 19-2. Vault §6-3 警告
+### 20-2. Vault §6-3 警告
 
   F273_phase2bc_results_2026-05-04.md line 223:
   > 「ただし features 値域が狭い (vwap_position レンジ -0.18〜0.15) ため、
   > 識別力向上は限定的」
 
-### 19-3. Fujiwara 戦略観
+### 20-3. Fujiwara 戦略観
 
   - a 懐疑: 機械学習で未来予知は不採用 (個人投資家のリソースで誤った方向)
   - b 確信: FIRE は日本株で稼げるシステム (複数戦略レーン管理が正攻法)
 
-### 19-4. Fujiwara 戦略方針
+### 20-4. Fujiwara 戦略方針
 
   - 損益直結優先
   - 贅肉削減 (オミット 6 項目)
@@ -376,7 +448,7 @@
 
 ---
 
-## 20. 重要制約 (Fujiwara 提供文書 15 項目)
+## 21. 重要制約 (Fujiwara 提供文書 15 項目)
 
   1. FIRE は完全自動発注ではない
   2. 発注は iSPEED/楽天証券 Web 手動
@@ -396,7 +468,7 @@
 
 ---
 
-## 21. オミット項目 6 件 (Fujiwara 戦略判断、損益直結せず)
+## 22. オミット項目 6 件 (Fujiwara 戦略判断、損益直結せず)
 
   以下は損益直結せず、本指示書範囲外:
 
@@ -411,12 +483,22 @@
 
 ---
 
+## 改訂履歴
+
+| 版 | 日付 | commit | 主要内容 |
+|---|---|---|---|
+| v1.0 | 2026-05-07 | f18b4c4 | 初版 (21 章、422 insertions)。F200 既存実装言及なし、本部側 Vault 突合不在 + Mac mini 側観点 8 漏れ |
+| **v1.1** | **2026-05-07** | **(本 commit)** | **F281-Phase1-bis 改訂。F200 既存実装併存方針 B 確定 + schema 案 W 確定。§17「F200 既存実装との関係 (併存方針)」新設、§17-§21 を §18-§22 にリナンバー、lane_id → lane_code 全置換、§16 既存資産再分類方針改訂 (F200 互換維持明記)、§15 Phase 2-A (1)(8) 改訂 (lane_code 新規追加 + F200 既存 lane (INTEGER) 列温存)** |
+
+---
+
 ## 関連リンク
 
 - F281 todo: [[../02_todo/F281_strategy_portfolio_migration]]
-- F271 v1.3: [[F271_v1.3_2026-05-07]]
+- F271 v1.4 (本 v1.1 改訂同期): [[F271_v1.3_2026-05-07]] (※ファイル名は v1.3 維持、内部バージョン v1.4 に更新)
 - F276 Phase 4-α/β: [[F276_phase4_2026-05-05]]
 - F273 phase2bc §6-3: [[F273_phase2bc_results_2026-05-04]]
 - F275 完了: [[F275_similarity_optimization_complete_2026-05-04]]
+- F200 (3 レーン構造、既存併存): [[../02_todo/F200_3レーン戦略構造]]
 - 要件書 R-32-01: [[../01_requirements/FIRE_要件書_第32章_本番移行基準の厳密化_穴10対策_]]
 - 要件書 R-13-08: [[../01_requirements/FIRE_要件書_第13章_Evaluation_Agent_と_Dashboard]]
