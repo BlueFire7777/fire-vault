@@ -2813,3 +2813,71 @@ Phase 2 移行判定時に以下を Fujiwara が確認:
 同日追記: §6-22-novenary ミス 10 件目 (添付ファイル経路の事前確認
 不在) 即時 Vault 化 + ルール 19 項目 (6) 追加。新ルール導入と同
 セッションでの違反 + 是正の実証事例。
+
+## [2026-05-08] milestone | Q-F282-protection 案 P 採用 + branch protection 実装完了
+
+Q-F282-protection の最終判定として案 P (GitHub Pro 加入) を採用、
+branch protection を技術強制完備で実装。F282 設計通りの enforcement
+が運用開始。
+
+【判定経緯】
+
+Mac mini Vault 突合 (確認 1-4) で事実材料収集:
+  - 確認 1: fire = Private、fire-vault = 既に Public
+  - 確認 2: git history 機密残置 0 件 (案 Q 評価可能)
+  - 確認 3: F276 Premium 158,400 円/年 vs Pro 7,200 円/年 = 1/22 比較
+  - 確認 4: 過去 6 週間 main/staging への direct push = 0 件
+
+本部推奨 + Fujiwara 戦略判断で確定:
+  - 撤退可能性 (Pro 月単位解約可) を F276 sunk cost 教訓と整合
+  - 案 Q (Public 化) の不可逆性より、案 P の月 600 円 + 撤退可能性を優先
+  - F271 v1.7 ルール 17/18/19 + 観点 13 自己適用下で判定
+
+【実装範囲】
+
+- GitHub Pro 加入 (Fujiwara 個人アカウント、月額 $4 ≒ 600 円)
+- branch protection 実装 (gh api PUT):
+  - main: PR 必須、approvals 1+、dismiss_stale_reviews、
+          require_last_push_approval、required_conversation_resolution、
+          force_push 禁止、deletion 禁止
+  - staging: 同上
+  - develop: 保護なし (Mac mini 自由 push、Codex pre-commit で品質担保)
+- F282 v1.0 → v1.1 化:
+  - §5-1 Q-F282-protection 採用案セクション追加
+  - §5-1 MR flow に technical enforcement 補強
+  - §9 受入基準 branch protection 完了マーク
+  - 改訂履歴 v1.1 行追加
+
+【同セッション内本部側ミス 11 件目検出 + Vault 化】
+
+F282 v1.1 化指示文で添付ファイル F282_v1.1_diff.md が Mac mini 環境
+不在 → ルール 19 項目 (6) を新設した直後の同型再発 (ミス 10/11 が
+2 回連続のメタ自己違反)。本部の自己検証が形式化していた事実が判明。
+案 1 (インライン記載) で復旧、F271 v1.7 §6-22-novenary にミス 11 追記、
+ルール 19 項目 (6) 強化版を F271 v1.8 候補として記録。
+
+【完了済 commit (~/fire-vault main)】
+
+- 8ae921a docs(f282): F282 v1.1 Q-F282-protection 案 P 採用反映 (GitHub Pro 加入)
+- ff9f251 docs(f271): F271 v1.7 §6-22-novenary ミス 11 追記 (メタ自己違反 2 回連続)
+
+【6 月末再判定基準 (Phase 切替時 = 2026-07-01 ± 数日)】
+
+Pro 加入の継続 / 解約は、以下を評価して決定:
+1. Phase 1 期間中の direct push 件数: 0 件なら解約検討
+2. Phase 1 期間中の本部側ミス件数: F271 v1.7 §6-22 系新事例ゼロが理想
+3. Phase 2 (ラベル制) で本部承認の MR 数: 月 20 件以上で継続推奨
+4. Mac mini の wrapper 経由運用遵守率: 95% 未満で継続推奨
+5. Stage 3 実弾運用での重大事故: 1 件以上で継続必須
+
+【次工程】
+
+- F282 完全完了 (受入基準 §9 すべて ✅) → 進捗率約 41%
+- 短縮版 Phase 3 (F281-Phase2-B-mini) 着手準備完了
+- TODO Excel 更新 (本部実施): F282 v1.1 反映 + F271-v1.7 行追加 + Pro
+  加入記録
+- Stage 3 開始経路 5/30 ± 数日 維持
+- Phase 1 (案 A: Fujiwara 全 MR 承認) 運用開始、technical enforcement
+  で direct push 構造的禁止
+- F271 v1.8 候補 (ルール 19 項目 (6) 強化版): 添付ファイル方式の信頼性
+  問題への構造的対処、Stage 3 開始後 or 実需発生時に検討
