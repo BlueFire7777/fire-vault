@@ -2745,3 +2745,67 @@ MR 承認モデル:
 - 短縮版 Phase 3 (F281-Phase2-B-mini) 着手 = target_patterns 拡張 +
   F273_BRE 4,700 件評価 (staging 環境で実施)
 - Stage 3 開始経路 5/30 ± 数日
+
+## [2026-05-08] milestone | F271 v1.7 化 (本部品質改善、Fujiwara 指摘トリガー)
+
+Fujiwara 指摘「最近本部側のミスが目立つけどどうして?」をトリガーに、
+本セッション本部側ミス 9 件を構造的再発防止策で Vault 化。
+
+【背景: 本セッション本部側ミス 9 件】
+
+クラスタ A (Vault 突合不在): 3 件
+  ミス 1: F281-Phase1 設計時の F200 既存実装見落とし
+  ミス 3: approved_active=test_e2e_smoke pattern 5 タスク連続見落とし
+  ミス 4: Mac mini 投入有無の推測判定
+
+クラスタ B (環境制約・技術仕様検証不在): 4 件
+  ミス 2: F281-Phase2-A 段階 A positions schema 設計欠陥 (run_id なし)
+  ミス 6: F282 §7-2 snapshot 実装の WAL 欠落リスク (cp ベース)
+  ミス 7: macOS Full Disk Access での crontab install hang
+  ミス 9: GitHub Free + Private repo の branch protection 制約見落とし
+
+クラスタ C (生成物自己検証不在): 2 件
+  ミス 5: 指示文ファイル生成時のプレースホルダー残置
+  ミス 8: git push origin --delete dev 後の GitHub 自動 default branch
+         切替を予測せず
+
+【5 つの根本原因】
+
+1. タスク密度が異常に高い (本セッション 5+ タスク並行)
+2. F282 が過去議論ゼロの新規論点 (Vault 参照不可)
+3. 既存 F271 ルール (観点 11 等) を本部自身が完全遵守できず
+4. チェック責任が Mac mini と Codex に偏重 (本部自己チェック不在)
+5. メタ認知 (本部自身の品質を測る仕組み) 不在
+
+【4 つの構造的対策 (F271 v1.7 で導入)】
+
+ルール 17: 本部がタスク着手前に必ず Mac mini に Vault 突合を依頼
+ルール 18: 環境制約・技術仕様を含む設計判断は実機検証を Mac mini に依頼
+ルール 19: 本部が指示文・ドラフトを生成した後、自己検証を実施
+観点 13: タスク完了報告受領後、本部受入基準照合を完遂
+
+【完了済 commit (~/fire-vault main)】
+
+- docs(f271): F271 v1.7 ルール 17/18/19 + 観点 13 + §6-22-novenary 追加
+  (24fc894)
+
+【運用記録 (Phase 切替判定基準 §5-3 への追加検討)】
+
+Phase 1 期間中 (~ 2026-06-30) の本部側ミス件数を log.md に記録、
+Phase 2 移行判定時に以下を Fujiwara が確認:
+
+- 本部側ミス件数 = 0 件 (Phase 1 期間中)
+- ルール 17/18/19 + 観点 13 の自己適用率 = 100%
+
+これにより、Phase 2 移行時に「本部品質改善が定着している」ことを
+客観的に判定可能。
+
+【次工程】
+
+- Q-F282-protection 再開 (本部が新ルール下で判定)
+  - ルール 17 適用済 (Vault 突合確認 1-4 完了)
+  - ルール 18 適用 (GitHub プラン仕様 web 確認)
+  - ルール 19 適用 (判定文の自己検証)
+- Branch protection 実装 (案 P/Q/R 確定後)
+- cron 手動 install (Full Disk Access 許可後)
+- 短縮版 Phase 3 (F281-Phase2-B-mini) 着手
