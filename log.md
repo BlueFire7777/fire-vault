@@ -3046,3 +3046,31 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   (log milestone)
 - F287 ステータス: 仕様設計 + feasibility 確認 v1.1 完了。HQ 確定。
   F288 以降は c6 完了後 / Phase C2 判断 / TODO 表更新後に着手判断
+
+## [2026-05-09] milestone | F284/F105 c6 backfill 完了 + Phase C2 PASS + Phase C2 GO
+
+- F284/F105 c6 full backfill 走行 (PID 92822、2026-05-08 14:01 →
+  2026-05-09 02:04、11h54m) が **正常完了** (exit 0、unresolved 0)
+- HQ Q-c6-fail-2 案 C (retry 5 / sleep 1.0 / cooldown 5.0) で 429
+  retry 0 件、recoverable 0 件、fatal 0 件で完走
+- 走行内訳:
+  - 期間 2026-02-03 〜 2026-05-01 (64 営業日)、銘柄 478 (Tier2)
+  - fetched 25,448 / skipped_resume 3,231 / no_data 1,913
+  - 4 条件完了 pair 28,681 (universe 478 内のみ 28,679 = 478×60-1 完全一致)
+  - DB 3,879.8 MB (+2,503 MB 増分) / disk 838 GB avail
+- 差分の特定 (HQ 重点 ①②):
+  - +1 no_data: 149A0 / 2026-03-11 (銘柄固有 no_data、他 59 営業日 ok)
+  - +2 overflow: 72030 (Toyota smoke 残) × 04-30 + 05-01
+    (Tier2 外、Phase C2 で universe filter で除外)
+  - -1 missing: 上記 149A0 / 03-11
+- 27260 / 2026-02-03 (前 c6 走行 fail) 復活確認 (389 row)
+- Phase C2 PASS 5 条件すべて達成: HQ 承認 → **Phase C2 着手可能** ✅
+- Vault 化:
+  - 03_design/F284_F105_c6_final_result_2026-05-09.md 新規 (15 章)
+  - 02_todo/F105 TODO status 更新 (Phase C1 完了 / Phase C2 着手可能)
+- 関連 commit: 439e2cf (c6 final result v1.0) / c4578d9 (F105 TODO 更新) /
+  本 commit (log milestone)
+- 関連 ~/fire 側 commit (走行前): 3b6b709 (client retry 5) / 2548855
+  (致命的/recoverable 分離 + retry pass)
+- 次: Phase C2 実装計画 draft 提示 (HQ 承認後に Vault 化、F281 Lane C
+  真実装着手)
