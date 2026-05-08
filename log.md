@@ -3024,3 +3024,25 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   本 commit (log milestone)
 - 次の着手: c6 backfill 完了後 / Phase C2 完了後 / F285 Phase R0
   precheck と並行 / HQ 判断で F288 着手
+
+## [2026-05-08] milestone | F287 v1.1 — HQ 補正反映 (主案 = Claude API、Plugin = 半自動補助、F290 必須検証 8 項目)
+
+- HQ 追加指示 (2026-05-08): F287 仕様 v1.0 を承認後、3 補正を反映する
+  よう指示
+- 補正 1: 主案 = **Claude API + PDF 入力 + 構造化 JSON 出力** で確定
+  (§6.1 / §14.1 / §14.6 で明文化)
+- 補正 2: financial-services plugin / Claude.ai plugin / Claude for
+  PowerPoint は **直接自動パイプラインに組み込めると断定せず**、
+  高重要度銘柄 (importance 5) の **半自動補助案** として残す (§14.5)
+- 補正 3: F290 実装時の **必須検証 8 項目** を §12 F290 受入基準に
+  明示 (1) ANTHROPIC_API_KEY 権限 / (2) 1 銘柄 PDF API 疎通 / (3) コスト
+  実測 / (4) 16 観点 JSON schema 固定 / (5) 根拠箇所保存 / (6) PDF 根拠
+  なし項目は unknown / (7) Fujiwara レビュー前提 / (8) 自動発注・楽天
+  証券操作非接続
+- 仕様書 frontmatter / 改訂履歴を v1.1 化
+- TODO 起票文に対応セクションを反映 (feasibility 結論 v1.1 + F290
+  必須検証 8 項目)
+- 関連 commit: fe19816 (仕様書 v1.1) / 5be6ab9 (TODO 補正) / 本 commit
+  (log milestone)
+- F287 ステータス: 仕様設計 + feasibility 確認 v1.1 完了。HQ 確定。
+  F288 以降は c6 完了後 / Phase C2 判断 / TODO 表更新後に着手判断
