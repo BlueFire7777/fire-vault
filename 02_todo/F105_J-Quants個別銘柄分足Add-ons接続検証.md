@@ -2,14 +2,29 @@
 id: F105
 phase: P6: データソース
 priority: 高 (Lane C 真実装の前提)
-status: 起票案 (HQ 確認待ち)
+status: 検証完了 (Mac mini 範囲)、Fujiwara Add-ons 契約判断待ち
 owner: Fujiwara
 depends_on: [F100 J-Quants V2 daily]
 chapter: "14"
 created: 2026-05-08
 updated: 2026-05-08
-related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08
+related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08, F105_J-Quants_intraday_validation_2026-05-08
 ---
+
+★ **検証完了** (2026-05-08): Mac mini 範囲の調査終了。詳細結果は
+   [[F105_J-Quants_intraday_validation_2026-05-08|F105 検証結果 Vault]]
+   参照。次工程 (Phase C1 着手) は **Fujiwara が Add-ons 契約 (Light +
+   Add-ons 月額 ¥7,150) を判断した後**。
+
+  主要結果:
+  - 現契約は J-Quants V2 daily 有効 (`/v2/equities/bars/daily` HTTP 200)
+  - Add-ons 分足 (`/v2/equities/bars/minute`) は HTTP 403 (契約必要)
+  - 公式料金確認: Add-ons「株価 分足・ティック (2 年間)」月額 ¥5,500、
+    Light/Standard/Premium に追加可能
+  - staging table 設計 + Tier2 universe backfill 工数見積もり完了
+    (Light + Add-ons で 3.3-6.7 h、staging DB +700MB-1.4GB)
+
+
 
 # F105: J-Quants 個別銘柄分足 Add-ons 接続検証 + staging 取込設計
 
