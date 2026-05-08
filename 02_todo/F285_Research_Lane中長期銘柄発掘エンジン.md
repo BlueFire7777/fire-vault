@@ -1,8 +1,8 @@
 ---
 id: F285
 phase: P4: 中長期 Lane (Research Lane)
-priority: 高 (Phase R0 仕様設計完了、Phase R0 feasibility precheck 着手前)
-status: 仕様設計完了 (HQ 5 点修正反映 v1.0)、Phase R0 precheck 待機
+priority: 高 (Phase R0 仕様設計完了 v1.1、Phase R0 feasibility precheck 着手前)
+status: 仕様設計完了 (v1.1、HQ 5 点修正 + Fujiwara 初期要求 7 項目対応表反映)、Phase R0 precheck 待機
 owner: Fujiwara
 depends_on: [F100 J-Quants V2 daily, F101 TDnet, F104 indices daily, F119 Evaluation Agent, F200 3 レーン戦略構造, F276 indices spec]
 chapter: "27"
@@ -25,6 +25,23 @@ Sector Flow / Cyclical Value / Earnings Preview / Dividend Growth の
 LINE 部屋 (or 朝レポート枠) に Top10 を配信。短期 Lane C との接続は
 5 段階 (A1/A2 boost / B neutral / C risk flag / D HQ review)。
 Phase R0-R6 で段階着手、Phase R5 受入合格まで本番運用しない。
+
+## F285 が対象とすること (Fujiwara 初期要求の対象明記)
+
+★ F285 は **「中長期企業発掘エンジン」** であり、以下を発掘 / 接続
+   対象とする (HQ 追加指示 2026-05-08 反映):
+
+- **セクター資金循環予測** (Sector Flow Agent §4-1、要求 1)
+- **シクリカルバリュー株発掘** (Cyclical Value Screener §4-2、要求 2)
+- **増収増益候補発掘** (Earnings Preview Agent §4-3、要求 3)
+- **増配候補発掘** (Dividend Growth Agent §4-4、要求 4)
+- **決算先回り候補発掘** (Earnings Preview Agent §4-3、要求 5)
+- **中長期ポートフォリオ候補の A1/A2/B/C/D 格付け** (Watchlist Ranker
+  §4-5 + §7、weighted_score AND 主要 Agent 強度)
+- **短期 Lane C / Portfolio Engine / Morning Report / LINE 通知との
+  接続** (§8 / §9 / §10、要求 7)
+
+詳細な要求 vs 章対応表は仕様書 v1.1 の §1.1 を参照。
 
 ## 詳細仕様
 
