@@ -3074,3 +3074,32 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   (致命的/recoverable 分離 + retry pass)
 - 次: Phase C2 実装計画 draft 提示 (HQ 承認後に Vault 化、F281 Lane C
   真実装着手)
+
+## [2026-05-09] milestone | F281 Phase C2 implementation plan v1.0 Vault化 (HQ 補正 3 点反映)
+
+- HQ Phase C2 GO 判断 + 条件付き承認 (補正 3 点) 受領後、Phase C2
+  implementation plan を Vault 化 (C2-0 commit)
+- 03_design/F281_Lane_C_Phase_C2_implementation_plan_2026-05-09.md
+  新規 (19 章、466 行)
+- HQ 補正 3 点 (v1.0 反映済):
+  - 補正 1: 高値再ブレイク判定を prior_peak_high (= [09:00, t-1] max
+    high) に修正、Lane C setup を **state machine** で定義
+    (State 0 監視 → 1 peak 形成 → 2 pullback → 3-A VWAP 回復 OR
+     3-B prior 再ブレイク → entry)
+  - 補正 2: smoke を Tier2 内 3 銘柄 × 5 営業日 × preset B に拡張、
+    利益ではなく動作確認 (candidate / setup / entry/exit /
+    skipped_reason / force_close / 72030 除外) 重視
+  - 補正 3: TP/SL preset を A 0.8/0.6 / B 1.2/0.8 / C 1.5/1.0 /
+    D 2.0/1.0 / E ATR 1.5/1.0 (E 後回し可、A〜D 優先評価) に変更、
+    commit 分割を C2-0〜C2-8 に変更
+    (C2-8 tick/order 統合は strict PASS 後の判断)
+- Phase C2 評価規模: 478 × 60 × 4 preset = 114,720 評価
+- 次の commit (C2-1 以降) は ~/fire 側で実装、各 commit に Codex
+  pre-commit 必須、--no-verify 禁止、個別 commit 厳守
+- 重要遵守事項 (HQ 厳守 10 項目):
+  daily 近似禁止 / TPM 代替禁止 / 持ち越し禁止 / Tier2 universe 固定 /
+  market_prices_intraday 全体無条件参照禁止 / 72030 除外 /
+  production・develop DB 無触 / 自動発注禁止 / 楽天・Computer Use 禁止 /
+  Codex pre-commit 必須
+- 関連 commit: dea61d4 (C2-0 Phase C2 plan v1.0) / 本 commit (log milestone)
+- 次: HQ 確認後に C2-1 (Tier2 universe loader + 72030 exclusion) 着手判断
