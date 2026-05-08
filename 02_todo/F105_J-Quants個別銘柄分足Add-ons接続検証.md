@@ -2,7 +2,7 @@
 id: F105
 phase: P6: データソース
 priority: 高 (Lane C 真実装の前提)
-status: 検証完了 (Mac mini 範囲)、Fujiwara Add-ons 契約判断待ち
+status: 契約後疎通完了、Phase C1 着手可 (HQ GO 判断待ち)
 owner: Fujiwara
 depends_on: [F100 J-Quants V2 daily]
 chapter: "14"
@@ -11,18 +11,23 @@ updated: 2026-05-08
 related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08, F105_J-Quants_intraday_validation_2026-05-08
 ---
 
-★ **検証完了** (2026-05-08): Mac mini 範囲の調査終了。詳細結果は
-   [[F105_J-Quants_intraday_validation_2026-05-08|F105 検証結果 Vault]]
-   参照。次工程 (Phase C1 着手) は **Fujiwara が Add-ons 契約 (Light +
-   Add-ons 月額 ¥7,150) を判断した後**。
+★ **契約後疎通完了** (2026-05-08): Fujiwara が J-Quants Standard
+   ¥3,300 + Add-ons ¥5,500 = **月額 ¥8,800** 契約済。Mac mini 最小
+   疎通再テスト完了。詳細結果は [[F105_J-Quants_intraday_validation_2026-05-08|F105
+   検証結果 Vault]] §15-16 参照。
 
-  主要結果:
-  - 現契約は J-Quants V2 daily 有効 (`/v2/equities/bars/daily` HTTP 200)
-  - Add-ons 分足 (`/v2/equities/bars/minute`) は HTTP 403 (契約必要)
-  - 公式料金確認: Add-ons「株価 分足・ティック (2 年間)」月額 ¥5,500、
-    Light/Standard/Premium に追加可能
-  - staging table 設計 + Tier2 universe backfill 工数見積もり完了
-    (Light + Add-ons で 3.3-6.7 h、staging DB +700MB-1.4GB)
+  契約後疎通結果 (v1.1):
+  - `/v2/equities/bars/minute` 1 銘柄 1 日: **HTTP 200 ✅**
+  - response field 確定: Date / Time / Code / O / H / L / C / Vo / Va
+  - 1 日 327 bar (前場 150 + 11:30 板寄せ 1 + 後場連続 175 +
+    15:30 大引け板寄せ 1)、CA 期間 15:25-15:29 は bar 生成なし
+  - 流動性銘柄 (7203) は 1 分連続生成、Vo==0 bar なし
+  - pagination_key 不在 (1 銘柄 1 日)
+  - rate limit Standard プラン = 120 req/min
+  - `/v2/equities/trades` は HTTP 403 path 不存在 (Lane C MVP 範囲外)
+
+  次: **Phase C1 着手可** (HQ GO 判断待ち)。Standard 120 req/min で
+       backfill 1.7-3.3 h 想定。実装計画は検証 Vault §16 で確定。
 
 
 

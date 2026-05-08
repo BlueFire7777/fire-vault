@@ -284,7 +284,159 @@ CREATE INDEX idx_mpi_interval
   - [[F105_J-Quants個別銘柄分足Add-ons接続検証|F105 起票 todo]]
   - [[F100_市場データAPI|F100 J-Quants V2 daily]]
 
-## 14. 改訂履歴
+## 15. 契約後 minimum 疎通再テスト結果 (2026-05-08、v1.1 追記)
+
+  ★ Fujiwara が J-Quants Standard + Add-ons 契約完了
+  (月額 ¥3,300 + ¥5,500 = ¥8,800)、最小疎通再テスト実施。
+
+### 15-1. /v2/equities/bars/minute 疎通結果
+
+  実行: requests.get で 1 銘柄 (7203) × 1 日 (2026-05-01)
+  HTTP: **200 ✅** (契約有効化確認)
+
+  response field 確定 (実 response):
+  | field | 型 | サンプル値 | 備考 |
+  |---|---|---|---|
+  | Date | str | "2026-05-01" | yyyy-mm-dd |
+  | **Time** | str | "09:00" | **HH:MM 形式 (1 分単位)** |
+  | Code | str | "72030" | 5 桁 (daily と同型) |
+  | O | float | 3000.0 | bar 開始価格 |
+  | H | float | 3015.0 | bar 内高値 |
+  | L | float | 2989.5 | bar 内安値 |
+  | C | float | 2995.0 | bar 終値 |
+  | Vo | float | 2208300.0 | bar 内出来高 |
+  | Va | float | 6623430350.0 | bar 内売買代金 |
+
+  top-level keys: `['data']` のみ (daily と同型)
+
+### 15-2. 1 日 bar 数 + 時間帯分布
+
+  total bars: **327**
+
+  | 時間帯 | bar 数 | 備考 |
+  |---|--:|---|
+  | 09:00 - 11:29 (前場) | 150 | 連続、skip なし ✅ |
+  | 11:30 (前場板寄せ) | 1 | 大引け前後 1 bar |
+  | 12:30 - 15:24 (後場連続) | 175 | 連続 |
+  | 15:25 - 15:29 | **0** | クロージング・オークション (CA) 期間、bar 未生成 |
+  | 15:30 (大引け板寄せ) | 1 | 大引け 1 bar |
+  | 合計 | **327** | |
+
+  ★ 重要観察: 15:25-15:29 (CA 期間) は bar 生成なし、Phase C2 Lane C
+    実装で entry / monitor 経路に注意。entry は 14:00 cutoff (no_new_
+    entry_after_hour=14) で安全、close は 15:10 force_close が 15:24 の
+    最後の連続 bar より前なので問題なし。
+
+### 15-3. 取引なし minute / 連続性
+
+  - Vo == 0 bars: **0** (取引なし bar は返らない仕様)
+  - O is None bars: **0**
+  - 前場 09:00-11:29 で 1 分間隔 skip なし、連続 150 bar
+  - → 流動性ある銘柄では 1 分連続生成、低流動銘柄は要追加検証 (本検証
+    は 7203 Toyota = 高流動銘柄のみ、Lane C universe Tier2 は 30 億
+    以上で流動性確保)
+
+### 15-4. pagination
+
+  - top-level に `pagination_key` 不在 = 1 銘柄 1 日では全件 1 response
+    で返却
+  - 大量取得 (複数日 / 複数銘柄) で pagination 必要となる可能性、
+    Phase C1 実装時に多日 / 多銘柄でテスト要
+
+### 15-5. rate limit headers
+
+  response headers に rate limit 情報なし (X-Ratelimit-* 系不在)
+  → プラン別固定値 (Standard = **120 req/min**) で実装側で attempt
+    cap を実装
+
+### 15-6. /v2/equities/trades 疎通結果
+
+  HTTP: **403** "The requested endpoint does not exist"
+
+  ★ Add-ons 契約済でも path 不存在。仕様変更 / 名称変更の可能性、
+    公式 spec 確認推奨。Lane C MVP は **minute で十分**、trades は
+    Phase C 範囲外、別タスクで再検証。
+
+### 15-7. Phase C1 進めるかの判定 (更新)
+
+  ★ **判定: 進める ✅** ★
+
+  根拠:
+  - Add-ons 契約完了 + minute API HTTP 200 確認
+  - response field 確定 (Date / Time / Code / O / H / L / C / Vo / Va)
+  - 1 日 327 bar、前場/後場境界 + CA 期間の挙動把握
+  - rate limit Standard 120 req/min 想定で backfill 工数 1.7-3.3 h
+
+  Phase C1 着手可、本部 GO 判断要。
+
+## 16. Phase C1 実装計画 (再提示、契約後確定版)
+
+### 16-1. 実装ステップ + commit 分割案
+
+  c1: **feat(intraday): client に minute endpoint 追加 + test**
+      - market_data/client.py に `get_intraday_minute_prices(code, date,
+        date_from, date_to, pagination_key)` method 追加
+      - 既存 retry / 401 / 429 / 4xx ハンドリング流用
+      - tests/market_data/test_client_intraday.py 新規
+
+  c2: **feat(intraday): migrate_intraday_columns.py + test**
+      - scripts/setup/migrate_intraday_columns.py 新規
+      - staging 専用 4 段 guard (B-strict-2a 同パターン:
+        FIRE_ENV='staging' / db_path.is_symlink() reject /
+        db_path.resolve().name == 'fire.staging.db' / 既存列冪等)
+      - market_prices_intraday table CREATE + 3 INDEX
+      - tests/scripts/test_migrate_intraday_columns.py 新規
+
+  c3: **feat(intraday): intraday.py (1分→5分/15分 派生 ETL) + test**
+      - market_data/intraday.py 新規
+      - 1 分足 fetch + 5 分足 / 15 分足派生集計 (SQL group by)
+      - vwap_cumulative 計算 (cumsum(typical_price × volume) /
+        cumsum(volume))
+      - tests/market_data/test_intraday_etl.py 新規
+
+  c4: **feat(intraday): fetch_intraday_data.py (backfill ジョブ) + test**
+      - scripts/jobs/fetch_intraday_data.py 新規
+      - Tier2 universe 銘柄リストを daily precheck 結果から抽出
+      - 60 営業日 × 銘柄 × 1 リクエスト
+      - rate limit 自動制御 (sleep 0.5 秒/req with safety margin =
+        実効 120 req/min)
+      - INSERT OR REPLACE で冪等
+      - staging 専用 (DB_PATH guard)
+      - 中断時 resume 対応 (既取得分 skip)
+      - tests/scripts/jobs/test_fetch_intraday_data.py 新規
+
+  c5: **chore(intraday): 60 営業日 Tier2 backfill 実行 + 結果 Vault 化**
+      - 実 backfill 走行 (Standard 120 req/min で 1.7-3.3 h 想定)
+      - 1 分 / 5 分 / 15 分派生 ETL 実行 + サンプル検証 (1 銘柄で
+        7203 5/1 327 bar との整合)
+      - 結果 Vault 化: 03_design/F105_Phase_C1_backfill_result_*.md
+
+### 16-2. 制約再確認
+
+  - **staging 専用** migration / 書き込み (production / develop 完全
+    隔離、4 段 guard 厳守)
+  - rate limit Standard 120 req/min で実効 sleep 0.5 sec/req、29 req
+    余裕で safety margin 設定 (=4 倍 backoff、実効 120 → 100 req/min)
+  - 中断時 resume: 既取得 (code, date) を SELECT で除外
+  - Codex pre-commit 必須、--no-verify 不使用、個別 commit 厳守
+
+### 16-3. リスク (更新)
+
+  R-1: 多日 / 多銘柄 fetch で pagination 出現の可能性
+       → fetch ジョブで pagination_key ループ実装
+  R-2: 低流動銘柄で取引なし minute の挙動
+       → Tier2 universe (30 億以上) は流動性確保、ただし Phase C1
+          backfill で実銘柄サンプル確認
+  R-3: CA 期間 (15:25-15:29) bar 生成なし
+       → Lane C entry 14:00 cutoff / close 15:10 で問題なし、設計
+          書類化済
+  R-4: J-Quants 仕様変更で field 命名変更
+       → 月次で疎通再確認 (運用ジョブ化検討、Phase C1 範囲外)
+
+## 17. 改訂履歴
 
   - v1.0 (2026-05-08): 初版、Mac mini 範囲の検証完了、Fujiwara 契約
     判断待ち
+  - v1.1 (2026-05-08): 契約後 minimum 疎通再テスト結果追記
+    (HTTP 200 / response field 確定 / 327 bar / rate limit 確認、
+     Phase C1 進める判定確定)
