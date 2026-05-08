@@ -2990,3 +2990,37 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
 - frontmatter / 改訂履歴を v1.1 化、結論「不足なし、明示性強化」
 - 関連 commit: 32daca1 (仕様書 v1.1) / e1509b3 (TODO 対象明記) /
   本 commit (log milestone)
+
+## [2026-05-08] milestone | F287 決算ダッシュボード × AI 分析 × LINE 通知 仕様 + feasibility v1.0
+
+- HQ 並行作業指示 (2026-05-08、F284/F105 c6 backfill PID 92822 走行
+  中の vault 作業) で着手、F285 Research Lane の Output Layer として
+  位置付け
+- 03_design/F287_Earnings_Dashboard_AI_Briefing_requirements_and_spec_2026-05-08.md
+  新規 (16 章 + メタ、要件 ID R-287-01〜11)
+- 02_todo/F287_決算カレンダー_AI分析_スライド_LINE通知ダッシュボード.md
+  新規起票 (Phase F287-F292 計画、depends_on F285/F101/F100/F119/F236/F051)
+- 機能網羅:
+  - 決算カレンダー DB (12 field、6 区分 universe)
+  - 決算短信/IR PDF 取得 (TDnet HTML/XBRL/PDF + J-Quants + 会社 IR)
+  - AI 分析 16 観点 (売上/営業利益/経常/純利益/YoY/会社予想比/市場比/
+    進捗率/上方修正/増配/配当性向/自社株買い/セグメント/為替原材料/
+    ポジティブ材料/ネガティブ材料 + 派生 翌日反応/Rank 影響/保有判断)
+  - スライド/PDF 生成 (Markdown 主 / PDF 副 / PPT 必要時のみ)
+  - LINE 通知 (Research 専用部屋 / 朝レポート枠 / 決算速報枠、短期
+    ENTRY と分離)
+- feasibility 結論: ★ Claude API 経由で全自動パイプライン実装可能 ★
+  - Claude.ai 専用 Plugin (financial-services / PowerPoint) は Claude
+    Code から直接呼び出し不可と推定 → API 経由代替
+  - PDF input サポート (Claude 3.5+) で短信 PDF 直接渡し分析可能
+  - tool use で構造化 JSON 出力
+  - 半自動代替 hybrid (重要度 5 のみ手動レビュー) も検討候補
+- 必要追加契約 (Fujiwara 判断): ANTHROPIC_API_KEY、月額コスト要実測
+- 制約: 自動発注禁止 / Computer Use 禁止 / 楽天証券操作自動化禁止 /
+  Fujiwara 最終確認 / LINE 通知は判断材料提示まで
+- Phase 分割 (8-12 週間): F287 仕様 ✅ → F288 DB → F289 PDF 取得 →
+  F290 AI 分析 → F291 スライド/PDF → F292 LINE 通知
+- 関連 commit: 3007129 (仕様書 v1.0) / dc18518 (TODO 起票) /
+  本 commit (log milestone)
+- 次の着手: c6 backfill 完了後 / Phase C2 完了後 / F285 Phase R0
+  precheck と並行 / HQ 判断で F288 着手
