@@ -2944,3 +2944,32 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   81134c5 (集計 + v1.8 推奨)
 - 次タスク候補: F271 v1.8 化実編集 (別タスク) / Lane B 新規 patterns
   抽出 / Lane C 前日強銘柄初押し戦略
+
+## [2026-05-08] milestone | F285 Research Lane 仕様設計 + 要件定義 v1.0
+
+- HQ 並行作業指示 (F284/F105 c6 backfill PID 92822 走行中、~/fire 触らずに vault のみ作業)
+- 中長期銘柄発掘エンジン (Sector Flow / Cyclical Value / Earnings
+  Preview / Dividend Growth + Watchlist Ranker) の Phase R0 仕様設計
+  完了
+- 03_design/F285_Research_Lane_requirements_and_spec_2026-05-08.md
+  新規作成 (15 章 + メタ、要件 ID R-285-01〜14)
+- 02_todo/F285_Research_Lane中長期銘柄発掘エンジン.md 新規起票
+  (Phase R0-R6 着手計画、depends_on F100/F101/F104/F119/F200/F276)
+- HQ 5 点修正反映 (v1.0):
+  - A1/A2 = weighted score + 主要 Agent 強度 AND 条件
+  - Lane C 接続 5 段階 (D は HQ レビュー対象)
+  - Phase R2 Premium 非断定、Phase R0 precheck 経由、追加課金は
+    Fujiwara 判断
+  - LINE 通知は Research 専用 / 朝レポート枠 (ENTRY 部屋と混同禁止)
+  - 受入評価 12 指標 (1m/3m/6m リターン / TOPIX 相対 / 業種指数相対 /
+    最大下落率 / 決算ギャップ勝率 / 増配・上修的中率 / 機会損益 /
+    Sharpe / winrate / Fujiwara 受容)
+- Phase 着手順: R0 仕様 ✅ → R0 precheck → R1 (Standard 実装) →
+  R2 (precheck 結果次第) → R3 統合 → R4 通知/Portfolio/Lane C 接続 →
+  R5 受入 (3-6 ヶ月) → R6 Live
+- 制約: 自動発注禁止 / Stage 飛ばし禁止 / Evaluation 提案制 /
+  LINE 通知混同禁止 / 追加課金 Fujiwara 判断必須
+- 関連 commit: bbb731c (仕様書 v1.0) / ac8074b (TODO 起票) /
+  本 commit (log milestone)
+- 次の着手: c6 backfill 完了後 / Phase C2 完了後 / HQ 判断で
+  Phase R0 precheck 着手
