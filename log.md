@@ -2898,3 +2898,26 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   で direct push 構造的禁止
 - F271 v1.8 候補 (ルール 19 項目 (6) 強化版): 添付ファイル方式の信頼性
   問題への構造的対処、Stage 3 開始後 or 実需発生時に検討
+
+## [2026-05-08] milestone | F281-Phase2-B-mini 完了 (Lane A1 broad 不採用)
+
+- B-strict-2a / 2b / 2c 実装完了 (44 新規 test PASS、Codex pre-commit
+  全件 OK、--no-verify 不使用)
+- B-strict smoke test 合格条件 15/15 / B-strict full run 60 営業日
+  合格条件 12/12 クリア
+- Lane A1 broad strategy は **Stage 3 候補から不採用**:
+  - 60 営業日 × preset A: closed 241、net_pnl -2,060,408 円、avg -8,549、
+    profit_factor 0.308、win_rate 21.1% (必要勝率 34.8%、13.7pt 不足)
+  - max_drawdown -20.6%、daily_halt 24/60 営業日
+  - Active Light 制約 6 機構正常発火、duplicate_entry_count=0、strict
+    評価基盤の妥当性確認
+- approved_active 化なし / Death Note 化はまだしない / memory 改訂なし
+- 期待値プラス 32 patterns は参考候補保存のみ (過学習リスクで採用せず、
+  将来 walk-forward 検証で再評価)
+- preset B/C 追加走行は実施しない (HQ Q-2c-8 確定)
+- 完了総括 Vault: 03_design/F281_Phase2-B-mini_conclusion_2026-05-08.md
+- 関連 commit (~/fire develop): be200eb / 0f218ce / 2ee4436 / 8a0e3c7
+  ほか (B-strict-2a〜2c 計 11 commit)
+- 関連 commit (~/fire-vault main): b9ed673 (smoke) / d50107d (full run)
+- 次タスク候補 (本部判断待ち): Lane B/C/D 新規戦略評価 or
+  F271 品質改善第 5 弾 (ミス 21-26 Vault 化)

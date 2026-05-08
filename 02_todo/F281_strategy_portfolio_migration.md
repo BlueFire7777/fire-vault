@@ -2,15 +2,40 @@
 id: F281
 phase: P10: 戦略レイヤー再設計
 priority: 最優先
-status: 着手中 (Phase 1 = 本日 Vault 化、Phase 2-A 着手準備)
+status: Phase2-B-mini 完了 (Lane A1 broad 不採用、Stage 3 候補から除外)。次は Lane B/C/D 評価 or F271 品質改善第 5 弾、本部判断待ち
 owner: Fujiwara
 depends_on: [F276 中止、F273/F275 Phase 4-α/β 結果]
 chapter: "32, 13, 19, 14, 21"
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 # F281: 複数戦略レーン管理型資産運用 OS 移行
+
+## 0. Phase2-B-mini 完了 (2026-05-08)
+
+★ Lane A1 broad strategy は **Stage 3 候補から外す** (approved_active
+   化なし、Death Note 化はまだしない)。詳細は
+   [[F281_Phase2-B-mini_conclusion_2026-05-08|完了総括 Vault]] 参照。
+
+実績サマリ:
+- B-strict-2a / 2b / 2c 実装完了 (44 新規 test PASS、Codex pre-commit
+  全件 OK、--no-verify 不使用)
+- B-strict smoke test 合格条件 15/15 クリア
+- B-strict full run (60 営業日 × preset A): closed 241、net_pnl
+  -2,060,408 円、avg -8,549、profit_factor 0.308、win_rate 21.1%
+- Lane A1 broad は構造的に勝てない判定 (preset A 必要勝率 34.8% に
+  対し 13.7pt 不足)
+- 期待値プラス pattern 32 件は参考候補保存のみ (過学習リスクで
+  approved_active 化なし、walk-forward 検証は別タスクで)
+
+次タスク候補 (本部判断待ち):
+- Lane B 新規 patterns 抽出
+- Lane C 前日強銘柄初押し
+- Lane D スイング順張り
+- F271 品質改善ブロック第 5 弾 (ミス 21-26 候補 Vault 化)
+
+---
 
 ## 1. 概要
 
