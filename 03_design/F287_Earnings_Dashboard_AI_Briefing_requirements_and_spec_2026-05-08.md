@@ -1,19 +1,26 @@
 ---
-title: F287 決算カレンダー × 決算短信 AI 分析 × スライド/PDF 生成 × LINE 通知ダッシュボード 仕様書 + 要件定義 v1.0
+title: F287 決算カレンダー × 決算短信 AI 分析 × スライド/PDF 生成 × LINE 通知ダッシュボード 仕様書 + 要件定義 v1.1
 date: 2026-05-08
 phase: F287-R0 (仕様設計 + feasibility 確認)
-status: 仕様設計 + feasibility 確認 (Phase F287、F288 以降の前提)
+status: 仕様設計 + feasibility 確認 v1.1 (HQ 補正反映: 主案 = Claude API、Plugin = 半自動補助、F290 必須検証 8 項目)
 related: F285_Research_Lane_requirements_and_spec_2026-05-08, F101_TDnet, F100_J-Quants, F119_Evaluation, F236_LINE5部屋, F210_phase_1b
 trigger: HQ 並行作業指示 (2026-05-08、F284/F105 c6 backfill PID 92822 走行中の vault 作業)
 ---
 
-# F287 決算カレンダー × 決算短信 AI 分析 × スライド/PDF 生成 × LINE 通知ダッシュボード 仕様書 + 要件定義 v1.0
+# F287 決算カレンダー × 決算短信 AI 分析 × スライド/PDF 生成 × LINE 通知ダッシュボード 仕様書 + 要件定義 v1.1
 
 ★ 本仕様は **F285 Research Lane の Output Layer** として位置付け、
    保有銘柄・監視銘柄・主要銘柄の決算予定をダッシュボード化、決算短信 /
    IR 資料を AI 分析、スライド / PDF 化して LINE で確認できる
    Research Output 機能を設計する。**自動発注機能ではない**。投資判断は
    Fujiwara が最終確認、LINE 通知は判断材料の提示まで。
+
+★ **v1.1 補正 (2026-05-08)**: HQ 補正反映:
+   - **主案 = Claude API + PDF 入力 + 構造化 JSON 出力** で確定
+   - financial-services plugin / Claude.ai plugin / Claude for
+     PowerPoint 等は **直接自動パイプラインに組み込めると断定せず**、
+     高重要度銘柄の **半自動補助案** として残す
+   - F290 実装時の必須検証 8 項目を §12 F290 受入基準に明示
 
 ## 1. F287 の役割定義
 
@@ -145,20 +152,30 @@ PDF 取得時の留意事項:
 
 ## 6. AI 分析観点 16 項目 (HQ 確認項目 6)
 
-### 6.1 分析パイプライン
+### 6.1 分析パイプライン (主案、HQ 補正 v1.1 で確定)
+
+★ **主案 = Claude API + PDF 入力 + 構造化 JSON 出力** ★
 
 ```
 入力: 決算短信 PDF / XBRL / 説明資料 PDF
      ↓
-[Claude API (claude-sonnet-4-6 / claude-opus-4-7)]
-  prompt: 構造化分析テンプレート (16 観点 + JSON 出力指示)
-  PDF input サポート: PDF 直接添付、構造化抽出可能
+[Claude API (claude-sonnet-4-6 / claude-opus-4-7、anthropic SDK)]
+  - PDF 直接添付 (Claude 3.5+ PDF input サポート)
+  - prompt: 構造化分析テンプレート (16 観点 + JSON 出力指示)
+  - tool use で固定 schema を強制 (16 観点 JSON schema)
+  - 根拠箇所を出力 (PDF 内のページ / セクション参照)
+  - PDF 内に根拠がない項目は **明示的に "unknown"** として返す
      ↓
 [構造化 JSON 出力]
-  16 観点を含む structured analysis result
+  16 観点 + 派生 + 根拠箇所 (page / section)
      ↓
 [earnings_analysis テーブルに保存]
+  + 根拠箇所のスナップショット保存
 ```
+
+★ Plugin / Skills / Claude for PowerPoint 等は **本パイプラインに
+   直接組み込まない**。半自動補助案 (§14.5) として高重要度銘柄
+   (importance = 5) のみ Fujiwara が手動投入する経路で残す。
 
 ### 6.2 16 分析観点
 
@@ -342,10 +359,25 @@ PDF 取得時の留意事項:
 - 当週決算銘柄の TDnet 短信 PDF / 説明資料 PDF が自動取得できる (>= 80%)
 - 取得失敗銘柄は failed status として可視化、再試行可能
 
-### F290 受入
-- 取得済 PDF を Claude API に投入し、16 観点 JSON が生成される
-- 主要数値 (売上 / 営業利益 / 純利益) の抽出精度 >= 95% (Fujiwara 検証)
-- 翌営業日反応仮説が提示される
+### F290 受入 (HQ v1.1 補正で必須検証 8 項目を明示)
+
+★ HQ 補正 (v1.1): F290 実装時に以下 8 項目すべての検証を必須とする:
+
+| # | 必須検証項目 | 確認方法 |
+|---|---|---|
+| 1 | **ANTHROPIC_API_KEY 権限確認** | Anthropic Console で issued / status / scope を Fujiwara が確認 |
+| 2 | **1 銘柄 1 短信 PDF で API 疎通** | smoke test で 1 銘柄 (例 7203) の 1 期分 PDF を Claude API に投入、200 OK 取得 |
+| 3 | **コスト実測** | smoke test 結果のトークン消費量 × Claude pricing から月額試算、Fujiwara 判断対象 |
+| 4 | **16 観点 JSON schema 固定** | tool use の input schema を JSON Schema で固定、各観点の型・enum を定義、Claude 出力の validation 必須 |
+| 5 | **根拠箇所保存** | 各観点の根拠 (PDF page / section) を JSON 内に含める、後で再検証可能 |
+| 6 | **PDF 内根拠がない項目は unknown** | 抽出不能項目を null や捏造値で埋めず、明示的に "unknown" を返す prompt + schema 設計 |
+| 7 | **Fujiwara レビュー前提** | 投資判断に直結する観点 (上方修正可能性 / 増配可能性 / 翌日反応仮説 / 保有判断) は draft 配置、Fujiwara 承認後に approved/ へ |
+| 8 | **自動発注 / 楽天証券操作には接続しない** | 出力先は LINE 通知 + Markdown / PDF のみ、楽天証券 API / iSPEED 操作 / Computer Use 系統に接続させない (R-03-01 / R-13-08 厳守) |
+
+加えて品質指標:
+- 主要数値 (売上 / 営業利益 / 純利益) の抽出精度 >= 95% (Fujiwara スポット検証)
+- 翌営業日反応仮説が提示される (確度を含む)
+- 16 観点 JSON が schema 適合 100% (validation)
 
 ### F291 受入
 - 1 銘柄 1 枚スライド + デイリーデックが生成される
@@ -380,11 +412,17 @@ PDF 取得時の留意事項:
 
 ### 14.1 Claude financial-services / Financial Analysis plugin の利用可否
 
-| 項目 | 現状認識 | 結論 |
+★ **v1.1 補正 (HQ)**: 主案は Claude API + PDF + JSON。Plugin 系は
+   直接組み込まず、半自動補助案として残す。
+
+| 項目 | 現状認識 | 結論 (v1.1) |
 |---|---|---|
-| Claude Code (CLI) から Claude.ai 専用 plugin を呼ぶ | Claude.ai web UI 内の Skills / Plugins は API 経由で直接呼び出せないと推定 (Anthropic ドキュメントで要確認) | **本タスクは Claude API 経由で代替実装する方針**。Plugin 経由ではない |
-| Claude API (Anthropic SDK) で財務分析 | PDF input サポート (Claude 3.5+) で決算短信 PDF を直接渡し分析可能、tool use で構造化出力 | **可能、推奨方式** |
-| Claude Code Agent SDK | カスタム Agent 化可能、Mac mini 上で常駐 OK | **F290 で活用候補** |
+| Claude API (Anthropic SDK) で財務分析 | PDF input サポート (Claude 3.5+)、tool use で 16 観点 JSON 強制可能 | ★ **主案、確定** ★ |
+| Claude Code (CLI) から Claude.ai 専用 plugin を呼ぶ | Claude.ai web UI 内 Skills/Plugins は API 経由で直接呼び出せないと推定 | **直接組み込まない**、半自動補助 (§14.5) |
+| financial-services plugin | Claude.ai 内限定 (推定)、未検証 | 半自動補助、要 Fujiwara 確認 |
+| Claude.ai Skills (financial) | 同上、未検証 | 半自動補助 |
+| Claude for PowerPoint | Microsoft 365 連携、Mac 環境困難 | 半自動補助、python-pptx で代替 |
+| Claude Code Agent SDK | カスタム Agent 化可能、Mac mini 常駐 OK | F290 で活用候補 |
 
 ### 14.2 Claude Code から利用可能な範囲
 
@@ -432,25 +470,39 @@ send_line_notification (Research / 朝レポート 部屋)
 
 各ステップは独立した Python script として F288-F292 で実装。
 
-### 14.5 半自動運用案 (Plugin が使えない場合)
+### 14.5 半自動補助案 (高重要度銘柄、HQ v1.1 補正で位置付け明確化)
 
-**主案: Claude API 経由の自動パイプライン** で全自動化可能。
+★ v1.1 補正: **Plugin / Skills 系は直接自動パイプラインに組み込ま
+   ない** 前提で、高重要度銘柄に限り Fujiwara が **手動補助** として
+   利用する経路を残す。
 
-代替案 (Claude API でカバー困難な場合):
-1. **手動ステップを介在**: 決算 PDF 取得は自動、AI 分析は Claude.ai web
-   に Fujiwara が手動で投入、結果を所定フォーマットで FIRE に貼付け
-2. **Claude.ai Skills 経由**: Fujiwara が Claude.ai web で財務 Skill
-   実行、結果を Markdown export → FIRE 自動取込
-3. **Hybrid**: 重要度 5 (保有 + Research A1) は手動、その他は自動
+主案 = Claude API 経由の自動パイプライン (全銘柄)。
 
-主案で十分な品質が出ない場合のみ代替案を検討 (Phase F290 で品質検証)。
+半自動補助 (高重要度 = importance 5、保有 + Research A1 等):
+1. **Claude.ai web 上の手動分析**: 主案 API 出力に加え、Fujiwara が
+   Claude.ai web で同一 PDF を分析、結果を所定フォーマットで FIRE に
+   貼付け (Plugin / financial-services / Skills を活用、結果のみを
+   FIRE 取込、自動経路には組み込まない)
+2. **Claude for PowerPoint**: 重要保有銘柄の決算後ミーティング資料を
+   Fujiwara が手動生成 (Microsoft 365 環境が必要、自動経路外)
+3. **Hybrid**: 主案 Claude API の出力 + 半自動補助の Fujiwara 手動
+   分析を併用、判断品質を強化
 
-### 14.6 feasibility 結論
+★ 半自動補助の前提:
+   - Plugin / Skills の動作・出力フォーマットは未検証 (Phase F290 以降
+     で実機確認、現時点で断定しない)
+   - 自動パイプラインは Plugin / Skills に依存しない
+   - 補助案が機能しなくても主案 (Claude API) で完結する設計
 
-★ **Claude API 経由で全自動パイプライン実装可能** ★
-- Plugin 連携は不確定だが、API + SDK で代替実装する方針で進める
-- スライドは Markdown → PDF が現実的、PPT は必要時のみ
-- 半自動代替は重要度に応じた hybrid を検討
+### 14.6 feasibility 結論 (v1.1)
+
+★ **主案: Claude API 経由で全自動パイプライン実装可能** ★
+
+- 全銘柄は Claude API + PDF input + 16 観点 JSON 強制で自動処理
+- スライドは Markdown → PDF が現実的、PPT は必要時のみ python-pptx
+- **Plugin / Skills / Claude for PowerPoint は半自動補助案として残す
+  が、自動パイプラインの依存にしない**
+- F290 実装時の必須検証 8 項目は §12 F290 受入基準を参照
 
 ## 15. 要件 ID 表
 
@@ -486,3 +538,15 @@ send_line_notification (Research / 朝レポート 部屋)
   Lane Output Layer として位置付け、Phase F287-F292 分割、feasibility
   確認 (Claude API 主案、Plugin 副案)、自動発注禁止 + Fujiwara 最終
   確認の前提を全章で明示
+- v1.1 (2026-05-08): HQ 補正反映:
+  - 主案 = **Claude API + PDF 入力 + 構造化 JSON 出力** で確定
+    (§6.1 / §14.1 / §14.6 で明文化)
+  - financial-services plugin / Claude.ai plugin / Claude for
+    PowerPoint は **直接自動パイプラインに組み込めると断定せず**、
+    高重要度銘柄 (importance 5) の **半自動補助案** として残す
+    (§14.5 で位置付け明確化、自動経路の依存にしない)
+  - F290 実装時の **必須検証 8 項目** を §12 F290 受入基準に明示:
+    (1) ANTHROPIC_API_KEY 権限確認 / (2) 1 銘柄 1 短信 PDF API 疎通 /
+    (3) コスト実測 / (4) 16 観点 JSON schema 固定 /
+    (5) 根拠箇所保存 / (6) PDF 内根拠なし項目は unknown /
+    (7) Fujiwara レビュー前提 / (8) 自動発注・楽天証券操作非接続
