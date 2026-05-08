@@ -1,14 +1,14 @@
 ---
 id: F105
 phase: P6: データソース
-priority: 高 (Lane C 真実装の前提)
-status: 契約後疎通完了、Phase C1 着手可 (HQ GO 判断待ち)
+priority: 高 (Lane C 真実装の前提、c6 完了で Phase C2 着手可能)
+status: Phase C1 完了 (c6 full backfill exit 0、Phase C2 PASS 5 条件達成、Phase C2 着手可能)
 owner: Fujiwara
 depends_on: [F100 J-Quants V2 daily]
 chapter: "14"
 created: 2026-05-08
-updated: 2026-05-08
-related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08, F105_J-Quants_intraday_validation_2026-05-08
+updated: 2026-05-09
+related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08, F105_J-Quants_intraday_validation_2026-05-08, F105_Phase_C1_smoke_2026-05-08, F284_F105_c6_final_result_2026-05-09
 ---
 
 ★ **契約後疎通完了** (2026-05-08): Fujiwara が J-Quants Standard
@@ -28,6 +28,29 @@ related: F281_Lane_C_design_2026-05-08, F281_Lane_C_universe_precheck_2026-05-08
 
   次: **Phase C1 着手可** (HQ GO 判断待ち)。Standard 120 req/min で
        backfill 1.7-3.3 h 想定。実装計画は検証 Vault §16 で確定。
+
+★ **Phase C1 c6 完了** (2026-05-09 02:04 JST): Tier2 universe 478 銘柄 ×
+   64 営業日 (2026-02-03 〜 2026-05-01) backfill が **正常完了**。
+
+  c6 最終結果 (詳細は [[F284_F105_c6_final_result_2026-05-09|c6 final
+  result Vault]] 参照):
+  - exit code 0 (PID 92822、走行 11h54m)
+  - fetched 25,448 / skipped_resume 3,231 / no_data 1,913
+  - recoverable_errors 0 / rate_limit_429 0 / unresolved_errors 0
+  - FATAL / Traceback / Auth / Validation / SQLite / disk error 0
+  - 4 条件完了 pair 28,681 (universe 内 28,679 = 478 × 60 - 1 完全一致)
+  - DB 3,879.8 MB (+2,503 MB 増分)
+  - disk 838 GB available
+
+  差分内訳:
+  - +1 件: 149A0 / 2026-03-11 銘柄固有 no_data (合理的説明可能)
+  - +2 件: 72030 (Toyota smoke 残) × 04-30/05-01 (Tier2 外、Phase C2
+    で universe filter 除外)
+
+  **Phase C2 PASS 5 条件すべて達成、Phase C2 着手可能 ✅** (HQ 承認済)
+
+  次: Phase C2 (Lane C 真実装) 着手判断 (HQ 承認後)、評価対象 universe
+       = Tier2 478 codes 固定、smoke 残 72030 除外、staging 専用
 
 
 
