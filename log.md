@@ -3745,3 +3745,86 @@ HQ 判断要請 5 項目 (計画書 §9):
   read helpers + market_prices_daily を join、A1/A2 銘柄の N 日後
   return 検証) / R2-D2 tuning (重み / cap_ratio / weights) / Lane
   integration / R1-B5 v1/v2 swap
+
+## [2026-05-09] milestone | F286-R2-F Return / Backtest Evaluation foundation 完了
+- HQ 承認後、research_watchlist_signals × market_prices_daily を join
+  して N 営業日後 return / max drawdown を計算する基盤を実装
+  (single-date smoke、複数 base_date は R2-F2 で扱う)
+- 1) return evaluation pure functions
+  (simulation/research_lane/return_evaluation.py):
+  - PricePoint / EvaluationRow / GroupSummary (frozen dataclass)
+  - find_base_trading_day: base_date 当日含む直近以前の close
+    (adj_close 優先、なければ close)、当日 price なしで fallback OK
+  - find_future_trading_day: base_trading_date より後 N 番目の trading
+    day (LIMIT 1 OFFSET N-1 で実装、price table 上の trading day で判定)
+  - fetch_close_window: drawdown 用の 1〜N 番目 window 一括取得
+    (N+1 query を避ける)
+  - compute_return / compute_max_drawdown_close (None / 0 / inf 安全)
+  - evaluate_signal / evaluate_signals: 1 件 / 一括評価
+  - price_data_status: "ok" / "missing_base" / "missing_future_*"
+  - summarize_group: count / valid / mean / median / win_rate / std
+    (n>=2) / sharpe_like (std>0 / 必須 None) / avg/worst max_drawdown
+  - group_by + summarize_by_groups (rank_label / strongest_strategy /
+    sector_17、None は "(none)" 集約)
+  - summarize_by_top_buckets (top10/30/50/100、rank_field 切替)
+  - build_overall_summary: overall + 4 種 group + missing_summary を
+    統合 dict 化
+- 2) runner
+  (scripts/jobs/run_research_return_evaluation.py):
+  - 完全 read-only、--write option 自体を作らない
+  - --db {staging,develop,production} (どれでも read-only) /
+    --base-date / --source-version / --horizons (default 1,5,20) /
+    --top-n (int or 'ALL') / --output-json / --output-csv /
+    --summary-json (全 optional)
+  - signals 取得 → evaluate_signals → build_overall_summary →
+    console / JSON / CSV / summary JSON 出力
+  - CSV header は horizons 動的 (future_date_Nd / future_close_Nd /
+    return_Nd / max_drawdown_Nd を全 horizon で)
+- 3) tests:
+  - return_evaluation 41 PASS (FindBaseTradingDay 5 / FindFutureTradingDay
+    3 / FetchCloseWindow 2 / ComputeReturn 4 / ComputeMaxDrawdown 6 /
+    EvaluateSignal 5 (full / missing_base / partial / fallback /
+    default) / SummarizeGroup 5 / GroupBy 3 / TopBuckets 3 /
+    BuildOverallSummary 2 / Serialization 1 / Constants 2)
+  - runner 17 PASS (ResolveDBPath 2 / VerifyRequired 3 / RunEvaluation
+    6 (required args / full data / missing_future = HQ 想定 / top_n=ALL
+    / top_n filter / no_db_write) / CSVFields 1 / FlattenRow 1 /
+    WriteOutputs 3 / Constants 1)
+- 実行結果 (2026-05-09 20:37):
+  base_date=2026-05-09 / source_version=r2d_v1 / horizons=1,5,20 /
+  top_n=100
+  signals loaded: 100 (= R2-E で永続化済 109 のうち post_cap_rank<=100)
+  base_close available: 100/100 (= 全銘柄 fallback で 2026-05-01 系
+  取得、find_base_trading_day 動作確認 OK)
+  future return: 0/100 全 horizon で missing
+  (= price max 2026-05-01 < base 2026-05-09 で trading day なし、
+    HQ 想定シナリオ)
+  全銘柄 price_data_status = "missing_future_1,5,20"
+  missing_summary: base_close_missing=0 / future_missing_1d=100 /
+    5d=100 / 20d=100
+- HQ 必須テスト 14 項目 全クリア:
+  N営業日後価格取得 / base当日あり / base fallback / future不足 /
+  return計算 / win_rate / median/mean/std / sharpe std=0/null /
+  rank_label別 / strongest_strategy別 / sector別 / top_n filter /
+  runner smoke / read-only behavior
+- 出力 artifact:
+  /tmp/r2f_returns.json (全 evaluation_rows + summary)
+  /tmp/r2f_returns.csv (101 行、horizons 動的 column)
+  /tmp/r2f_summary.json (overall + 4 種 group 集計のみ)
+- production / develop / staging DB last_modified 全 May 7-May 9
+  R2-E 終了から完全無変化 (R2-F は完全 read-only、--write option
+  自体を作らない設計)
+- Codex pre-commit 通過 × 3 (feat / chore / test)、--no-verify 不使用、
+  個別 commit 厳守
+- tests: 58 PASS (evaluation 41 + runner 17)、regression 734 PASS
+- commit: 2ded6be (evaluation) → 98096b7 (runner) → 84af6da (tests)
+  → f50acd2 (vault) → (本 commit) log
+- 02_todo/F286_R2_F_return_evaluation.md 新規 vault
+- ★ Go/No-Go: framework PASS / statistical conclusion 保留
+  (HQ 想定シナリオ通り、R2-F の基盤完成を確認、実 return 検証は
+   R2-F2 へ)
+- 次 step (HQ 判断): R2-F2 multi-date signal generation + evaluation
+  (過去 base_date 例: 2025-12-01 / 2026-01-15 で signal 再生成 →
+   R2-E 永続化 → R2-F で N 営業日後 return 検証、source_version
+   並列保存で戦略 tuning 比較) / R2-D2 tuning / Lane integration /
+  R1-B5 v1/v2 swap
