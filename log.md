@@ -4040,3 +4040,79 @@ HQ 判断要請 5 項目 (計画書 §9):
    12-24 base_dates 検証) / R2-D3 risk_adjusted refinement
   (risk_penalty weight を 0.10 → 0.20/0.30) / R2-G regime detection /
   Lane integration / R1-B5
+
+## [2026-05-09] milestone | F286-R2-F4 Broader Historical Sampling 完了
+- HQ 承認後、J-Quants から過去 18 ヶ月 price を staging に backfill
+  + 22 base_dates × 3 preset の leak-safe broader sampling を実施
+- 新規 module:
+  - simulation/research_lane/price_coverage.py:
+    PriceCoverageReport / BaseDateSelection / check_price_coverage /
+    select_valid_base_dates (= base_close + future N 日後 price 必須) /
+    generate_monthly_base_dates (月次 first-of-month、2/30 fallback)
+  - scripts/jobs/run_research_price_backfill_for_backtest.py:
+    既存 HistoricalDataFetcher の wrapper、4 段 staging guard +
+    production/develop --write-prices 即拒否、credentials 不在で
+    safe stop (return 2)、Codex CRITICAL: HistoricalDataFetcher /
+    get_target_symbols に db_path=db_path 明示
+  - scripts/jobs/run_research_broader_historical_sampling.py:
+    price coverage → base_date 自動選定 → R2-D2 _process_preset_base_date
+    再利用、preset comparison + vs_baseline + improvement_months 集計、
+    10 種 output artifact (coverage / selection / signals / preset
+    comparison / leak / db safety)
+- price backfill 結果:
+  target: 2024-05-01 〜 2025-11-03 (= 18 ヶ月 missing 期間)
+  inserted: 1,554,067 rows / failed: 0 / elapsed: 41 min
+  coverage: 526,764 → 2,080,831 (= 2024-05-01 〜 2026-05-01)
+  market_prices_daily への INSERT OR REPLACE で既存無破壊
+- broader sampling 結果:
+  date_range: 2024-06-01 〜 2026-03-01 月次 = 22 base_dates 全 valid
+  presets: baseline / risk_adjusted / quality_defensive (3 件)
+  combinations: 66 全成功、failures 0、leak violations 0
+  research_watchlist_signals: 5,161 → 13,551 (+8,390)
+    r2f4_baseline_v1: 2,417
+    r2f4_risk_adjusted_v1: 3,544
+    r2f4_quality_defensive_v1: 2,429
+- ★ 主要結果 (22 base 平均):
+  20d top10:
+    baseline           +3.07% / win 50.8% / dd -5.33% ★ 最強
+    risk_adjusted      -0.35% / win 40.2% / dd -3.57% (-3.42% 劣後)
+    quality_defensive  +2.47% / win 50.2% / dd -5.32%
+  5d top10:
+    baseline           +0.05% / win 46.5% ★ 最強
+    risk_adjusted      -0.08% / win 45.1%
+    quality_defensive  -0.44% / win 45.5%
+  1d top10:
+    baseline           -0.34% / win 38.0%
+    risk_adjusted      +0.05% / win 48.8% ← 1d だけ強い
+- ★ 重大発見: R2-D2 (5 base) の risk_adjusted 採用候補は **broader
+  sample で消失**、サンプリングバイアスだった
+  - R2-D2 baseline 20d top10: +1.23%
+  - R2-F4 baseline 20d top10: **+3.07%** (= 真の edge)
+  - R2-F4 risk_adjusted 20d top10: -0.35% (= baseline 比 -3.42% 劣後)
+  - R2-F4 quality_defensive 20d top10: +2.47% (= baseline ほぼ同等)
+- ★ 結論:
+  baseline (= QV/EG/CV 0.35/0.35/0.30) で **20d top10 +3.07% / 勝率
+  50.8%** という実用 edge 候補水準を確認
+  tuning preset (risk_adjusted / quality_defensive / momentum 系) は
+  **全て不採用**
+  5 sample tuning は信頼できない、最低 20 sample 必要が再確認
+- HQ 必須テスト 17 項目 全 PASS
+- production / develop DB last_modified May 7 完全無触
+- staging の write 対象 tables:
+  market_prices_daily +1,554,067 row (= R2-F4 価格 backfill)
+  research_watchlist_signals +8,390 row (= R2-F4 broader signals)
+  research_derived_indicators 完全無触 (= in-memory 生成のみ)
+- Codex pre-commit 通過 × 4、CRITICAL 1 件 (HistoricalDataFetcher
+  db_path 明示) 即修正、--no-verify 不使用、個別 commit 厳守
+- tests: 53 PASS (price_coverage 19 + price backfill 18 +
+  broader sampling 16)、regression 929 PASS
+- commit: 6a49e17 (price_coverage) → 076f569 (price backfill) →
+  ed13258 (broader sampling) → 7f193b9 (tests) → 390286f (vault) →
+  (本 commit) log
+- 02_todo/F286_R2_F4_broader_historical_sampling.md 新規 vault
+- ★ Go/No-Go: framework PASS / **baseline 採用** / tuning preset
+  全不採用 / 5 sample tuning は信頼不可と再確認
+- 次 step (HQ 判断): R2-G regime / sector flow integration ← 最優先
+  (baseline edge を regime-aware に強化、F286-R1 Sector Flow Agent
+   と連携) / Lane integration (Daytrade/Swing/Long-term Selection) /
+  R1-B5 v1/v2 swap
