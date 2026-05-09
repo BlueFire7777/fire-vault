@@ -3337,3 +3337,25 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 関連 commit (vault): (続く) R1-B3 smoke result + 本 commit
 - 次: HQ Q1-Q5 判断 (X2 採用 + R1-B2.5 着手 + NULL doc_type 扱い +
   R1-B4 進行条件)
+
+## [2026-05-09] milestone | F286-R1-B2.5 market_financials v2 schema migration + 再 smoke 完了
+- HQ 判断 X2 採用 (replacement table、既存 v1 残置 + v2 新設) を完遂
+- migration: 1723 row 移行成功、source_unchanged=True、v2 dup=0
+- 5 銘柄再 smoke: fetched 234 / inserted 14 / replaced 220 / loss 0
+  +14 row は v1 INSERT OR IGNORE で落ちていた multi-doc-type record
+- 100 銘柄 mini 再 smoke: fetched 1609 / inserted 99 / replaced 1510 /
+  loss 0
+  +99 row も同様 (multi-doctype 99 group / 105 record 全保持)
+- HQ 必須条件 全クリア: ignored=0 / failed_codes=0 /
+  duplicate_key_count=0 / no_record_loss=true
+- Codex CRITICAL 2 件への対応:
+  CRITICAL #1: schema 検証なしで write → _verify_v2_schema_or_raise 追加
+  CRITICAL #2: UNKNOWN doc_type 衝突で loss → skipped_unknown_collision
+              で先行 row 保持 (実 data で衝突 0 件確認)
+- production / develop DB last_modified = May 7 で完全無触
+- tests: financials_mapping 58 + migrate_pk 26 + backfill 35 = 119 PASS
+- commit: b6bfccc (migration 実装) → e084162 (UPSERT 修正) →
+  2d79bb3 (vault) → (本 commit) log milestone
+- 02_todo/F286_R1_B2_5_market_financials_v2_smoke.md 新規 vault
+- ★ R1-B4 full 5-year backfill は HQ 承認待ち ★
+  Tier2 universe 4,449 銘柄 × 5 年、推定 50,000-100,000 record
