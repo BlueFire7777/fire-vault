@@ -3666,3 +3666,82 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-E signal persistence (時系列 backtesting 用) /
   R2-D2 調整 (重み / cap ratio / strongest 閾値) / Lane integration
   (Daytrade/Swing/Long-term Selection) / R1-B5 (v1/v2 swap)
+
+## [2026-05-09] milestone | F286-R2-E Signal Persistence / Backtesting Foundation 完了
+- HQ 承認後、R2-D Watchlist Ranker の signal を base_date 単位で
+  時系列保存する 4 module を実装
+- 1) schema migration
+  (scripts/setup/migrate_research_watchlist_signals.py):
+  - target table: research_watchlist_signals
+  - PK 3-key: (base_date, code, source_version)
+    → 同 base_date / code でも別 source_version で並列保存可、
+      backtest で重み比較に活用可能
+  - 必須 28 列 (final_score / pre_cap_rank / post_cap_rank / sector
+    cap status / strategy_signal_summary_json / metadata_json / ...)
+  - INDEX 7 種 (read helper の access pattern を網羅)
+  - 4 段 staging guard、_verify_schema_or_raise (R1-B2.5/R2-A2 学習)
+  - rollback strategy = DROP TABLE (production/develop 無触で安全)
+- 2) persistence module
+  (simulation/research_lane/signal_persistence.py):
+  - SignalRow (frozen) + PersistenceStats (inserted/replaced/skipped/
+    failed/validation_errors/sql_errors/write_enabled)
+  - convert_watchlist_to_signal_row (WatchlistEntry → row)
+  - validate_signal_row (7 項目: code/base_date/source_version/
+    sector_cap_status/watchlist_decision 必須、final_rank_label が
+    A1/A2/B/C/D、excluded_all と final_score 整合性 等)
+  - filter_signals_by_top_n (None=ALL / int=pre|post<=N、deferred 残し)
+  - upsert_signals (atomic transaction、Codex CRITICAL #4 対応:
+    1 row でも error なら全 batch rollback で部分書込み防止)
+  - read helpers 5 種 (load_signals_by_base_date / load_top_signals
+    + rank_field 切替 / load_signals_by_rank_label /
+    load_signal_history / compare_signal_dates、JSON-text fields は
+    parse 済 dict で返す)
+- 3) runner
+  (scripts/jobs/run_research_watchlist_signal_persistence.py):
+  - --db {staging,develop,production} / --base-date / --source-version
+    必須 / --top-n {N|ALL} / --dry-run | --write / --output-json/csv
+  - default dry-run、--write 必須で初めて DB 書込
+  - production / develop に --write 指定で **即 PersistenceRunRefused**
+  - staging --write 時のみ 4 段 staging guard 通過後 write
+  - metadata 自動保存 (top_n_scope / weights / cap_ratio)
+- 4) tests:
+  - migration 15 PASS (StagingGuard 5 / FreshCreate 2 / Idempotent 1
+    / SchemaVerification 3 / RollbackInfo 1 / Constants 3)
+  - persistence 28 PASS (Constants 1 / ConvertWatchlist 3 /
+    ValidateSignalRow 8 / FilterTopN 4 / UpsertSignals 4 (dry-run /
+    write / re-run replace / validation skip) / ReadHelpers 7 /
+    Serialization 1)
+  - runner 26 PASS (ResolveDBPath 2 / WriteSafety 8 / VerifySignalsTable
+    2 / RunPersistence 8 / WriteOutputs 2 / Constants 3)
+- 実行結果 (2026-05-09 20:18-20:21):
+  migration: row_count 0→0 (空 table 作成)
+  dry-run top_n=100: 109 rows mapped (top_n + deferred pre_cap<=100)、
+    inserted 109 / replaced 0 / failed 0、DB 書込なし
+  staging write top_n=100: inserted 109 / replaced 0 / failed 0、
+    row_count 0→109
+  re-run UPSERT: inserted 0 / replaced 109 (= 全件 PK で上書き)、
+    row_count 109→109 (= 増えない、idempotent UPSERT 動作確認)
+  production write 拒否: PersistenceRunRefused 発火 OK
+  read helpers: load_by_base_date 109 / load_top_signals(30) 30 /
+    by_rank_label(A1/A2) 109 (top100 全 A1) /
+    load_signal_history(87470) 1 / compare_dates(同日) 109/0/0
+  JSON-text fields は dict で access 可能、metadata で再現性確保
+- HQ 必須テスト 11 項目 全項目クリア:
+  signal row mapping / validation / source_version required /
+  unique key duplicate handling / dry-run no write /
+  production/develop write guard / staging write only with --write /
+  top_n filtering / ALL 保存 option / read helpers / runner smoke
+- production / develop DB last_modified May 7 完全無触、staging のみ
+  research_watchlist_signals 109 row 追加
+- Codex pre-commit 通過 × 4 (feat schema / feat persistence / chore /
+  test)、CRITICAL 1 件発生 → 即修正 (atomic transaction、9d1399a)、
+  --no-verify 不使用、個別 commit 厳守
+- tests: 69 PASS (migration 15 + persistence 28 + runner 26)、
+  regression 676 PASS
+- commit: 7d195e8 (schema) → 9d1399a (persistence) → 939ab38 (runner)
+  → 6aea83c (tests) → a379f98 (vault) → (本 commit) log
+- 02_todo/F286_R2_E_signal_persistence.md 新規 vault
+- 次 step (HQ 判断): R2-F return/backtest evaluation (本 R2-E
+  read helpers + market_prices_daily を join、A1/A2 銘柄の N 日後
+  return 検証) / R2-D2 tuning (重み / cap_ratio / weights) / Lane
+  integration / R1-B5 v1/v2 swap
