@@ -4195,3 +4195,112 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-G2 rule refine (use_signal_strong 緩和 / cautious
   分解) / R2-H 直交切り口 (sector × regime cross / 月次効果) /
   Lane integration (Daytrade Selection に regime + sector フィルタ)
+
+## [2026-05-10] milestone | F286-R2-G2 Interpretation Rule Refinement 完了
+- F286-R2-G2 "Interpretation Rule Refinement" 完了
+- ★ 目的: R2-G initial rule の variant 比較 + Stage 3 Live Advisory
+  へ渡す recommended rule 確定 (strong 緩和余地 / cautious 弱化主因 /
+  suppress 拡張余地を全て検証)
+- 実装範囲 (5 commit + log):
+  - feat (48512cc): simulation/research_lane/regime_rule_refinement.py
+    771 行 (RuleOutput / RuleVariantConfig / 6 variants /
+    apply_variant / RecommendedRule + build_from_summary)
+  - chore (581b933): scripts/jobs/run_research_rule_refinement.py
+    1,041 行 (read-only runner、--write option 自体存在しない、
+    7 artifacts + per_variant/、_select_best_variant 内蔵)
+  - test (b05c454): 51 PASS (rule_refinement 33 + runner 18)
+  - docs (97b7d40): 02_todo/F286_R2_G2_rule_refinement.md vault
+- ★ Codex CRITICAL 4 件 全て即時対応:
+  1. variant C (strict_sector) の suppress が rank 制約なし →
+     rank<=30 に修正 (config と整合)、detail を
+     suppress_strong_outflow_top30 に rename
+  2. stdout summary count=None で TypeError → cnt or 0 fallback
+  3. recommended_rule が常に horizon=20 → display_horizon
+     (= 20 が無ければ max(horizons)) に変更
+  4. recommended_rule の base_variant が常に current 固定 →
+     _select_best_variant() で count>=30 + max mean を選定、
+     該当なしなら current フォールバック
+- smoke (staging / 22 base_dates / r2f4_baseline_v1 / top100):
+  - leak check: regime / sector_flow 双方 violations=0、
+    max_price_date_used=2026-02-27 ≤ 2026-03-01
+  - selected variant: current (selection_score 0.0620)
+- ★ Strong threshold comparison (h=20d、最重要):
+    strong_top10: count 49  / +6.42% / win 53% / dd -22%
+    strong_top30: count 131 / +6.20% / win 64% / dd -22%   ★ best balance
+    strong_top50: count 209 / +4.54% / win 66% / dd -35%   (mean -1.66pp、dd 1.6 倍)
+    strong_top100 regime/sector: count 696 / +3.62% / win 64% / dd -35%
+  → ★ strong_top30 (= current) を維持。緩和 (top50) は mean
+    低下 + drawdown 拡大で不利、厳格化 (top10) は count 不足。
+- ★ Cautious split (variant E) 重大発見:
+    cautious_high_volatility: count 15 / m20 +2.37% / win 60%
+    cautious_downtrend:       count 251 / m20 +0.49% / win 46%
+    cautious_strong_outflow:  count 239 / m20 +0.30% / win 53%
+    cautious_mixed:           count 27 / m20 -1.54% / win 35%   ★ 唯一の明確 negative
+  → cautious_mixed (= 複数 negative factor 重複) を suppress に
+    回す候補として確定。high_volatility は実質 normal。
+- ★ Suppress validation:
+    current_suppress:                count 224 / +1.14% / win 49%
+    downtrend_only:                  count 500 / +0.65% / win 47%
+    strong_outflow_only:             count 303 / +0.57% / win 51%
+    downtrend + strong_outflow:      count 62  / +1.46% / win 45% (variant F)
+    high_vol + strong_outflow:       count 86  / +2.69% / win 51%
+  → ★ suppress 候補で完全 negative なものは無し。最弱でも +0.57%。
+    variant F (strict) は count 62 / +1.46% で current より高く、
+    取りこぼし。**真の suppress 候補は cautious_mixed (-1.54%) と
+    cautious_high_volatility_top10 (count 42 / -0.11%)** に絞られる。
+- ★ Variant overview h=20d:
+    current      strong 131 +6.20% 64.1% / cautious 293 +0.40% / sup 224
+    strong_top50         209 +4.54% 65.6% / (他は同 current)
+    strict_sector        195 +5.51% 60.3% / suppress 291 +1.09%
+    regime_only          480 +3.96% 58.3% (count 多、mean 低)
+    cautious_split       (= current strong/normal/suppress、cautious 532 細分)
+    suppress_strict      (= current strong、suppress 62 +1.46%)
+- ★ recommended rule (= r2g2_recommended_v1):
+    base_variant: current
+    use_signal_strong: regime=uptrend AND aligned AND rank<=30
+                       (count 131 / +6.20% / win 64.1%)
+    use_signal_normal: fallback (count 1,552 / +2.88% / win 59.1%)
+    use_signal_cautious: (vol=high AND rank<=10) OR downtrend single
+                         (count 293 / +0.40% / win 45.9%)
+    suppress_signal: regime=downtrend AND alignment in (contrarian_*)
+                     (count 224 / +1.14% / win 49.3%)
+    expected_overall: count 2,200 / +2.58% / win 56.6%
+- ★ Stage 3 Live Advisory への示唆:
+  - use_signal_strong (rank<=30 + uptrend + aligned) を第一フィルタに採用
+  - cautious_mixed (-1.54%) と cautious_high_volatility_top10 (-0.11%)
+    は将来 R2-G3 で suppress 組み込み候補
+  - position sizing: strong family の worst dd -22% を考慮
+- 制約遵守:
+  - DB write 一切なし (--write option 自体存在しない設計)
+  - FIRE_ENV=staging で実行、production / develop 完全無触
+  - market_prices_daily / market_listings / signals 全 read-only
+  - rule variants / interpretation_detail / recommended_rule 全て
+    in-memory または artifact 出力のみ
+  - pre-commit Codex review 通過 × 3、CRITICAL 4 件即修正
+  - --no-verify 不使用、個別 commit 厳守
+  - seed_pattern_layer1.py の既存変更状態は触らず
+- DB last_modified 確認:
+  - production.db: 存在しない (= 触りようがない、安全)
+  - develop.db: 2026-05-07 18:14:26 (R2-G/G2 期間 unchanged)
+  - staging.db: 2026-05-09 22:40:35 → 同 (read-only 保証)
+- 出力 (/tmp/r2g2_rule_refinement/):
+  r2g2_rule_variant_summary.json/.csv +
+  r2g2_interpretation_detail_summary.csv +
+  r2g2_strong_threshold_comparison.csv +
+  r2g2_cautious_split_summary.csv +
+  r2g2_suppress_validation_summary.csv +
+  r2g2_recommended_rules.json +
+  r2g2_leak_check_summary.json +
+  per_variant/ (6 × 2 ファイル)
+- tests: 51 PASS (rule_refinement 33 + runner 18)、
+  regression 2,517 PASS (全テスト)
+- commit: 48512cc (feat) → 581b933 (runner) → b05c454 (tests) →
+  97b7d40 (vault) → (本 commit) log
+- 02_todo/F286_R2_G2_rule_refinement.md 新規 vault
+- ★ Go/No-Go: framework PASS / recommended rule (= current variant)
+  採用可能 / Stage 3 Live Advisory 第一フィルタ確定
+- 次 step (HQ 判断): R2-G3 rule v2 (cautious_mixed → suppress、
+  cautious_high_volatility_top10 → 除外) / R2-H orthogonal cuts
+  (sector × regime cross / 月次効果 / 決算シーズン) /
+  Lane integration (F111 Daytrade に regime + sector フィルタ、
+  F119 Evaluation 別 PnL) / R1-B5 v1/v2 swap
