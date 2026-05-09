@@ -3203,3 +3203,42 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
 - 関連 commit (vault): 3effbb4 (C2-7.1 result) / 本 commit (log milestone)
 - 次: HQ 判断 (Q1 別 Lane / F285 / F287 / Q2 戦略本体見直し /
   Q3 preset E + 過熱閾値再評価 等)
+
+## [2026-05-09] milestone | F286 Research Lane R0 feasibility 完了
+
+- F293 Lane C Phase C2 保留 (HQ 判断) を受け、F286 = F285 Research
+  Lane の Phase R0 feasibility precheck に着手
+- 4 endpoint 実機 precheck (sample 5 銘柄: 72030/67580/80350/83060/16050):
+  - ✅ /v2/fins/summary (107 fields、Standard 取得可、234 件 / 5 銘柄)
+  - ❌ /v2/fins/details (Premium 必要、403)
+  - ❌ /v2/fins/dividend (Premium 必要、403)
+  - ✅ /v2/equities/earnings-calendar (144 件 / 14 日前-30 日後)
+- ★ 重要発見: /fins/summary が **Premium 不要で BPS/EPS/Eq/CFO/CFI/CFF/
+  Div*/FDiv*/FSales/FEPS/ChgByASRev** 等 107 fields を網羅、Cyclical
+  Value / Growth / Dividend Growth すべて MVP 範囲内 ★
+- 既存 staging DB schema (read-only):
+  - market_listings (4,449)、market_prices_daily (526,764)、
+  - market_prices_intraday (10,830,049)、announcements (7)、
+  - features (1,131,331)、index_data (58)
+  - market_financials は schema あるが row_count=0 (R1 で fetch 必要)
+- Research Lane 6 Agent 別取得可否:
+  - Sector Flow Agent: ✅ 既存 DB のみで MVP 可
+  - Cyclical Value Screener: ✅ /fins/summary BPS/EPS/Eq + 派生計算 (PBR/PER/ROE)
+  - Growth Screener: ✅ /fins/summary 4 期 trend + revision flag
+  - Dividend Growth Agent: ✅ /fins/summary Div* 4-5 期で代替可
+  - Earnings Preview Agent: ✅ earnings-calendar + summary
+  - Watchlist Ranker: R3 で 5 Agent 統合
+- MVP 範囲: ★ F285 5 Agent + Watchlist Ranker、すべて Premium 不要 ★
+- 不足: 詳細 BS/PL/CF (代替: 派生計算)、長期 DPS 履歴 (代替: summary
+  4-5 期)、アナリストコンセンサス (代替: TDnet 上方修正 + 会社予想)
+- 次タスク (HQ 判断):
+  優先度高: F286 R1-1 (Sector Flow MVP) / R1-2 (/fins/summary backfill)
+  優先度中: R2 (Cyclical Value / Growth / Dividend Growth)
+  優先度後: R3 (Earnings Preview + Watchlist) / R4 (通知接続)
+  並行候補: F287 (決算ダッシュボード)
+- 関連 commit (~/fire): e718f1a (chore(F286): add Research Lane R0
+  precheck script、JQuants client +3 endpoint + script + test、
+  31 PASS、regression 1591→1598)
+- 関連 commit (vault): (続く) docs(F286) feasibility report + TODO 起票
+  + 本 commit (log milestone)
+- 次: HQ Q1-Q5 判断 → R1 着手判断
