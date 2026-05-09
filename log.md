@@ -4116,3 +4116,82 @@ HQ 判断要請 5 項目 (計画書 §9):
   (baseline edge を regime-aware に強化、F286-R1 Sector Flow Agent
    と連携) / Lane integration (Daytrade/Swing/Long-term Selection) /
   R1-B5 v1/v2 swap
+
+## [2026-05-10] milestone | F286-R2-G Regime / Sector Flow Integration 完了
+- F286-R2-G "Regime / Sector Flow Integration" 完了
+- ★ 目的: R2-F4 baseline signals (= r2f4_baseline_v1) に market regime
+  + sector flow の文脈を重ね、「signal がどんな状況で機能/抑制すべきか」
+  を定量化
+- 実装範囲 (5 commit + log):
+  - feat 1 (0072f82): simulation/research_lane/market_regime.py 528 行
+    (MarketRegimeFeatures / fetch_market_aggregate_closes /
+     assign_regime_label / compute_volatility_thresholds /
+     reapply_volatility_labels_leak_safe / assert_regime_leak_safe)
+  - feat 2 (7e07f6c): simulation/research_lane/sector_flow_features.py
+    522 行 (SectorFlowFeatures / fetch_sector_aggregate_closes /
+     build_sector_flow_features / assign_signal_sector_alignment /
+     assert_sector_flow_leak_safe)
+  - chore (ab84d79): scripts/jobs/run_research_regime_sector_integration.py
+    689 行 (READ-ONLY runner、--write option 自体存在しない設計)
+  - test (ef1f6fb): 56 PASS (market_regime 21 + sector_flow 15 +
+    integration 20)
+  - docs (5d4f64e): 02_todo/F286_R2_G_regime_sector_integration.md vault
+- ★ Codex CRITICAL 2 件 即時対応:
+  1. compute_volatility_thresholds future leak: 全 features 横断で閾値
+     計算 → at_base_date 以前のみで計算する版に修正
+     (reapply_volatility_labels_leak_safe で各 base_date 独立)
+  2. _summarize_signals_by_group code-only key で多日上書き:
+     {r.code: r} → {(r.base_date, r.code): r} tuple key に変更
+     (top_buckets 集計でも同じ修正適用)
+- smoke (staging / 22 base_dates / r2f4_baseline_v1 / top100):
+  - leak check: regime / sector_flow 双方 violations=0、
+    max_price_date_used=2026-02-27 ≤ 2026-03-01 (= 最終 base_date)
+  - regime label distribution:
+    uptrend 11 / downtrend 5 / range 4 / rebound 1 / unknown 1
+  - overall (h=20d): mean +2.58% / win 56.6% / count 2,200
+- ★ 最重要結果 — interpretation rule (h=20d):
+    use_signal_strong   count 131 mean **+6.20%** win **64.1%**
+                        (= baseline 比 +3.62 pp、win +7.5 pp)
+    use_signal_normal   count 1,552 mean +2.88% win 59.1%
+    suppress_signal     count 224 mean **+1.14%** win **49.3%**
+                        (= baseline 比 -1.44 pp、win -7.3 pp)
+    use_signal_cautious count 293 mean **+0.40%** win **45.9%**
+                        (= baseline 比 -2.18 pp、win -10.7 pp)
+- 補助結果 (h=20d):
+  - by market regime: downtrend +0.65% / win 47% で顕著な性能低下
+  - by sector flow: strong_outflow +0.57% (= 1/6 倍) / strong_inflow
+    +3.39%、3.4% pt 差
+  - by top bucket: top10 mean +3.14% (vs baseline +2.58% +0.56pp)
+    だが win 51% < baseline 56% で逆転
+  - ★ interpretation rule (+6.20%) は top bucket (+3.14%) よりも
+    強い分離 (+1.97 倍以上)
+- ★ 結論: R2-G initial 解釈ルールに有意な分離力あり、F111 Daytrade
+  Selection / F119 Evaluation / Live Advisory への組み込み候補
+  (ただし R2-G2 で rule refine 想定、特に use_signal_strong の
+   count 131 を増やす条件緩和の検討)
+- 制約遵守:
+  - DB write 一切なし (--write option 自体存在しない設計)
+  - FIRE_ENV=staging で実行、production / develop 完全無触
+  - market_prices_daily / market_listings / research_watchlist_signals
+    全 read-only、market_regime / sector_flow features は in-memory
+    生成のみ
+  - pre-commit Codex review 通過 × 4、CRITICAL 2 件即修正
+  - --no-verify 不使用、個別 commit 厳守
+  - seed_pattern_layer1.py の既存変更状態は触らず
+- 出力 (/tmp/r2g_regime_sector/):
+  r2g_regime_sector_summary.json (50 KB) +
+  r2g_regime_sector_summary.csv +
+  signal_regime_join.csv (2,200 行 × 21 列、600 KB) +
+  r2g_leak_check_summary.json + r2g_interpretation_rules.json +
+  per_base_date/ (22 セット × 2 ファイル)
+- tests: 56 PASS (regime 21 + sector flow 15 + integration 20)、
+  regression 882 PASS (research lane + scripts/jobs)
+- commit: 0072f82 (regime feat) → 7e07f6c (sector flow feat) →
+  ab84d79 (runner) → ef1f6fb (tests) → 5d4f64e (vault) → (本 commit) log
+- 02_todo/F286_R2_G_regime_sector_integration.md 新規 vault
+- ★ Go/No-Go: framework PASS / interpretation rule に有意な分離力 /
+  use_signal_strong 集合 (+6.20% / win 64%) を Stage 3 Live Advisory
+  への第一フィルタ候補として確定
+- 次 step (HQ 判断): R2-G2 rule refine (use_signal_strong 緩和 / cautious
+  分解) / R2-H 直交切り口 (sector × regime cross / 月次効果) /
+  Lane integration (Daytrade Selection に regime + sector フィルタ)
