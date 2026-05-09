@@ -3298,3 +3298,42 @@ HQ 判断要請 5 項目 (計画書 §9):
   vault: 9fa91af (R0 feasibility) / d4f53a2 (R0 TODO) / fc9784c (R0 milestone) /
          (続く) R1 plan + TODO + 本 commit
 次: HQ Q1-Q5 判断 → R1 実装着手 (commit 分割 7 段階)
+
+## [2026-05-09] milestone | F286-R1 smoke result Vault 化 (R1-A1〜R1-B2 + Codex CRITICAL + schema 差異)
+
+- HQ R1 着手承認後、R1-A1 (Sector Flow MVP) → R1-A2 (runner) → R1-B1
+  (mapping) → R1-B2 (backfill smoke) を順次完了、本 R1-B3 で smoke
+  結果を Vault 化
+- ~/fire 側 commit:
+  - a59bd88 R1-A1 Sector Flow Agent MVP (31 PASS)
+  - 20dd659 R1-A2 Sector Flow runner (16 PASS、staging smoke 4,194 銘柄)
+  - 334f793 R1-B1 /fins/summary -> market_financials mapping (58 PASS)
+  - f0de504 R1-B2 backfill smoke runner (26 PASS、Codex CRITICAL 修正済)
+- 5 銘柄 smoke (HQ sample): fetched 234 / inserted 219 / ignored 15 /
+  duplicate_record_groups 14 / failed_codes 0
+- 100 銘柄 mini smoke: fetched 1,609 / inserted 1,504 / ignored 105 /
+  duplicate_record_groups 99 / failed_codes 0
+- field 欠損率: net_sales 17.8% / 利益系 17-19% /
+  cash_flow_operating 61.6% (= 連結のみ四半期多発) /
+  fiscal_year_end 0% / type_of_document 0%
+- production / develop DB 無触確認 (= last_modified 2026-05-07)
+- ★ 重大発見 (実 schema vs HQ 案 A) ★
+  HQ 案 A 想定: PK (code, disc_date, type_of_document)
+  実 staging schema: PK (code, disclosure_date) のみ
+  → 同 (code, disc_date) 別 doc_type を保持不能、loss/ignore リスク
+- ★ Codex CRITICAL 修正 ★
+  初版 INSERT OR REPLACE → record loss を Codex 指摘
+  → INSERT OR IGNORE で loss 防止 + duplicate_record_groups 集計 +
+    schema_migration_recommended=True で HQ 報告
+- schema 対応 X1/X2/X3 比較:
+  X1 (現状 INSERT OR IGNORE): 修正開示反映できず、非推奨
+  X2 (PK 拡張 type_of_document 含む): HQ 採用候補
+  X3 (INSERT OR REPLACE): NG (Codex CRITICAL)
+- ★ R1-B4 full 5-year backfill は保留 ★
+  schema 対応 X2 + R1-B2.5 migration + 再 smoke すべて成立後に着手可
+- 03_design/F286_R1_Sector_Flow_and_market_financials_smoke_result_2026-05-09.md
+  新規 (11 章、smoke 結果 + Codex 経緯 + schema 差異 + X1/X2/X3 比較 +
+  HQ 判断 5 項目要請)
+- 関連 commit (vault): (続く) R1-B3 smoke result + 本 commit
+- 次: HQ Q1-Q5 判断 (X2 採用 + R1-B2.5 着手 + NULL doc_type 扱い +
+  R1-B4 進行条件)
