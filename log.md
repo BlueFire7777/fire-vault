@@ -3828,3 +3828,68 @@ HQ 判断要請 5 項目 (計画書 §9):
    R2-E 永続化 → R2-F で N 営業日後 return 検証、source_version
    並列保存で戦略 tuning 比較) / R2-D2 tuning / Lane integration /
   R1-B5 v1/v2 swap
+
+## [2026-05-09] milestone | F286-R2-F2 Multi-date Signal Generation + Evaluation 完了
+- HQ 承認後、過去 3 base_date (2025-12-01 / 2026-01-15 / 2026-02-15)
+  で signal 生成 → staging 永続化 → R2-F return evaluation を loop
+  実行する orchestration runner を実装
+- 新規 module:
+  scripts/jobs/run_research_multi_date_evaluation.py
+  - default dry-run、--write-signals + --db staging のみ DB 書込
+  - production / develop に対する --write-signals 即拒否
+  - --base-dates parser (YYYY-MM-DD,...)、format 検証
+  - --continue-on-error option
+  - 各 base_date で:
+    1. R2-D Watchlist Ranker で signal 生成
+    2. R2-E convert_watchlist_to_signal_row + upsert_signals
+       (atomic transaction、PK 3-key UPSERT)
+    3. R2-F run_evaluation で return 計算 (read-only)
+    4. per-date JSON / CSV / summary 出力
+  - build_comparison_summary: 全 base_date の overall / A1 /
+    top_bucket / strongest_strategy / sector を horizon × date
+    matrix で集約
+  - multi_date_summary.json + multi_date_summary.csv 出力
+  - LEAK_WARNING 定数で future_information_leak 前提を明示
+    (R2-F3 で leak-safe 化予定)
+- 既知の限界 (Vault / metadata / 出力に明示):
+  research_derived_indicators は 2026-05-01 base_date のみで永続化
+  されており、過去 base_date の signal も同 indicators で生成。
+  「もし過去日に同じ output があれば」のシミュレーション、真の
+  backtest ではない。R2-F3 で per-date indicator 再生成を実装予定。
+- Tests (29 PASS):
+  ParseBaseDates 5 / WriteSafety 7 (dry-run / production reject /
+  develop reject / staging+env / wrong env / basename / symlink) /
+  ResolveDBPath 2 / RunMultiDateEvaluation 7 (dry-run / staging
+  write / production reject / develop reject / source_version
+  required / multi-date loop / per-date outputs / continue-on-error)
+  / ComparisonSummary 3 / WriteComparisonSummary 1 / Constants 3
+- 実行結果 (2026-05-09 20:51):
+  base_dates 3 件 全て signal 生成 + 永続化 + 評価成功
+  inserted 109 / replaced 0 / skipped 0 / failed 0 (× 3 base_date)
+  research_watchlist_signals row count: 109 → 436
+  (= 109 R2-D 基底 5/9 + 109 × 3 R2-F2)
+  全 base_date / 全 horizons (1d/5d/20d) で 100% valid_return
+- ★ 初回統計判断 (mixed):
+  - 2025-12-01 (downturn): 1d/5d 全 negative、20d で +2.31% 回復
+  - 2026-01-15 (signal weak): 全 horizons で top buckets が overall
+    を下回る (top10 -1.30% vs overall -0.78%)
+  - 2026-02-15 (★ signal 効果 strong):
+    5d: top10 +5.23% / win 80% vs overall +0.01% / 58%
+    20d: top10 +13.59% / win 60% vs overall -2.59% / 30%
+    avg_max_drawdown も top10 -2.92% (overall -7.25% より浅い)
+  - 3 期間平均: top10 が overall を全 horizon で上回る
+    (1d +0.32% / 5d +0.71% / 20d +5.74% 差)
+- production / develop DB last_modified May 7 完全無触、staging
+  のみ research_watchlist_signals に 327 row 追加
+- Codex pre-commit 通過 × 2 (feat / test)、--no-verify 不使用、
+  個別 commit 厳守
+- tests: 29 PASS (multi-date runner)、regression 763 PASS
+- commit: a7b34b2 (runner) → 647517b (tests) → ed5ccbb (vault) →
+  (本 commit) log
+- 02_todo/F286_R2_F2_multi_date_evaluation.md 新規 vault
+- ★ Go/No-Go: framework PASS、initial statistical signal mixed だが
+  top 候補が機能した期間あり、研究進行価値あり
+- 次 step (HQ 判断): R2-F3 leak-safe historical signal generation
+  (per-date indicator 再生成、月次サンプリングで統計 power 上げ) /
+  R2-D2 tuning with source_version comparison (重み調整 比較) /
+  Lane integration / R1-B5 v1/v2 swap
