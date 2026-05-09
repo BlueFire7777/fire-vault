@@ -3126,3 +3126,51 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
 - 関連 commit (vault): e777899 (C2-6 smoke result) / 本 commit (log milestone)
 - 次: HQ 確認後に C2-7 strict 60 営業日評価 (478 × 60 × 4 preset =
   114,720 評価) 着手判断
+
+## [2026-05-09] decision | F281 C2 force_close 15:10 厳守修正 + smoke v1.1
+
+- HQ preflight 確認 (C2-7 着手前): C2-6 v1.0 で exit_time=15:11 が記録
+  された原因を調査
+- staging DB の 13200 / 04-22 / 04-24 で 15:09・15:10 bar が不在
+  (流動性低時間帯で板寄せ未成立)、後続 15:11 が次 bar、旧実装
+  (`bar.time >= FORCE_CLOSE_TIME`) で 15:11 を拾っていた = 仕様違反
+- ~/fire commit a1b3347: simulator 修正
+  - bar.time > "15:10" → walk 中断 (15:10 超過 bar 判定除外)
+  - bar.time == "15:10" → TP/SL 判定後ヒットなければ 15:10 close
+  - bar.time < "15:10" → 通常の TP/SL 判定
+  - ループ break/終了後 → 15:10 以前最後の bar で fallback / なければ DQ
+- test 修正 (1 件削除 + 2 件追加)、regression 1586 → 1587 PASS
+- vault commit 9b0f13f: smoke result v1.1 (修正後数値で再走行)
+  - 13200 / 04-22 / 04-24: exit 15:11 → 15:08 に修正
+  - preset B gross_pnl: +17,515 → +17,835、PF 1.7247 → 1.7380
+  - 全 exit_time <= 15:10 確認 ✅
+
+## [2026-05-09] milestone | F281 Phase C2 C2-7 strict 60 営業日評価完了 (全 preset FAIL)
+
+- 走行: 2026-05-09 09:19:06 開始 〜 09:20:34 終了、88 sec (1.47 min)
+- universe: Tier2 478 codes (72030 除外)、期間 2026-02-03 〜 2026-05-01
+  (60 営業日)、preset A-D
+- candidate 30,592 / setup_detected 25,838 (84.5%)
+- 各 preset trade 300 (= 60 × max_daily_trades 5)
+- 全 trade exit_time <= 15:10 確認 ✅ (HQ preflight 仕様準拠)
+- preset 別 summary:
+  - A: pnl -146,159 / PF 0.86 / WR 39.7%
+  - B: pnl -90,751 / PF 0.94 / WR 39.3%
+  - C: pnl -3,206 / PF 0.998 / WR 41.7% (最良、ほぼ break-even)
+  - D: pnl -110,453 / PF 0.94 / WR 36.0%
+- ★ Stage gate 8 基準: 利益系 3 (gross_pnl/avg/PF) で全 preset FAIL、
+  安全系 5 (drawdown/halt/duplicate/no_negative/trade_count) は全 PASS ★
+- skipped_reason: no_recovery_or_breakout 1,974 / no_intraday_data 1,913 /
+  no_pullback 461 / outside_entry_time_window 357 / insufficient_bars 49
+- 結論: ★ C2-8 (tick/order template 統合) には進まず、HQ 判断要請 ★
+- 改善候補 12 案 (Vault §8):
+  優先度高 (低コスト再評価):
+    A1 PULLBACK_THRESHOLD 0.5% → 0.8%
+    A4 過熱閾値 10% → 7%
+    B6 entry cutoff 14:45 → 14:00
+  優先度中: preset E (ATR) / preset C 周辺細分化
+  優先度低: 持ち越し許容化 / 別 trigger pattern
+- 関連 commit (~/fire): a1b3347 (force_close fix) + C2-1〜C2-5
+- 関連 commit (vault): 7001623 (C2-7 strict result) / 本 commit (log milestone)
+- 次: HQ 判断 (改善候補から方針選定 + 採用案で setup 閾値再 calibration +
+  改善版 strict 60 営業日評価 → Stage gate 再判定)
