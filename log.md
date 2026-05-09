@@ -3174,3 +3174,32 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
 - 関連 commit (vault): 7001623 (C2-7 strict result) / 本 commit (log milestone)
 - 次: HQ 判断 (改善候補から方針選定 + 採用案で setup 閾値再 calibration +
   改善版 strict 60 営業日評価 → Stage gate 再判定)
+
+## [2026-05-09] milestone | F281 Phase C2 C2-7.1 calibration retest 完了 (Lane C 保留候補)
+
+- HQ 指定 calibration grid (3 cutoff x 2 pullback x 5 preset = 30
+  パターン) で改善余地確認、走行 508.5 sec (8.48 min)、全 9,000 trade
+- exit_time <= 15:10 violations: 0 (HQ preflight 仕様準拠維持)
+- ★ 30 / 30 パターン Stage gate FAIL、HQ 追加判断 3 基準も全未達 ★
+- best 5 ranking:
+  #1-3 すべて C3 (= baseline) で gross_pnl -3,206 / PF 0.998
+  #4-5 C1 で -90,751 / PF 0.937
+- 主要発見:
+  - cutoff (14:45/14:15/14:00) は完全同値: max_daily_trades=5 制約で
+    午後 entry が先に止まる
+  - pullback 0.005 → 0.008 は全 preset 大幅悪化 (-150k 〜 -244k)、
+    浅い pullback 捨ては逆効果
+  - preset C3 が baseline 同値で最良、C0/C1/C2/C4 すべて劣る
+- HQ 追加判断 3 基準 (best PF >= 1.05 / pnl >= +100k / avg >= +1k):
+  全未達 (PF 0.998 / pnl -3,206 / avg -10.7) → ★ Lane C Phase C2
+  保留候補 ★
+- 結論: C2-8 (tick/order template 統合) には進まない、HQ 判断要請
+- 残された改善候補:
+  - 優先度 1: 保留 + 別 Lane / F285 / F287 へ注力
+  - 優先度 2: 戦略本体見直し (持ち越し許容化 / 別 trigger) - HQ 判断
+  - 優先度 3: preset E 実装 + 過熱閾値変更 - daily feature 統合
+- 関連 commit (~/fire): 35f814f (calibration runner + 引数拡張) +
+  a1b3347 (force_close fix) + C2-1〜C2-5
+- 関連 commit (vault): 3effbb4 (C2-7.1 result) / 本 commit (log milestone)
+- 次: HQ 判断 (Q1 別 Lane / F285 / F287 / Q2 戦略本体見直し /
+  Q3 preset E + 過熱閾値再評価 等)
