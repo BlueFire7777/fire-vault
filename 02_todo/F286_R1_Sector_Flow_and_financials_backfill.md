@@ -100,7 +100,7 @@ incremental update:
 | R1-B2 | chore(F286-R1): backfill_market_financials runner |
 | R1-B2.5 | chore/docs(F286-R1): v2 schema migration + 再 smoke (commit b6bfccc / e084162 / 本 commit / 次 commit) |
 | R1-B3 | chore(F286-R1): vault Sector Flow / market_financials smoke |
-| R1-B4 | chore(F286-R1): full backfill 5 years |
+| R1-B4 | chore/docs(F286-R1): full 5-year backfill 完了 (commit 585f478 / 次 commit / 次々 commit) |
 | R1-C1 | docs(F286-R1): vault R1 result + Phase R2 着手判断 |
 
 各 commit Codex pre-commit / --no-verify 禁止 / 個別 commit 厳守。
@@ -143,6 +143,7 @@ vault 側:
 
 - [[F286_R1_Research_Lane_implementation_plan_2026-05-09|F286-R1 plan v1.0]]
 - [[F286_R1_B2_5_market_financials_v2_smoke|F286-R1-B2.5 v2 schema migration + 再 smoke 結果]]
+- [[F286_R1_B4_market_financials_full_backfill|F286-R1-B4 full 5-year backfill 結果]]
 - [[F286_Research_Lane_R0_feasibility_2026-05-09|F286 R0 feasibility]]
 - [[F285_Research_Lane_requirements_and_spec_2026-05-08|F285 仕様 v1.1]]
 - [[F286_Research_Lane_R0_feasibility|F286 R0 TODO]]
