@@ -3473,3 +3473,40 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-A3 (Tier2 全件 indicators) /
   R2-B (7 指標分布検証) / R2-C ファクター戦略実装 /
   R1-B5 (v1/v2 swap、別承認)
+
+## [2026-05-09] milestone | F286-R2-A3 Research eligible universe 全件 派生指標永続化 完了
+- HQ 承認後、R2-A2 eligible filter (Prime/Standard/Growth) 全 3,752
+  銘柄に対し 7 指標計算 → research_derived_indicators 永続化
+- preflight 結果:
+  eligible 3,752 / excluded 697 (R2-A2 推定と完全一致) /
+  excluded_reason: non_stock_market_other 517 / tokyo_pro_market 179
+  / other_sector 1
+  row_count_current 47 / db_size 4,341 MB / disk_free 858 GB /
+  estimated_elapsed 1.87 min
+- 実 run 結果 (HQ 必須条件 全クリア):
+  elapsed: ~120 sec (preflight 通り)
+  processed: 3,752 / calculated: 3,708 / no_fy: 44 (1.17%) /
+  failed: 0 / inserted: 3,661 / replaced: 47 / duplicate: 0
+  row_count: 47 → 3,708 (+3,661)
+  db_size: 4,341.05 → 4,343.32 MB (+2.26 MB、推定 ~50-100 MB の 5%)
+- 7 指標 coverage (eligible 3,708 ベース):
+  ROE 99.8% / net_margin 99.6% / profit_growth_yoy 98.3% /
+  PBR 98.3% / sales_growth_yoy 98.1% / operating_margin 97.7% /
+  PER 87.0% (赤字 EPS 443 件 = 12% 由来の skip)
+  skip 理由: missing / negative_eps / negative_bps / negative_equity
+  / zero_denominator (data 特性と一致、ロジック健全)
+- 数値分布:
+  PER n=3,225 / median 14.54 / max 1,515 (超高 PER 銘柄)
+  ROE n=3,699 / median 7.6% / max 106% / min -138 (債務超過に近い)
+- 異常停止条件 (no_fy 想定以上 / duplicate / failed / DB size 急増 /
+  eligible_count ズレ / production・develop DB 触) いずれも発火せず
+- production / develop DB last_modified May 7 完全無触、staging のみ
+  research_derived_indicators 3,661 row 追加
+- Codex pre-commit 通過 × 1 (実装 commit)
+- tests: 175 PASS (eligible 22 + derived 54 + financials 58 +
+  migrate_research 15 + persist 26)、regression 442 PASS
+- commit: 80386c0 (実装) → 2bc099e (vault) → (本 commit) log
+- 02_todo/F286_R2_A3_full_eligible_indicators.md 新規 vault
+- 次 step (HQ 判断): R2-B (7 指標分布検証 / sector 別 / outlier 整理)
+  / R2-C (Quality Value / Earnings Growth / Cyclical Value 戦略) /
+  R1-B5 (v1/v2 swap、別承認)
