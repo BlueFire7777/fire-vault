@@ -3606,3 +3606,63 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-D Watchlist Ranker (3 戦略統合 + sector cap
   30%) / R2-E signal 永続化 (時系列 backtesting 用) /
   R1-B5 (v1/v2 swap、別承認)
+
+## [2026-05-09] milestone | F286-R2-D Watchlist Ranker (3 戦略統合 + sector cap 30%) 完了
+- HQ 承認後、R2-C 3 戦略を統合する Watchlist Ranker を実装
+- 1) ranker (simulation/research_lane/watchlist_ranker.py):
+  - 重み: QV 0.35 / EG 0.35 / CV 0.30 (定数化、将来調整可能)
+  - compute_final_score: weighted merge with redistribution
+    (= 一部戦略 missing なら残り戦略の weight を rescale)
+  - detect_strongest_strategy: 最大 score の戦略名、差 < 0.01 で
+    "balanced"、全戦略 None で None
+  - assign_final_rank_labels: A1 95%+ / A2 85%+ / B 65%+ / C 35%+ / D
+  - assign_pre_cap_ranks: 1 始まり整数 rank
+  - apply_sector_cap (HQ 必須): top_n × cap_ratio 切上で sector_cap、
+    超過は "deferred"、外は "below_cap_threshold"
+  - build_watchlist: 全工程統合、WatchlistEntry list 生成
+  - watchlist_decision (selected / deferred / excluded) +
+    rank_reason (人間可読説明) + strategy_signal_summary
+- 2) runner (scripts/jobs/run_research_watchlist_ranker.py):
+  - 4 段 staging guard、_verify_required_tables (R2-C 共有)
+  - 3 戦略 score → assign_rank_labels → StrategyScoreSet 化 →
+    build_watchlist
+  - top 30 / 50 / 100、CSV / JSON 両出力対応 (--output suffix で判定)
+  - DB write なし、production / develop DB 完全無触
+- 3) tests:
+  - watchlist_ranker 38 PASS (constants / final_score / strongest /
+    rank labels / pre_cap_rank / sector cap / build_watchlist /
+    aggregations / serialization)
+  - runner 14 PASS (staging guard / build_score_sets / run_smoke
+    + cap + negative_eps + empty / write_output JSON+CSV / constants)
+- 実行結果 (2026-05-09 19:57-19:58):
+  records loaded: 3,708 / final_scored: 3,683 (99.3%) /
+  excluded_all_strategies: 0
+  rank label 件数: A1 185 / A2 368 / B 736 / C 1,105 / D 1,289 /
+    (none) 25 (= percentile 通り)
+  partial_strategy (Quality除外でもGrowth残し): 1,267 件
+- ★ Sector cap 30% 達成 (HQ 必須要件):
+  top 30: pre IT 13/30 (43%) → post **9/30 (30%)** ★
+  top 50: pre IT 23/50 (46%) → post 15/50 (30%) ★
+  top 100: pre IT 39/100 (39%) → post **30/100 (30%)** ★
+  → 全 top_n で同一 sector 30% 上限を完全に達成
+- top 10 (全 A1):
+  87470 0.93 EG 金融 / 57290 0.92 EG 鉄鋼 / 34890 0.91 balanced 不動産 /
+  340A0 0.89 QV IT / 37980 QV / 79910 QV 機械 / 91300 QV 運輸 /
+  331A0 QV / 43890 EG / 92470 EG
+- top 30 strongest_strategy 分布: QV 12 / EG 8 / CV 6 / balanced 4
+  (戦略 mix が分散、IT 偏重ではなく金融/鉄鋼/不動産/機械/運輸 等
+  多様な sector が上位に入る)
+- HQ 必須テスト 全項目クリア (final_score weighted merge / missing
+  handling / strongest / rank label / sector cap 30% / pre/post rank
+  / sector_cap_deferred / all excluded / partial keep / runner)
+- production / develop DB last_modified May 7 完全無触、staging も
+  read-only (R2-A3 から write なし、R2-B / R2-C / R2-D 連続で read のみ)
+- Codex pre-commit 通過 × 3 (feat / chore / test)、--no-verify 不使用、
+  個別 commit 厳守
+- tests: 52 PASS (ranker 38 + runner 14)、regression 607 PASS
+- commit: 922bd23 (ranker) → fb04e49 (runner) → 5442e16 (tests) →
+  276d7ac (vault) → (本 commit) log
+- 02_todo/F286_R2_D_watchlist_ranker.md 新規 vault
+- 次 step (HQ 判断): R2-E signal persistence (時系列 backtesting 用) /
+  R2-D2 調整 (重み / cap ratio / strongest 閾値) / Lane integration
+  (Daytrade/Swing/Long-term Selection) / R1-B5 (v1/v2 swap)
