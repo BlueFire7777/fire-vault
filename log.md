@@ -3893,3 +3893,83 @@ HQ 判断要請 5 項目 (計画書 §9):
   (per-date indicator 再生成、月次サンプリングで統計 power 上げ) /
   R2-D2 tuning with source_version comparison (重み調整 比較) /
   Lane integration / R1-B5 v1/v2 swap
+
+## [2026-05-09] milestone | F286-R2-F3 Leak-safe Historical Signal Generation 完了
+- HQ 承認後、各 base_date 時点で利用可能な財務開示
+  (disclosure_date <= base_date) のみを使う **leak-safe historical
+  backtest 基盤** を実装
+- 1) historical indicators
+  (simulation/research_lane/historical_indicators.py):
+  - HistoricalIndicatorRecord (frozen): code / base_date /
+    selected_disclosure_date / prior_disclosure_date / base_close /
+    7 indicators / skip_reasons / leak_check_status
+  - LeakCheckResult / LeakViolationError
+  - select_eligible_fy_record:
+    disclosure_date <= base_date AND FY filter、Consolidated_JP 優先
+  - select_prior_fy_record (YoY 計算用)
+  - find_base_close: base_date 当日含む直近以前 close
+  - build_historical_record: R2-A1 compute_all_indicators を
+    leak-safe params で呼ぶ
+  - check_leak_safety / assert_leak_safe (= violation 1 件で raise)
+  - historical_record_to_score_dict (R2-C / R2-D 互換変換)
+- 2) leak-safe runner
+  (scripts/jobs/run_research_leak_safe_backtest.py):
+  - 4 段 staging guard、production/develop --write-signals 即拒否
+  - 各 base_date で historical indicators in-memory 生成 →
+    leak check (violation で raise) → R2-C scoring → R2-D ranking →
+    R2-E persistence (default dry-run) → R2-F evaluation
+  - **research_derived_indicators table には絶対 write しない**
+    (in-memory 生成のみ)
+  - **stale 防止**: write 前に同 (base_date, source_version) の既存
+    row を DELETE (= deleted_stale_rows 記録)
+  - **stale eval 防止**: persistence failed > 0 で LeakSafeRunRefused、
+    dry-run では eval skip
+  - LeakViolationError は continue-on-error 関係なく必ず raise
+- 3) tests:
+  - historical_indicators 23 PASS (SelectEligibleFY 5 / SelectPriorFY 2
+    / FindBaseClose 3 / BuildHistoricalRecord 3 /
+    BuildHistoricalIndicators 2 / LeakCheck 5 / Conversions 2 /
+    Constants 1)
+  - runner 23 PASS (ParseBaseDates 3 / WriteSafety 7 / ResolveDBPath 1
+    / RunLeakSafe 8 (dry-run no eval / staging write / production
+    rejected / source_version required / re-run deletes stale /
+    multi-base_dates / per-date outputs / leak violation always
+    raises) / ComparisonSummary 2 / Constants 2)
+- 実行結果 (2026-05-09 21:13):
+  10 base_dates: 2025-06-02 / 07-01 / 08-01 / 09-01 / 10-01 /
+  11-04 / 12-01 / 2026-01-15 / 02-15 / 03-16
+  source_version: r2f3_leaksafe_v1
+  全 base_date で leak_violations=0、persistence 全成功
+  research_watchlist_signals: 436 → 1,566
+  (= R2-D 109 + R2-F2 327 + R2-F3 1,130)
+  return evaluation 5/10 件で valid (price 2025-11-04〜2026-05-01
+  範囲内)
+- ★ 重要発見 (R2-F2 leak あり vs R2-F3 leak-safe 比較):
+  R2-F2 (3 期間): top10 vs overall 5d +0.71% / 20d +5.74%
+  R2-F3 (5 期間): top10 vs overall 5d -0.99% / 20d +0.13%
+  → **leak-safe にすると signal 優位性が大幅減退**、R2-F2 で見えた
+    優位は future information leak 由来の可能性が高い
+  → R2-D2 で score 設計 (重み / factor 追加 / regime-aware ensemble)
+    の見直しが必要
+  ★ 2026-02-15 / 5d で top10 +4.37% (overall +1.05%) は R2-F3 でも
+    強い (= 2 月反発期で score が機能した期間)
+- HQ 必須テスト 16 項目 全 PASS
+- production / develop DB May 7 完全無触、staging のみ書込み制御
+- research_derived_indicators table への write 0 件 (= in-memory 生成
+  のみ、HQ 制約遵守)
+- Codex pre-commit 通過 × 3、CRITICAL 4 件 全対応:
+  #1 dry-run + eval = stale (write_signals=True 時のみ eval)
+  #2 LeakViolationError + continue-on-error (= continue 対象外)
+  #3 persistence failed で eval (= LeakSafeRunRefused raise)
+  #4 stale row 残存 (= 書込み前 DELETE で同 PK clean)
+- tests: 46 PASS (historical 23 + runner 23)、regression 809 PASS
+- commit: 75da7dd (historical) → 68e9f75 (runner) → 0c979eb (tests)
+  → 51fb87a (vault) → (本 commit) log
+- 02_todo/F286_R2_F3_leak_safe_backtest.md 新規 vault
+- ★ Go/No-Go: framework PASS / true backtest 基盤完成 /
+  signal 効果は score 設計見直し必須 (R2-D2 へ)
+- 次 step (HQ 判断): **R2-D2 tuning ← 最優先**
+  (重み・factor・regime-aware ensemble、複数 source_version 並列保存
+   で leak-safe 比較) / R2-F4 broader historical sampling
+  (J-Quants から過去 price 追加、1 年以上の sample) /
+  Lane integration / R1-B5 v1/v2 swap
