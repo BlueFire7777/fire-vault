@@ -3547,3 +3547,62 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-C ファクター戦略実装 (Quality Value /
   Earnings Growth / Cyclical Value)、本 R2-B report の前処理推奨
   案を実装に取り込む / R1-B5 (v1/v2 swap、別承認)
+
+## [2026-05-09] milestone | F286-R2-C Quality Value / Earnings Growth / Cyclical Value scoring MVP 完了
+- HQ 承認後、R2-A3 永続化済 3,708 銘柄に対し 3 戦略の score を
+  計算する preprocessing + factor_scoring + runner を実装
+- 1) preprocessing (simulation/research_lane/preprocessing.py):
+  winsorize / cap_above / cap_below / absolute_percentile (tie
+  average) / sector_relative (percentile + z-score + sector_n) /
+  invert_percentile / NaN 安全
+- 2) factor_scoring (simulation/research_lane/factor_scoring.py):
+  Quality Value: 低 PER (sec rel) × 低 PBR (sec rel) × 高 ROE (abs)
+    × op_margin (sec rel)、銀行 sector 15 は op_margin → net_margin
+    で代替、negative_eps / negative_equity / negative_bps で除外
+  Earnings Growth: sales_yoy × profit_yoy (cap 3.0) × ROE × net_margin
+    (sec rel)、missing で skipped、除外なし
+  Cyclical Value: 低 PBR (sec rel) × 低 PER (sec rel) × ROE (abs) ×
+    cyclical_sector_boost (循環 sector 1.0 / それ以外 0.5)、ROE 5%
+    未満で roe_below_0.05 除外、Quality blocking で除外
+  rank label: A1 95%+ / A2 85%+ / B 65%+ / C 35%+ / D
+- 3) runner (scripts/jobs/score_factor_strategies.py):
+  read-only 接続、indicators × listings JOIN (1 row per code、最新
+  base_date)、skip_reasons_json パース、3 戦略 score + top 30 + sector
+  偏り検出 + Go/No-Go 判定 + JSON 出力、DB write なし
+- HQ 必須前処理 6 項目 全取込:
+  PER/PBR/op_margin = sector_relative + p95 winsorize ✅
+  ROE / sales_yoy = absolute 評価可 ✅
+  profit_yoy cap 3.0 ✅
+  銀行 sector 15 は op_margin 評価対象外 ✅
+  negative_eps / negative_equity を Quality 系から除外 ✅
+  skip_reasons_json を尊重 ✅
+- 実行結果 (3,708 records):
+  Quality Value: scored 3,206 (86.5%) / excluded 447
+    (negative_eps 443 / negative_bps 4) / skipped 55
+  Earnings Growth: scored 3,623 (97.7%) / excluded 0 / skipped 85
+  Cyclical Value: scored 2,484 (67.0%) / excluded 1,196
+    (roe_below_0.05 749 / negative_eps 443 / negative_bps 4) /
+    skipped 28
+- top 10 examples (全 A1):
+  Quality Value: 37120 / 340A0 / 79910 / 87470 / 48280 ...
+  Earnings Growth: 90240 / 241A0 / 81360 / 57290 / 73780 ...
+  Cyclical Value: 86990 / 41190 / 87290 / 29910 / 87470 ...
+- sector 偏り (top 30):
+  Quality / Growth: 情報通信 16/30 (53%) → sector_concentration
+    warning 発火、universe 構造 (IT 33%) 由来の自然な結果
+  Cyclical: 素材化学 8 / 不動産 8 / 金融 4 / 鉄鋼 4 / IT 3
+    (循環 sector boost が機能、warning なし)
+- Go/No-Go: scored 率は全 OK だが Quality / Growth で warning
+  発火。**HQ 解釈要請**: R2-D で sector cap 30% 運用を導入する
+  前提なら実用上 PASS
+- production / develop DB last_modified May 7 完全無触、staging も
+  read-only (R2-A3 から write なし、R2-B / R2-C 連続で read のみ)
+- Codex pre-commit 通過 × 2 (preprocessing/scoring + runner)
+- tests: 74 PASS (preprocessing 26 + factor_scoring 29 + runner 19)、
+  regression 555 PASS
+- commit: 5fa8778 (preprocessing + scoring) → ff56618 (runner) →
+  3c1ab60 (vault) → (本 commit) log
+- 02_todo/F286_R2_C_factor_scoring_smoke.md 新規 vault
+- 次 step (HQ 判断): R2-D Watchlist Ranker (3 戦略統合 + sector cap
+  30%) / R2-E signal 永続化 (時系列 backtesting 用) /
+  R1-B5 (v1/v2 swap、別承認)
