@@ -3242,3 +3242,59 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
 - 関連 commit (vault): (続く) docs(F286) feasibility report + TODO 起票
   + 本 commit (log milestone)
 - 次: HQ Q1-Q5 判断 → R1 着手判断
+
+## [2026-05-09] milestone | F286 Research Lane R1 implementation plan v1.0
+
+- HQ R1 着手指示 (F286 R0 完了承認後) を受け、R1 = (A) Sector Flow
+  Agent MVP + (B) market_financials /fins/summary backfill 設計の
+  Vault 化を実施
+- 03_design/F286_R1_Research_Lane_implementation_plan_2026-05-09.md
+  新規 (11 章、Sector Flow MVP 仕様 + mapping + commit 分割 + HQ
+  判断 5 項目)
+- 02_todo/F286_R1_Sector_Flow_and_financials_backfill.md 新規 TODO
+
+A. Sector Flow Agent MVP (既存 DB のみで実装可、追加 endpoint なし):
+  - 入力: market_listings + market_prices_daily
+  - 集計: daily_return / turnover / volume_ratio_sma20 → 17 / 33 業種別
+  - sector_score = 0.4 × return + 0.3 × momentum + 0.3 × breadth
+  - up-flow Top 5 / down-flow Bottom 5 ranking
+  - 出力: SectorFlowSnapshot dataclass + JSON
+
+B. market_financials /fins/summary mapping (R0 で 107 fields 確認済):
+  - 連結優先 + 非連結 (NC*) fallback
+  - 主要 mapping: Sales/OP/OdP/NP/TA/Eq/CFO + payload_json (raw 全 107)
+  - 主キー推奨案 A: (code, disclosure_date, type_of_document) UNIQUE
+  - backfill 推奨案 A: 過去 5 年 (約 88,000 件、6-8 時間)
+  - incremental: 日次 / 週次 / 月次 で差分 fetch
+
+R2 派生指標の前提 (= R1 で payload_json に raw 保存):
+  PBR (close/BPS) / PER (close/EPS) / ROE (NP/Eq) /
+  営業利益率 (OP/Sales) / 配当性向 (DivAnn/EPS or PayoutRatioAnn) /
+  売上成長率 / EPS 成長率 / 会社予想成長率 / 上方修正フラグ /
+  連続増配年数
+
+R1 commit 分割案 (7 commit、HQ 承認後着手):
+  R1-A1 feat: Sector Flow Agent MVP
+  R1-A2 chore: Sector Flow Agent runner
+  R1-B1 feat: /fins/summary -> market_financials mapping
+  R1-B2 chore: backfill_market_financials runner (smoke)
+  R1-B3 chore: vault Sector Flow / market_financials smoke result
+  R1-B4 chore: full backfill 5 years
+  R1-C1 docs: vault R1 result + Phase R2 着手判断
+
+HQ 判断要請 5 項目 (計画書 §9):
+  Q1: 主キー案 A / B / 別案
+  Q2: backfill 期間 5 / 3 / 10 年
+  Q3: commit 分割 7 案 OK か
+  Q4: F287 並行着手 可否
+  Q5: R1 完了基準
+
+制約厳守: 自動発注 / 楽天 / Computer Use 禁止 / production-develop 無触 /
+  staging のみ / 外部スクレイピング禁止 / migration は HQ 承認後 /
+  Premium 課金不要 / Codex pre-commit / 個別 commit 厳守
+
+関連 commit:
+  ~/fire: e718f1a (R0 precheck script)
+  vault: 9fa91af (R0 feasibility) / d4f53a2 (R0 TODO) / fc9784c (R0 milestone) /
+         (続く) R1 plan + TODO + 本 commit
+次: HQ Q1-Q5 判断 → R1 実装着手 (commit 分割 7 段階)
