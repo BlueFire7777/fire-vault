@@ -3973,3 +3973,70 @@ HQ 判断要請 5 項目 (計画書 §9):
    で leak-safe 比較) / R2-F4 broader historical sampling
   (J-Quants から過去 price 追加、1 年以上の sample) /
   Lane integration / R1-B5 v1/v2 swap
+
+## [2026-05-09] milestone | F286-R2-D2 Watchlist Tuning Comparison 完了
+- HQ 承認後、6 preset × 5 base_dates の leak-safe tuning 比較を実装
+- 新規 module:
+  - simulation/research_lane/watchlist_tuning.py:
+    6 preset 定義 (baseline / quality_defensive / growth_momentum /
+    cyclical_rebound / risk_adjusted / balanced_momentum)、
+    FactorBundle (5 factor)、compute_tuned_score (重み redistribute)
+  - simulation/research_lane/historical_factors.py:
+    momentum (過去 20 営業日 return) + risk_penalty (volatility +
+    max drawdown) を price_date <= base_date のみで計算、
+    cross-sectional percentile 化 (Codex CRITICAL #1: sort 反転 修正)
+  - scripts/jobs/run_research_watchlist_tuning.py:
+    preset × base_date loop、leak-safe + atomic DELETE+INSERT +
+    persistence failed → PersistenceFailedError
+- Codex CRITICAL 4 件 全対応:
+  - factors sort 反転 → reverse=higher_is_better に修正
+  - DELETE + INSERT を 1 atomic transaction に統合
+  - PersistenceFailedError は continue-on-error 対象外で必ず raise
+  - dry-run + eval = stale → write_signals=True 時のみ eval
+- 実行結果 (2026-05-09 21:37):
+  base_dates 5 件 (2025-11-04, 12-01, 2026-01-15, 02-15, 03-16) ×
+  presets 6 = 30 combinations 全成功
+  leak violations 0、failures 0
+  research_watchlist_signals: 1,566 → 5,161 (+3,595 r2d2_*)
+- ★ 5 base_date 平均 — 5d return:
+  baseline:           overall -0.37% / top10 -1.36% / win 30%
+  **risk_adjusted**:  overall -0.28% / top10 **-0.85%** / win **44.2%** /
+                      drawdown **-1.94%** (baseline -2.95%)
+  quality_defensive:  overall -0.18% / top10 -0.19% / win 36% / dd -2.75%
+  growth_momentum:    overall -0.56% / top10 **-3.47%** / win 32% / dd -3.60%
+  cyclical_rebound:   overall -0.57% / top10 -3.07% / win 32% / dd -3.36%
+  balanced_momentum:  overall -0.63% / top10 -3.46% / win 32% / dd -3.58%
+- ★ 5 base_date 平均 — 20d return:
+  baseline:           overall +1.11% / top10 +1.23% / top30 -0.08%
+  **quality_defensive**: overall **+1.32%** / top30 **+0.33%** ← 最大改善
+  growth_momentum / cyclical_rebound / balanced_momentum: 全 negative top10
+- ★ 採用候補:
+  risk_adjusted ← drawdown control + win rate 改善 (5d で最強)
+  quality_defensive ← 20d overall + top30 で baseline 上回り
+- ★ 不採用:
+  growth_momentum / cyclical_rebound / balanced_momentum
+  → momentum factor 追加が **全 horizon で逆効果**、過去 20 日 momentum
+    は逆張り効果生じる可能性 (日本株は trend continuation より mean
+    reversion が効く期間)
+- 過剰最適化リスク: 5 base_dates のみで統計的信頼性不十分、
+  R2-F4 で 12-24 base_dates での broader sampling が必要
+- production / develop DB last_modified May 7 完全無触
+- staging のみ research_watchlist_signals に +3,595 row、
+  research_derived_indicators / market_prices_daily 一切無触
+- write 対象 source_versions:
+  r2d2_baseline_v1: 547 / r2d2_quality_defensive_v1: 541 /
+  r2d2_growth_momentum_v1: 589 / r2d2_cyclical_rebound_v1: 580 /
+  r2d2_risk_adjusted_v1: 744 / r2d2_balanced_momentum_v1: 594
+- Codex pre-commit 通過 × 4、--no-verify 不使用、個別 commit 厳守
+- tests: 67 PASS (presets 27 + factors 24 + runner 16)、
+  regression 876 PASS
+- commit: ae28966 (presets) → 2cf6cb5 (factors) → 0793f41 (runner)
+  → 4cbb050 (tests) → e0e66d8 (vault) → (本 commit) log
+- 02_todo/F286_R2_D2_watchlist_tuning.md 新規 vault
+- ★ Go/No-Go: framework PASS / 有望 preset 発見 (risk_adjusted +
+  quality_defensive) / momentum 系は不採用 / broader sampling 必要
+- 次 step (HQ 判断): R2-F4 broader historical sampling ← 最優先
+  (現状 2025-11 〜 2026-05 の半年のみ → J-Quants 過去 1-2 年追加で
+   12-24 base_dates 検証) / R2-D3 risk_adjusted refinement
+  (risk_penalty weight を 0.10 → 0.20/0.30) / R2-G regime detection /
+  Lane integration / R1-B5
