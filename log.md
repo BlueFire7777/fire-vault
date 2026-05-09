@@ -4304,3 +4304,127 @@ HQ 判断要請 5 項目 (計画書 §9):
   (sector × regime cross / 月次効果 / 決算シーズン) /
   Lane integration (F111 Daytrade に regime + sector フィルタ、
   F119 Evaluation 別 PnL) / R1-B5 v1/v2 swap
+
+## [2026-05-10] milestone | F286-R2-G3 Interpretation Rule v2 Finalization 完了
+- F286-R2-G3 "Interpretation Rule v2 Finalization" 完了
+- ★ 目的: R2-G2 recommended_v1 を土台に、6 candidates で比較し
+  Stage 3 Live Advisory 向け recommended_v2 を確定
+- 実装範囲 (5 commit + log):
+  - feat (beba4a2): simulation/research_lane/regime_rule_finalization.py
+    1,306 行 (RuleOutput / RuleCandidateConfig / 6 candidates /
+    _coerce_rank / _count_cautious_factors / score_candidate /
+    select_recommended_v2 / RecommendedRuleV2 +
+    build_recommended_v2_from_summary / CONDITIONS_BY_CANDIDATE)
+  - chore (20d6fac): scripts/jobs/run_research_rule_finalization.py
+    998 行 (read-only runner、--write 自体存在しない、
+    candidate ごとに family / detail / by_market_regime /
+    by_sector_flow / by_top_bucket / by_strongest_strategy /
+    by_sector_17 全 cross-cut + cautious/suppress reclassification +
+    current vs v2 summary)
+  - test (09e7184): 64 PASS (module 48 + runner 16)
+  - docs (1ee7e5b): 02_todo/F286_R2_G3_rule_finalization.md vault
+- ★ Codex CRITICAL 3 件 全て即時対応:
+  1. base_rule_version field に candidate name (= "current_v1")
+     を入れていた → version 文字列 ("r2g3_current_v1") に解決
+     (get_candidate 経由、未知 base_rule は name フォールバック)
+  2. post_cap_rank 型検証なし → str / float NaN / bool が入ると
+     `rank <= 30` で TypeError → _coerce_rank() で int|None に
+     正規化、不正値は unknown_no_rank に倒す
+  3. candidate ごとの cross-cut summaries (regime / sector_flow /
+     top_bucket / strongest / sector_17) が漏れていた →
+     candidate_results に全 cross-cut を含め、
+     _summary_to_csv_row 共通化で 1 CSV に集約
+- 6 candidates:
+  - A current_v1 (= R2-G2 recommended_v1 と同等、baseline)
+  - B cautious_mixed_to_suppress (cautious factors>=2 を suppress)
+  - C high_vol_top10_to_normal (high_vol+rank<=10 を normal 降格)
+  - D v2_combined (= B + C)
+  - E suppress_mixed_only (B と同集合だが detail 別ラベル)
+  - F normal_safe_expansion (C + downtrend で sector 強なら normal)
+- Cautious factors 数え上げ (variant E と同じ 3 因子):
+  - volatility=high AND rank<=10 (high_volatility)
+  - regime=downtrend (downtrend)
+  - sector_flow=strong_outflow (strong_outflow)
+  - >=2 件 → mixed と認定 (= candidate B/D/E で suppress)
+- smoke (staging / 22 base_dates / r2f4_baseline_v1 / top100):
+  - leak check: regime / sector_flow 双方 violations=0、
+    max_price_date_used=2026-02-27 ≤ 2026-03-01
+- ★ Selection scores:
+    current_v1                          all_pass=True  composite=+0.0000
+    cautious_mixed_to_suppress          all_pass=True  composite=+0.0048   ★ selected
+    high_vol_top10_to_normal            all_pass=True  composite=+0.0008
+    v2_combined                         all_pass=True  composite=+0.0037
+    suppress_mixed_only                 all_pass=True  composite=+0.0048
+    normal_safe_expansion               all_pass=False composite=n/a
+- ★ Selected: cautious_mixed_to_suppress (= candidate B)
+  - 同点 E (suppress_mixed_only) と composite 同じだが、E は
+    detail label 違うだけで実集合は B と同じ
+  - 27 件 (= mixed factor 該当) が cautious から suppress に移動
+- ★ Family overview h=20d 比較:
+    candidate                  strong       normal       cautious     suppress
+    current_v1               131/+6.20/64% 1552/+2.88/59% 293/+0.40/46% 224/+1.14/49%
+    B (selected)             131/+6.20/64% 1552/+2.88/59% 266/+0.59/47% 251/+0.85/48%
+                                                          ★ +0.19pp 改善 ★ -0.29pp 弱化
+    C high_vol_to_normal     131/+6.20/64% 1594/+2.80/59% 251/+0.49/46% 224/+1.14/49%
+    D v2_combined            131/+6.20/64% 1567/+2.87/59% 251/+0.49/46% 251/+0.85/48%
+    E suppress_mixed_only    (= B と同集合)
+    F normal_safe_expansion  131/+6.20/64% 1845/+2.49/57%  0/n/a/n/a   224/+1.14/49%
+                                          ★ -0.39pp 悪化  ★ 過剰緩和
+- ★ Recommended rule v2 (= r2g3_recommended_v2):
+    base_variant: cautious_mixed_to_suppress
+    use_signal_strong: regime=uptrend AND aligned AND rank<=30
+                       (count 131 / +6.20% / win 64.1%、変更なし)
+    use_signal_normal: fallback (count 1,552 / +2.88% / 59.1%、変更なし)
+    use_signal_cautious: (vol=high AND rank<=10) 単独 OR
+                         downtrend 単独 (NOT contrarian_*)
+                         (count 266 / +0.59% / win 47.0%)
+    suppress_signal: regime=downtrend AND alignment in (contrarian_*)
+                     OR cautious_factors >= 2
+                     (count 251 / +0.85% / win 47.7%)
+    expected_overall: count 2,200 / +2.58% / win 56.6%
+- ★ 5d パフォーマンス警告:
+    cautious h5 -3.06% / win 24.6%
+    suppress h5 -4.48% / win 22%
+    → 5d 短期保有では cautious / suppress 完全除外、
+      Stage 3 Live Advisory は 20d 中心保有 (= 1-4 週 swing) 想定
+- ★ Stage 3 Live Advisory への示唆:
+  - rule v2 採用、既存 v1 と差分 27 件のみ (= 安全な変更)
+  - position sizing: strong 余力の 5-10%、normal 通常、
+    cautious normal の半分目安、suppress 原則見送り
+  - LINE 通知: interpretation_detail を同梱、suppress は除外、
+    cautious は優先度低を明記
+  - worst drawdown -22% を考慮、ATR ベース stop 併用
+- 制約遵守:
+  - DB write 一切なし (--write option 自体存在しない設計)
+  - FIRE_ENV=staging で実行、production / develop 完全無触
+  - market_prices_daily / market_listings / signals / indicators
+    全 read-only
+  - rule candidates / recommended_v2 全て in-memory または
+    artifact 出力のみ
+  - pre-commit Codex review 通過 × 3、CRITICAL 3 件即修正
+  - --no-verify 不使用、個別 commit 厳守
+  - seed_pattern_layer1.py の既存変更状態は触らず
+- DB last_modified 確認:
+  - production.db: 存在しない (= 触りようがない、安全)
+  - develop.db: 2026-05-07 18:14:26 (R2-G/G2/G3 期間 unchanged)
+  - staging.db: 2026-05-09 22:40:35 → 同 (read-only 保証)
+- 出力 (/tmp/r2g3_rule_finalization/):
+  r2g3_candidate_summary.json/.csv +
+  r2g3_interpretation_detail_summary.csv +
+  r2g3_cautious_reclassification_summary.csv +
+  r2g3_suppress_reclassification_summary.csv +
+  r2g3_current_vs_v2_summary.csv +
+  r2g3_recommended_rules.json +
+  r2g3_leak_check_summary.json +
+  per_candidate/ (6 × 2 ファイル)
+- tests: 64 PASS (module 48 + runner 16)、
+  regression 2,581 PASS (全テスト)
+- commit: beba4a2 (feat) → 20d6fac (runner) → 09e7184 (tests) →
+  1ee7e5b (vault) → (本 commit) log
+- 02_todo/F286_R2_G3_rule_finalization.md 新規 vault
+- ★ Go/No-Go: framework PASS / recommended_v2 採用可能 (=
+  cautious_mixed_to_suppress) / Stage 3 Live Advisory 第一フィルタ確定
+- 次 step (HQ 判断): R2-H orthogonal cuts (sector × regime cross /
+  月次効果 / 決算シーズン) / Lane integration (F111 Daytrade に
+  v2 rule 組込み、F119 Evaluation 別 PnL) / R2-G4 5d 用 rule 設計 /
+  R1-B5 v1/v2 swap
