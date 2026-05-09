@@ -3510,3 +3510,40 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): R2-B (7 指標分布検証 / sector 別 / outlier 整理)
   / R2-C (Quality Value / Earnings Growth / Cyclical Value 戦略) /
   R1-B5 (v1/v2 swap、別承認)
+
+## [2026-05-09] milestone | F286-R2-B 派生指標 分布検証 / sector別 / outlier 整理 完了
+- HQ 承認後、R2-A3 の research_derived_indicators 3,708 row に対して
+  分布検証 (純粋関数 + read-only runner) を実施
+- 全体分布 (n / coverage / median / p5/25/75/95 / min / max):
+  PER  3,225  87.0%  median 14.54  range [0.81, 1,514]
+  PBR  3,644  98.3%  median 1.27   range [0.08, 302]
+  ROE  3,699  99.8%  median 0.076  range [-138.33, 1.06]
+  op_margin 3,623  97.7%  median 0.061  range [-1,160, 0.74]
+  net_margin 3,694  99.6%  median 0.046  range [-1,151, 1.59]
+  sales_yoy  3,636  98.1%  median 0.047  range [-1.0, 7.39]
+  profit_yoy 3,645  98.3%  median 0.091  range [-283.67, 1,391]
+- sector_17 別 17 セクター + null sector 中央値:
+  不動産 ROE 最高 11.4%、医薬品 ROE 最低 1.5%、銀行 net_margin 13.6%、
+  情報通信が最大 sector (n=1,228、PBR 1.83 / ROE 10.1%)
+- outlier (HQ 指定 9 閾値):
+  PER>100  100 件、PER>300  20 件、PBR>20  22 件
+  ROE>50%  16 件、ROE<-50% 91 件
+  op_margin>60% 6 件、net_margin>50% 6 件
+  sales_yoy>100% 29 件、profit_yoy>300% 124 件 (3.34%)
+- 前処理推奨案 (R2-C 用):
+  PER / PBR は sector_relative + winsorize p95 (PER 67.6 / PBR 6.2)
+  ROE は absolute 評価可 (全市場共通閾値)
+  銀行 (sector=15) は op_margin missing 構造、ROE / net_margin で評価
+  profit_yoy は abs(prior) 正規化由来の上方 outlier、cap 3.0 推奨
+- R2-C 進行可否判定: **PASS (9/9 条件)**
+  全 7 指標 coverage >= 80%、sector_count >= 10、profit_yoy>3.0 が
+  n の 5% 未満 (3.34%)
+- production / develop DB last_modified May 7 完全無触、staging も
+  read-only (R2-A3 から write なし)
+- Codex pre-commit 通過 × 1
+- tests: 39 PASS (analysis 21 + runner 18)、regression 481 PASS
+- commit: 3114314 (実装) → 9946b6b (vault) → (本 commit) log
+- 02_todo/F286_R2_B_indicator_distribution_analysis.md 新規 vault
+- 次 step (HQ 判断): R2-C ファクター戦略実装 (Quality Value /
+  Earnings Growth / Cyclical Value)、本 R2-B report の前処理推奨
+  案を実装に取り込む / R1-B5 (v1/v2 swap、別承認)
