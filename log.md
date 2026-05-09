@@ -3427,3 +3427,49 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 02_todo/F286_R2_A1_derived_indicators_smoke.md 新規 vault
 - 次 step (HQ 判断): R2-A2 (指標保存先 table 設計) / R2-B (Tier2
   全件分布検証) / R2 ETF フィルタ導入 / R2-C ファクター戦略実装
+
+## [2026-05-09] milestone | F286-R2-A2 eligible universe + 派生指標 storage 完了
+- HQ 判断後、R2-A1 で発見した「100 銘柄中 58 が ETF 由来 no_fy_record」
+  問題に対処する 3 module を実装
+- 1) eligible filter (simulation/research_lane/eligible_universe.py)
+  - market_code 0111/0112/0113 = eligible (3,752 推定)
+  - 0109 (ETF/REIT 等) = non_stock_market_other (517)
+  - 0105 (TOKYO PRO MARKET) = tokyo_pro_market (179)
+  - sector_17="99" = other_sector (普通株セグメント混入の非事業 1)
+- 2) storage migration
+  (scripts/setup/migrate_research_derived_indicators.py)
+  - research_derived_indicators table、PK 4-key
+    (code, base_date, disclosure_date, type_of_document)
+  - 7 indicator REAL 列 + skip_reasons_json + payload_json
+  - INDEX (code, base_date) / base_date
+  - 4 段 staging guard、CREATE TABLE IF NOT EXISTS で冪等
+  - 既存 PK / indicator 列の不一致で MigrationRefused
+- 3) persist runner (scripts/jobs/persist_derived_indicators.py)
+  - eligible filter 通過 → R2-A1 純粋関数で 7 指標計算 → DB upsert
+  - market_financials_v2 / market_prices_daily / market_listings は
+    read-only、書込みは research_derived_indicators のみ
+- 5 銘柄 smoke 結果:
+  eligible 5/5 / calculated 5 / no_fy 0 / inserted 5
+  PER 4/5 (Sony 赤字 EPS skip) / PBR 5/5 / ROE 5/5 /
+  op_margin 4/5 (MUFG 銀行 missing) / net_margin 5/5 / YoY 5/5
+- 100 銘柄 mini smoke 結果 (★ 主要):
+  100 → eligible 42 / excluded 58
+    (non_stock_market_other 49 + tokyo_pro_market 9)
+  calculated 42 / **no_fy_record 0** (R2-A1 では 58)
+  inserted 42 / row_count 5 → 47
+  ROE coverage 42% (R2-A1) → 100% (R2-A2)
+  PER coverage 38% → 90.5%
+- skip_reasons_json で indicator 別の skip 理由を JSON 永続化
+  (例: {"per": "negative_eps", "operating_margin": "missing"})
+- production / develop DB last_modified May 7 完全無触、staging のみ
+  research_derived_indicators 追加で 47 row 増
+- Codex pre-commit 通過 × 3 (eligible / migration / runner)
+- tests: 56 PASS (eligible 22 + migration 15 + runner 19)、
+  regression 435 PASS
+- commit: ef9adba (eligible) → 9885947 (migration) →
+  1c15fd3 (runner) → 8f54701 (vault) → (本 commit) log milestone
+- 02_todo/F286_R2_A2_eligible_universe_and_indicators_storage.md
+  新規 vault
+- 次 step (HQ 判断): R2-A3 (Tier2 全件 indicators) /
+  R2-B (7 指標分布検証) / R2-C ファクター戦略実装 /
+  R1-B5 (v1/v2 swap、別承認)
