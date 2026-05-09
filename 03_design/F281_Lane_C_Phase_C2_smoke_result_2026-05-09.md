@@ -1,8 +1,8 @@
 ---
-title: F281 Lane C Phase C2 smoke 結果 (C2-6)
+title: F281 Lane C Phase C2 smoke 結果 (C2-6) v1.1
 date: 2026-05-09
 phase: F281-Phase-C2 / C2-6 smoke
-status: smoke 完了、Phase C2 §13 12 観点すべて担保、C2-7 strict 60 営業日評価へ進める判定
+status: smoke v1.1 (HQ preflight 反映: force_close 15:10 厳守の修正後数値)、C2-7 進める判定
 related: F281_Lane_C_Phase_C2_implementation_plan_2026-05-09, F284_F105_c6_final_result_2026-05-09, F281_Lane_C_design_2026-05-08
 trigger: HQ C2-6 着手指示 (2026-05-09、C2-5 strict_evaluator 完了承認後)
 ---
@@ -180,3 +180,83 @@ vault 側:
 
 - v1.0 (2026-05-09): 初版、C2-6 smoke 完了直後の Vault 化、Phase C2
   §13 12 観点すべて担保、C2-7 strict 60 営業日評価へ進む判定。
+- v1.1 (2026-05-09): HQ preflight 確認 (C2-7 着手前) 反映、force_close
+  時刻仕様の修正後数値で再走行。詳細は §12 参照。
+
+## 12. v1.1 補正 — force_close 15:10 厳守 (HQ preflight)
+
+★ HQ preflight 重要確認 (C2-7 着手前): C2-6 v1.0 の trade list で
+   exit_time=15:11 が記録されたため、Phase C2 仕様 (force_close は
+   15:10 または 15:10 以前の最後の bar) との整合性を確認。
+
+### 12.1 原因調査
+
+staging DB の 13200 / 2026-04-22 / 2026-04-24 で **15:09・15:10 bar が
+不在** (流動性低時間帯で板寄せ未成立)、後続 15:11 が次 bar。
+
+旧実装 (`bar.time >= FORCE_CLOSE_TIME`) では 15:11 を拾って exit_time
+が 15:11 になっていた = HQ 仕様違反。
+
+### 12.2 修正 (commit a1b3347、~/fire 側)
+
+`fix(F281-C2): force_close は 15:10 厳守、15:10 超過 bar を無視`:
+
+- 15:10 を超過する bar (= bar.time > "15:10") は force_close 判定に
+  使わず walk 中断
+- 15:10 ぴったりがあれば 15:10 close で force_close (TP/SL ヒット時は
+  そちらを優先)
+- 15:10 不在 + 15:10 未満の最後の bar (last_pre_force_bar) → その close
+  で force_close (例: 15:08 / 15:09)
+- 15:10 ぴったりも 15:10 未満も bar が無い → data_quality_error
+
+test 修正:
+- `test_15_10_after_bar_triggers_immediate_force_close` 削除
+- `test_15_11_only_bars_returns_data_quality_error` 追加
+- `test_no_15_10_with_15_11_falls_back_to_pre_force_bar` 追加
+
+検証: simulator test 28 → 29 PASS、full regression 1586 → 1587 PASS。
+
+### 12.3 修正後 smoke 数値 (再走行 2026-05-09 09:16:50 JST)
+
+修正前 (v1.0) との差分のみ記載:
+
+| trade | v1.0 exit | v1.1 exit | v1.0 pnl | v1.1 pnl |
+|---|---|---|--:|--:|
+| 13200 / 04-22 | 15:11 @ 62040.00 | **15:08 @ 62040.00** | -160 | -160 |
+| 13200 / 04-24 | 15:11 @ 62210.00 | **15:08 @ 62230.00** | +2,880 | **+3,200** |
+
+(他 10 件の trade は exit_time 変化なし、いずれも <= 15:10)
+
+修正後 preset B summary:
+
+| 項目 | v1.0 | v1.1 |
+|---|--:|--:|
+| trade_count | 12 | 12 |
+| win/loss/force | 6 / 5 / 6 | 6 / 5 / 6 |
+| win_rate | 0.5000 | 0.5000 |
+| **gross_pnl_jpy** | **+17,515** | **+17,835** (+320) |
+| profit_factor | 1.7247 | **1.7380** |
+| max_drawdown_jpy | 23,501 | 23,501 |
+| daily_halt | 0 | 0 |
+| duplicate | 0 | 0 |
+| no_negative_capital | True | True |
+
+### 12.4 preflight 検査結果
+
+★ **全 exit_time <= 15:10、HQ 仕様準拠 ✅** ★
+- max exit_time: 15:10
+- 違反 (> 15:10): 0 件
+- 修正により 13200 / 04-22 と 04-24 の exit_time が 15:11 → 15:08
+  (15:10 以前最後の bar fallback)
+
+### 12.5 HQ preflight 5 項目への回答
+
+1. ✅ C2-6 v1.0 で exit_time=15:11 になった理由 = 15:10/15:09 bar 不在
+   (流動性低時間帯) で旧実装が 15:11 を拾っていたため (= 仕様違反)
+2. ✅ 15:11 timestamp は J-Quants 1 分足の `15:11:00 〜 15:11:59` を
+   表す。15:10 大引け前の auction or その後の生成 bar、HQ 仕様
+   「15:10 force_close」を超える時間帯
+3. ✅ 修正完了 (commit a1b3347、C2-7 着手前)
+4. ✅ C2-7 strict 評価 で全 force_close exit_time が <= 15:10 になる
+   実装を担保 (= 修正済 simulator を使用)
+5. ✅ 例外的に 15:11 を許容しない、HQ 仕様厳守
