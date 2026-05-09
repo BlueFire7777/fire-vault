@@ -4428,3 +4428,123 @@ HQ 判断要請 5 項目 (計画書 §9):
   月次効果 / 決算シーズン) / Lane integration (F111 Daytrade に
   v2 rule 組込み、F119 Evaluation 別 PnL) / R2-G4 5d 用 rule 設計 /
   R1-B5 v1/v2 swap
+
+## [2026-05-10] milestone | F286-R2-H Orthogonal Cuts / Cross-section Validation 完了
+- F286-R2-H "Orthogonal Cuts / Cross-section Validation" 完了
+- ★ 目的: R2-G3 recommended_v2 を Stage 3 Live Advisory に渡す前に、
+  sector×regime / 月次 / 決算シーズン / interpretation×sector / etc
+  の直交切り口で安定性と注意条件を検証
+- 実装範囲 (5 commit + log):
+  - feat (7728235): simulation/research_lane/orthogonal_cuts.py
+    660 行 (cut keys / earnings_season / aggregate / 6 種別 insight
+    extraction / LiveAdvisoryNotes)
+  - chore (9eee82c): scripts/jobs/run_research_orthogonal_cuts.py
+    669 行 (read-only runner、--write 自体存在しない、--rule-version
+    で recommended_v2 適用、6 cross-cuts × 3 horizons、
+    11 artifacts + per_cut/)
+  - test (d4a171e): 50 PASS (module 35 + runner 15)
+  - docs (6970c39): 02_todo/F286_R2_H_orthogonal_cuts.md vault
+- ★ Codex CRITICAL 1 件 即時対応:
+  build_live_advisory_notes で mean_return_20d だけ None 判定し
+  win_rate_20d を :.3f 直接フォーマット → win=None で TypeError →
+  _format_pattern_line() ヘルパー新設で両方独立に None safe 化
+- smoke (staging / 22 base_dates / r2g3_recommended_v2 / top100 /
+  min_count=20):
+  - leak check: regime / sector_flow 双方 violations=0、
+    max_price_date_used=2026-02-27
+  - overall (h=20d): count 2,200 / +2.58% / win 56.6%
+- ★ Insight summary:
+    strong_positive_patterns:    9
+    weak_or_avoid_patterns:     38
+    unstable_patterns:          57
+    small_sample_patterns:      90 (= warning + severe)
+    5d_warning_patterns:        28
+    20d_favorable_patterns:     23
+- ★ Strong positive (top 6):
+    sector_regime: 電機・精密 × range       count 28  +7.64% win 64.3%
+    month_of_year: 05 (5月)                count 100 +7.04% win 71.7%
+    sector_regime: 運輸・物流 × uptrend       count 62  +6.39% win 72.6%
+    interpretation_regime: strong × uptrend count 131 +6.20% win 64.1%
+    top_bucket × interp: top30 × strong     count 82  +6.07% win 70.7% ★ best
+    month_of_year: 06 (6月)                count 200 +5.73% win 74.5%
+- ★ Weak/Avoid (top 5):
+    sector_regime: 建設・資材 × downtrend     count 24  -2.03% win 36.8%
+    month_of_year: 03 (3月) ★ 最弱月         count 200 -1.77% win 31.7%
+    sector_regime: 自動車 × downtrend        count 27  -1.22% win 41.7%
+    top_bucket × interp: top10 × suppress   count 50  -0.49% win 39.6%
+    sector_regime: 小売 × downtrend          count 58  -0.11% win 41.4%
+- ★ Earnings season:
+    earnings_season_core   count 700  h20 +4.40% / win 62.2% / h5 +0.30%
+                           (= overall +2.58% より +1.82pp 上)
+    non_earnings_season   count 1500 h20 +1.72% / win 54.0% / h5 -0.06%
+- ★ 5d warning (= h5<0 AND h20>0、保有徹底注意):
+    08 (8月)              count 200 h5 -2.36% h20 +6.02%   ★ 最大乖離
+    Q2 / FQ1              count 400 h5 -0.62% h20 +4.72%
+    suppress×電機・精密     count 30 h5 -4.68% h20 +3.24%
+    不動産 × downtrend      count 45 h5 -2.70% h20 +3.03%
+- ★ Unstable (worst_dd < -25%):
+    不動産 × downtrend      count 45 dd -35.86% (= 全 regime で大)
+    不動産 × range          count 37 dd -34.96%
+    不動産 × uptrend        count 129 dd -27.06%
+    商社・卸売 × uptrend     count 81 dd -27.36%
+    小売 × downtrend         count 58 dd -25.37%
+- ★ Top bucket × interpretation:
+    top30 × strong   count 82  +6.07% win 70.7%   ★ best balance
+    top10 × strong   count 49  +6.42% win 53.1%   (mean 高だが win 低)
+    top10 × suppress count 50  -0.49% win 39.6%   ★ worst
+    top100 × cautious count 134 +0.10% win 46.6%  (弱)
+- ★ Stage 3 Live Advisory への示唆:
+  強く使う条件:
+    - top30 × use_signal_strong (= core edge)
+    - 5月・6月エントリー
+    - 8月 (但し 20d 保有徹底)
+    - earnings_season_core
+    - 運輸・物流 × uptrend / 情報通信 × range / 電機・精密 × range
+  避ける条件:
+    - 3月新規 entry 控える
+    - 建設・資材 × downtrend / 自動車・輸送機 × downtrend
+    - top10 × suppress_signal
+    - top100 × use_signal_cautious
+  Position sizing 注意:
+    - 不動産系 dd -25〜-36% で 1 銘柄 余力 3-5% 上限
+    - top10 × strong は分散重要 (win 53%)
+  保有期間:
+    - 5d 短期は strong/normal の一部のみ
+    - 8月エントリーは 20d 保有徹底 (= h5 含み損許容)
+- 制約遵守:
+  - DB write 一切なし (--write option 自体存在しない設計)
+  - FIRE_ENV=staging で実行、production / develop 完全無触
+  - market_prices_daily / market_listings / signals / indicators
+    全 read-only
+  - rule v2 適用 / cut keys / insights 全て in-memory または
+    artifact 出力のみ
+  - pre-commit Codex review 通過 × 3、CRITICAL 1 件即修正
+  - --no-verify 不使用、個別 commit 厳守
+  - seed_pattern_layer1.py の既存変更状態は触らず
+- DB last_modified 確認:
+  - production.db: 存在しない (= 触りようがない、安全)
+  - develop.db: 2026-05-07 18:14:26 (R2-G/G2/G3/H 期間 unchanged)
+  - staging.db: 2026-05-09 22:40:35 → 同 (read-only 保証)
+- 出力 (/tmp/r2h_orthogonal_cuts/):
+  r2h_orthogonal_cuts_summary.json/.csv +
+  r2h_sector_regime_cross.csv +
+  r2h_interpretation_sector_summary.csv +
+  r2h_interpretation_regime_summary.csv +
+  r2h_month_effect_summary.csv (month + Q + FQ) +
+  r2h_earnings_season_summary.csv +
+  r2h_top_bucket_interpretation_summary.csv +
+  r2h_insight_patterns.json +
+  r2h_live_advisory_notes.json +
+  r2h_leak_check_summary.json +
+  per_cut/ (8 cut × json)
+- tests: 50 PASS (module 35 + runner 15)、
+  regression 2,631 PASS (全テスト)
+- commit: 7728235 (feat) → 9eee82c (runner) → d4a171e (tests) →
+  6970c39 (vault) → (本 commit) log
+- 02_todo/F286_R2_H_orthogonal_cuts.md 新規 vault
+- ★ Go/No-Go: framework PASS / 9 strong + 38 avoid + 23 favorable
+  + 28 5d-warning パターン抽出 / Stage 3 Live Advisory 接続準備完了
+- 次 step (HQ 判断): Lane integration (F111 Daytrade Selection に
+  recommended_v2 + R2-H month/sector フィルタ組込み、F119 Evaluation
+  で interpretation × sector × month 別 PnL) / R2-G4 5d 用 rule 設計 /
+  R1-B5 v1/v2 swap
