@@ -3103,3 +3103,26 @@ Pro 加入の継続 / 解約は、以下を評価して決定:
   Codex pre-commit 必須
 - 関連 commit: dea61d4 (C2-0 Phase C2 plan v1.0) / 本 commit (log milestone)
 - 次: HQ 確認後に C2-1 (Tier2 universe loader + 72030 exclusion) 着手判断
+
+## [2026-05-09] milestone | F281 Phase C2 C2-6 smoke 完了 + Vault 化
+
+- Phase C2 仕様書 §13 smoke 計画 (Tier2 内 3 銘柄 × 5 営業日 × preset B、
+  利益ではなく動作確認) を実施、実 staging DB から read-only で
+  C2-1〜C2-5 の一連パイプラインが安全に動作することを確認
+- 03_design/F281_Lane_C_Phase_C2_smoke_result_2026-05-09.md 新規 (11 章)
+- 対象期間 2026-04-21 (火) 〜 2026-04-27 (月) = 5 営業日 (土日除外)
+- universe: 13060 / 13200 / 13210 (Tier2 universe 先頭 3 codes)
+- preset B (TP +1.2% / SL -0.8%) 単独評価
+- 結果: candidates 15 / setup_detected 12 / trade_count 12 /
+  win 6 / loss 5 / force 6、win_rate 0.5、gross_pnl +17,515 円、
+  profit_factor 1.72、max_drawdown 23,501 円、
+  daily_halt 0 / duplicate 0 / no_negative_capital_flag True
+- skipped_reason: no_pullback 2 / no_recovery_or_breakout 1
+- 72030 in trades: False (universe filter で除外動作確認)
+- 必須確認 12 観点すべて担保 + 制約遵守確認すべて OK
+- 判定: C2-7 strict 60 営業日評価へ進める ✅
+- 関連 commit (~/fire): c94fb16 (C2-1) / 6ce8f49 (C2-2) / ca43370 (C2-3) /
+  22023a4 (C2-4) / 94bc75f (C2-5)
+- 関連 commit (vault): e777899 (C2-6 smoke result) / 本 commit (log milestone)
+- 次: HQ 確認後に C2-7 strict 60 営業日評価 (478 × 60 × 4 preset =
+  114,720 評価) 着手判断
