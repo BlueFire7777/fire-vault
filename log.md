@@ -3359,3 +3359,37 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 02_todo/F286_R1_B2_5_market_financials_v2_smoke.md 新規 vault
 - ★ R1-B4 full 5-year backfill は HQ 承認待ち ★
   Tier2 universe 4,449 銘柄 × 5 年、推定 50,000-100,000 record
+
+## [2026-05-09] milestone | F286-R1-B4 market_financials full 5-year backfill 完了
+- HQ 承認 (R1-B2.5 PASS) 後、R1-B4 を実行
+- preflight 結果:
+  code_count 4,449 / 期間 20210509-20260509 / estimated_requests 4,893 /
+  row_count_current 1,836 / db_size 3,889.71 MB / disk_free 858 GB /
+  estimated_elapsed 57.1 min
+- 実 run 結果 (HQ 必須条件 全クリア):
+  elapsed: 65.28 min (推定 +14% over、pagination 2-page 銘柄 由来)
+  fetched: 165,110 record / mapped: 165,110 / skipped_invalid: 0
+  inserted (新規): 162,842 / replaced (既存上書き): 2,268
+  ignored: 0 / failed_codes: 0 / retry: 0
+  duplicate_key_count: 0 / skipped_unknown_collision: 0
+  no_record_loss: true / v2_schema_used: true
+  row_count: 1,836 → 164,678 (+162,842)
+  db_size: 3,889.71 → 4,341.02 MB (+451.30 MB)
+- v2 doc_type 分布 (top): FY/Q1/Q2/Q3 各 ~27,000、EarnForecastRevision
+  23,484、UNKNOWN 0
+- date range: 2016-05-09 ~ 2026-05-08 (5-year window 完備)
+- field 欠損率: net_sales 17.18% / cash_flow_operating 58.21% (CFO は
+  /fins/summary が予想/修正系 record で未掲載、想定通り)
+- production / develop DB last_modified = May 7 完全無触
+- 既存 v1 (market_financials) 1,723 row 維持 (drop / rename なし、
+  HQ 別途承認後の R1-B5 で判断)
+- Codex CRITICAL #3 対応 (実装中検出):
+  pagination > 50 page 部分 record silent truncate → per_code_records
+  buffer + JQuantsAPIError raise で failed_codes 記録、TestFetch-
+  PaginationHardLimit 2 tests 追加、実 run では発火せず
+- tests: 130 PASS (financials_mapping 58 + migrate_pk 26 +
+  backfill 46)
+- commit: 585f478 (runner 実装) → 4a231a6 (vault) → (本 commit)
+  log milestone
+- 02_todo/F286_R1_B4_market_financials_full_backfill.md 新規 vault
+- 次 step: R2 (派生指標 7 種) または R1-B5 (v1/v2 swap、別途 HQ 承認)
