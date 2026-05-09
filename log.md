@@ -3393,3 +3393,37 @@ HQ 判断要請 5 項目 (計画書 §9):
   log milestone
 - 02_todo/F286_R1_B4_market_financials_full_backfill.md 新規 vault
 - 次 step: R2 (派生指標 7 種) または R1-B5 (v1/v2 swap、別途 HQ 承認)
+
+## [2026-05-09] milestone | F286-R2-A1 Research Lane derived indicators MVP 完了
+- 7 指標 (PER / PBR / ROE / operating_margin / net_margin /
+  sales_growth_yoy / profit_growth_yoy) の純粋関数 + smoke runner
+- 純粋関数 (simulation/research_lane/derived_indicators.py):
+  - Indicator dataclass (name / value / skipped_reason)
+  - 7 種 compute 関数、abs(prior) 正規化 YoY (赤字回復対応)
+  - extract_payload_field で payload_json から EPS / BPS 抽出
+  - compute_all_indicators で 7 指標 dict 一括生成
+- smoke runner (scripts/jobs/compute_derived_indicators.py):
+  - read-only 接続、4 段 staging guard、v2 schema 検証
+  - market_financials_v2 (FY filter, disclosure_date DESC LIMIT 2)
+    + market_prices_daily (adj_close 優先) を結合
+  - 5 銘柄 / 100 銘柄 mini モード対応、JSON 出力
+  - **DB write なし**
+- 5 銘柄 smoke 結果 (HQ sample):
+  Toyota PER 10.16 / Sony 赤字 EPS skip / TEL PER 37.82 / MUFG 銀行
+  op_margin missing / INPEX op_margin 56.5%
+  全 7 指標で各 4-5 銘柄 computed、skip 理由が想定通り
+- 100 銘柄 mini smoke:
+  58/100 が no_fy_record (= 13050 以降が ETF / index ファンド、想定
+  挙動)、計算対象 42 銘柄で PER 中央値 15、PBR 中央値 1.68、
+  ROE 中央値 9%
+- skip 規約: 入力欠損 → "missing"、ゼロ割 → "zero_denominator"、
+  赤字 EPS / 債務超過 → "negative_eps" / "negative_bps" /
+  "negative_equity"、赤字 profit や負成長は許容で負値返す
+- staging DB read-only、production / develop DB last_modified May 7
+  完全無触、DB write 一切なし
+- tests: 83 PASS (純粋関数 54 + runner 29)、regression 379 PASS
+- commit: 8e670d3 (純粋関数) → b716756 (runner) → bee4f87 (vault) →
+  (本 commit) log milestone
+- 02_todo/F286_R2_A1_derived_indicators_smoke.md 新規 vault
+- 次 step (HQ 判断): R2-A2 (指標保存先 table 設計) / R2-B (Tier2
+  全件分布検証) / R2 ETF フィルタ導入 / R2-C ファクター戦略実装
