@@ -5698,3 +5698,78 @@ HQ 判断要請 5 項目 (計画書 §9):
   --allow-warning 連携) / persist runner 統合 (derived / signals
   自動連鎖、300-batch を default に) / derived full_eligible 拡大
   (HQ 承認 flag 必須、gate-4 distinct_codes を 42 → 4000+ に)
+
+## [2026-05-10] milestone | F062-R2 LINE Advisory Send / Production Separation 完了
+- 目的: F062-R1 LINE preview template に実送信導線を **構造的に
+  安全な形で** 分離。default dry-run / 多段 guard / DATA-R2 gate
+  必須 / production runner からは実 LINE API 構造的に不可能。
+- 実装ファイル:
+  - agents/line_advisory_send.py (478 行、新規)
+  - scripts/jobs/run_f062_line_advisory_send.py (371 行、新規)
+  - tests/agents/test_line_advisory_send.py (31 PASS)
+  - tests/scripts/jobs/test_run_f062_line_advisory_send.py (21 PASS)
+- 多段 guard (5 段、全 pass まで送信不可):
+  - G-1 chunks 非空 + 各 chunk に F062-R1 SAFETY_FOOTER_LINES
+    全 8 行が runtime 含まれる + forbidden_phrase 13 種 +
+    safety_footer_present
+  - G-2 selected_rows 全件 manual_review_required=True かつ
+    auto_order_allowed=False (bool 厳密判定)
+  - G-3 gate_result.overall_status == "pass" (default、warning は
+    --allow-warning 明示時のみ許可、refuse は絶対不可)
+  - G-4 gate_result.line_send_allowed == True (bool 厳密)
+  - G-5 mode == "send" + 実送信 path が用意されている (= F062-R2
+    production runner では path なし、test stub のみ)
+- ★ Codex CRITICAL 4 件と修正:
+  #1: docstring「各 chunk に safety footer 含む」と実装が不一致
+      → 各 chunk 個別検査追加
+  #2: line_send_callable と line_api_call_count の契約矛盾
+      → callable を _test_send_stub に rename + stub_invocations
+        field 追加、line_api_call_count は構造的に必ず 0
+  #3: notification-miss リスク (= mode=send + stub=None で
+      send_allowed=True / sent=0 を「成功 0 件送信」と誤解釈)
+      → mode=send で stub=None の場合 send_allowed=False に上書き、
+        refused_reasons に F062-R2 注記追加
+  #4: "Safety" marker 単語だけだと本文中偶発出現で通る
+      → F062-R1 SAFETY_FOOTER_LINES と整合する全 8 行を必須に強化
+- exit code: 0 = pass / 2 = refused / 3 = exception / 4 =
+  send_allowed=False (= production runner --send 経路で必ず exit 4)
+- smoke 結果 (3 phase):
+  - dry-run smoke: F062-R1 payload + DATA-R2 pass gate →
+    send_allowed=True / sent=0 / api_call=0 / token_read=0 / exit 0
+  - send smoke (production runner、stub=None): mode=send でも
+    F062-R2 構造的 refuse → send_allowed=False / exit 4
+  - refuse gate smoke: 合成 refuse gate JSON で --send →
+    refused_reasons に gate refuse / exit 4
+- 安全要件遵守:
+  - LINE 本番 API 未呼び出し: line_api_call_count 全 smoke で 0
+  - token 読み込みなし: token_read_count 全 smoke で 0
+  - DB write 0 / DB access 0 (sqlite3 unimported)
+  - production / develop / staging.db 完全 unchanged
+  - order / broker / 楽天 / Computer Use / Playwright / Selenium
+    / subprocess 不使用 (test で source 検証)
+  - argparse help に --line-token / --channel-token / --api-key /
+    --token / --broker / --rakuten / --order / --auto-order /
+    --computer-use / --playwright / --write option 不在
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - TODO Excel 未更新
+- tests:
+  - 新規 52 PASS (router 31 + runner 21、CRITICAL 対応で +5)
+  - regression 3,131 PASS (= 3,079 baseline + 52 新規)
+- Codex pre-commit:
+  - 全 3 commit 通過、CRITICAL 4 件即修正
+  - --no-verify 全 3 commit で flag 不使用
+  - usage limit / rate limit / auth error なし
+- 完了報告: /tmp/f062_r2_completion_report.txt にも保存
+- commit: a508ebb (feat、CRITICAL 4 件対応版) → 90e2bb8 (chore
+  runner) → 64882f1 (test) → 482c372 (vault) → (本 commit) log
+- 02_todo/F062_R2_line_advisory_send_separation.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (5 段 guard / safe-by-default /
+  実 LINE API path 不在 / notification-miss リスク防御) /
+  F062-R1 payload + DATA-R2 pass gate で dry-run send_allowed=True
+  / production runner --send は構造的に exit 4 で refuse 確認
+- 次 step (HQ 判断): F062-R3 LINE Production Send Path 追加
+  (= production_send_callable 別 path、HQ 承認 flag 必須、
+  実 LineBotClient.send_text bind) / F286-DATA-R3 daily refresh
+  production 化 / persist runner 統合
