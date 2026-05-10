@@ -5353,3 +5353,93 @@ HQ 判断要請 5 項目 (計画書 §9):
   smoke (5-10 銘柄から段階的) / DATA-R2 Freshness Gate
   (gate-1..5 純関数 + F062-R2 接続) / persist runner 統合
   (derived/signals を本 runner から薄い wrapper 経由で呼ぶ)
+
+## [2026-05-10] milestone | F286-DATA-R1.1 J-Quants Limited Write Smoke / Rate Limit Safe Refresh 完了
+- 目的: DATA-R1 で 4400+ 銘柄逐次 fetch が rate limit 連続 retry で
+  安全停止して終了した問題を、銘柄を絞れる仕組みで解消し、
+  staging で実 write smoke を成功させる。
+- 実装ファイル:
+  - agents/jquants_daily_refresh.py (+227 行、resolve_target_symbols
+    / _load_symbols_from_csv / execute_refresh signature 拡張 /
+    rate limit safe break)
+  - scripts/jobs/run_jquants_daily_refresh.py (+30/-4 行、
+    --symbols-limit / --symbols-csv / --sleep-seconds option +
+    bad_status 拡張)
+  - tests/agents/test_jquants_daily_refresh.py (+20 PASS)
+  - tests/scripts/jobs/test_run_jquants_daily_refresh.py (+8 PASS)
+- 追加 option:
+  - --symbols-limit (int): market_listings 先頭 N 件 (hard cap 4500)
+  - --symbols-csv (Path): CSV / TSV 1 列 / header 'code' /
+    # コメント / 重複 dedupe
+  - --sleep-seconds (float): dataset 間 sleep (rate limit 緩和、
+    ok 時のみ次 dataset へ進む前に挿入)
+  - --symbols-limit と --symbols-csv は排他、parse_args で refuse
+- Codex CRITICAL 2 件と修正:
+  CRITICAL #1 (例外経路): execute_refresh が Exception catch 後に
+    後続 plan を continue で続行し、429 retry exhaustion 後も次
+    API call を発行しうる
+    対応: catch 後に残り plan を全 aborted_after_error で skip
+         して break、test で fake_index "must not be called"
+         AssertionError で検証
+  CRITICAL #2 (戻り値経路): prices_refresh / index_refresh が
+    error_msg / failed_symbols 入り dict / status="partial" を
+    返した場合も break しない、安全文言と実装が不一致
+    対応: status != "ok" で後続 plan を aborted_after_partial で
+         skip して break、ok 時のみ sleep_seconds 挿入、test で
+         同じく "must not be called" 検証
+- exit code 仕様:
+  0 = success / 2 = refused / 3 = safety violation / 4 = partial
+  / error / aborted (★ Codex CRITICAL 対応で error:* / partial /
+  aborted_after_error / aborted_after_partial / unknown 全て
+  exit 4)
+- staging write smoke 結果 (★ DATA-R1 で kill していた smoke が
+  実 row 投入まで成功):
+  - Phase 1 (dry-run): symbols=limit:5 / count=5 / staging.db
+    unchanged
+  - Phase 2 (土曜 2026-05-02 / 5 銘柄 / write): inserted=0
+    (= 土曜 J-Quants データなし)、staging.db unchanged、
+    rate limit 0
+  - Phase 3 (★ 木曜 2026-05-07 / 5 銘柄 / write): inserted=5、
+    staging.db rows 2,080,831 → 2,080,836 / max_date 2026-05-01
+    → 2026-05-07
+  - Phase 4 (金曜 2026-05-08 / 10 銘柄 + index / write /
+    sleep 0.5s): prices inserted=10 / index inserted=1 / 合計 11、
+    staging.db max_date 2026-05-01 → 2026-05-08 / index_data
+    max_date 2026-05-01 → 2026-05-08
+  - rate limit hit 0 (= --symbols-limit 5/10 で完全に回避)
+  - develop.db / fire.db (production 想定) last_modified 完全
+    unchanged (= staging のみ書き込み)
+- 安全要件遵守:
+  - DB write は staging.db のみ (= 3 段 staging guard 通過後)
+  - production (fire.db) / develop (fire.develop.db) 完全 unchanged
+  - 429 rate limit が出た場合は連続 retry せず即停止
+    (= Codex CRITICAL 2 件対応で例外 + 戻り値両経路で防御)
+  - LINE 本番送信なし / token 直接読み込みなし / order /
+    broker / 楽天 / Computer Use / Playwright / Selenium /
+    subprocess 不使用 (test で source 検証維持)
+  - resolve_target_symbols は read-only conn (URI mode=ro +
+    PRAGMA query_only=ON)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (4 commit すべて
+    git add <specific files> で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 26 PASS (helper +20 / runner +8 / Codex CRITICAL +2)
+    (-2 重複は既存 test の assert 強化)
+  - regression 3,031 PASS (= 3,005 baseline + 26 新規)
+- Codex pre-commit:
+  - 全 2 commit (feat / test) 通過、CRITICAL 2 件即修正
+  - --no-verify 全 2 commit で flag 不使用
+  - usage limit / rate limit / auth error なし、連続 retry なし
+- 完了報告: /tmp/f286_data_r1_1_completion_report.txt にも保存
+- commit: 420ad90 (feat、CRITICAL 2 対応版) → b8d8a22 (test) →
+  8b780ef (vault) → (本 commit) log
+- 02_todo/F286_DATA_R1_1_jquants_limited_write_smoke.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (rate limit safe / staging-only
+  write / production-develop unchanged) / staging 実 write smoke
+  完全成功 (max_date 2026-05-01 → 2026-05-08) / DATA-R2
+  Freshness Gate 接続準備完了
+- 次 step (HQ 判断): DATA-R2 Freshness Gate (gate-1..5 純関数 +
+  F062-R2 接続) / DATA-R1.2 銘柄絞り込み拡大 (100 → 500 → 全件) /
+  persist runner 統合 (derived/signals)
