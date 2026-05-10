@@ -6216,3 +6216,65 @@ HQ 判断要請 5 項目 (計画書 §9):
   prefix のみへの絞り込み) は引き続き F062-R5 後検討
 - 次タスク: F062-R5 First Production Advisory Small Launch (HQ 判断
   後に開始)
+
+## [2026-05-11] milestone | F062-R4.2 LINE Recipient ID Masking / Output Privacy Guard 完了
+- 目的: F062-R4 軽微改善候補 2 を F062-R5 本番 Advisory 送信前に
+  解消。output_json / completion_report / logger / production_outcomes
+  / cfg_dump 全 sink で full recipient_id を出さない構造に切り替え。
+- 実装:
+  - agents/line_production_sender.py:
+    - mask_recipient(recipient_id) -> dict helper 新規追加
+      (recipient_prefix 1 文字 / recipient_length / recipient_type
+      user/group/room/unknown / recipient_hash8 sha256 先頭 8 hex)
+    - None / 空 / 非 str は安全側 default
+    - build_production_send_callable.send_chunk:
+      - closure 内 masked_recipient を 1 度計算して全 logger / outcome
+        で再利用
+      - logger.error / .info の "to=%s" を "recipient_type=%s
+        recipient_hash8=%s" に置換
+      - outcome dict から to / send_text_to / send_text_preview を
+        削除、masked fields のみ追加 (chunk 全文も削除、chunk_length
+        のみ保持)
+    - send_text 呼び出し時の `to=cfg.recipient_id` のみが full を
+      保持する構造に整理
+  - scripts/jobs/run_f062_line_production_send_smoke.py:
+    - cfg_dump から "recipient_id" 削除、masked fields に切り替え
+    - mask_recipient を遅延 import に追加
+- tests: 18 件追加
+  - TestMaskRecipient (9): U/C/R prefix → 正しい type、unknown /
+    None / 空 / 非 str → safe defaults、hash deterministic、
+    different ids → different hash
+  - TestOutcomeDoesNotLeakRecipient (6): outcome dict に full なし、
+    masked fields あり、send_text 内部に full、logger 経路で
+    success / status error / exception いずれも full leak なし、
+    chunk 全文 leak なし
+  - TestRunnerRecipientMasking (3): output_json / completion_report
+    に full なし、dry-run path 維持、mock client は full 受信
+  - 既存テスト追従: outcome["to"] / "send_text_to" 系 assert を
+    masked 形式に修正
+- 安全要件:
+  - 実 LINE 送信 0 (= 本タスクで runner / send_text 未呼出)
+  - token leak 0 (= F062-R4.1 preflight で構造的)
+  - **recipient_id leak 0** ★ (= mask helper + 全 sink masked、
+    test caplog 検証含む)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- full pytest: 3,221 PASS (= 3,203 baseline + 18 新規)、回帰 0 件
+- Codex pre-commit: fix / test 両 commit 通過、CRITICAL 0 件
+- commits:
+  - fire (develop):
+    - 5101db5 fix(F062-R4): mask LINE recipient id in outputs
+    - fb3b76f test(F062-R4): add recipient id masking tests
+  - fire-vault (main):
+    - 本 milestone log
+- 完了報告: /tmp/f062_r4_2_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md (= 軽微改善候補 2
+  を「解消済み」に更新)
+- 残課題: notifications/line_bot.py の LineBotClient log file
+  (logs/notifications/notifications_line.log) は引き続き full
+  recipient を full 記録する。F236 範囲のため別 task で対応検討。
+- 次タスク: F062-R5 First Production Advisory Small Launch
+  (HQ 判断後に開始)

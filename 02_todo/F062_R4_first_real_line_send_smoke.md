@@ -196,9 +196,21 @@ LineBotClient.send_text 未呼出)。
    codepoint のみを raise message に出して token 値は出さない)
    - fire commit dc07d4c fix(F062-R4): add LINE token ASCII preflight guard
    - fire commit f35480e test(F062-R4): add token preflight guard tests
-2. **production_config.recipient_id を output_json に full 記録している件**:
-   token は length のみだが recipient は full。F062-R5 後に length /
-   prefix のみへの絞り込み検討 (← 本残課題)
+2. ★ **F062-R4.2 で解消済み**: mask_recipient helper を新規追加し、
+   output_json / completion_report / logger / production_outcomes /
+   cfg_dump 全 sink を recipient_prefix / length / type / hash8 のみ
+   に切り替え。send_text 呼び出し時の `to=cfg.recipient_id` のみが
+   full を保持する構造に整理。chunk 全文も outcome に出さず
+   chunk_length のみ。
+   - fire commit 5101db5 fix(F062-R4): mask LINE recipient id in outputs
+   - fire commit fb3b76f test(F062-R4): add recipient id masking tests
+   - 18 新規テスト (mask helper 9 / sender outcome leak 6 / runner 3)、
+     full pytest 3,221 PASS
+
+注: LineBotClient (= notifications/line_bot.py) の log file
+(logs/notifications/notifications_line.log) は引き続き full recipient
+を full 記録する。これは F236 範囲のため本系列では未着手、別 task で
+F236 の log mask 対応を検討する。
 
 ## 次タスク
 
