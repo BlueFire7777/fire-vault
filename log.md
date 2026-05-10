@@ -6070,3 +6070,52 @@ HQ 判断要請 5 項目 (計画書 §9):
   build_production_send_callable.assert_production_safe で channel_token
   の ASCII / latin-1 encode 可能性を事前検査すれば、HTTP 層に到達する
   前に refuse できる
+
+## [2026-05-10] milestone | ★ F062-R4 First Real LINE Send Smoke 完了 (4 回目試行で成功)
+- 状態: ★ **完了**。token sanitize (length 518→516、is_ascii=True、
+  latin1_ok=True) 後の 4 回目試行で **実 LINE API 1 通送信成功**。
+- 結果:
+  - exit: 0
+  - mode: send / dry_run: False / send_allowed: True
+  - sent_count:           **1** ★
+  - line_api_call_count:  **1** ★
+  - partial_delivery:     False (= retry 不要、重複なし)
+  - production_callable_built: True
+  - hq_approved_send:     True
+  - max_chunks:           1
+  - test_message_only:    True
+  - production_outcomes:  1 件 (chunk_index=0, status=ok,
+    dry_run_line_api=False, chunk_length=234)
+  - refused_reasons:      []
+- 試行履歴:
+  1 回目  停止: env 未提供
+  2 回目  停止: LINE API 401 invalid_token (旧 token)
+  3 回目  停止: UnicodeEncodeError (token に U+2028 混入、length=518)
+  4 回目  ★ 成功 (token sanitize 後)
+- env: LINE_CHANNEL_TOKEN length=516 / is_ascii=True / latin1_ok=True、
+  recipient prefix='U' length=33
+- gate: overall=pass / line_send_allowed=True / 5 段全 PASS
+- 事前 dry-run: exit 0 / sent=0 / api=0 / token_read=0 (PASS)
+- 安全要件 (= 全遵守):
+  - 送信 1 通限定 (= --test-message-only / --max-chunks 1)
+  - token leak 0 件 (4 artifact 内 grep)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 通常 Advisory 未開始 (= 銘柄候補 / 価格 / 数量 / 執行指示なし、
+    chunk_length=234 の固定 test message のみ)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用 / unrelated 未接触
+  - LineBotClient SEND log に 2026-05-10T13:49:35Z で 1 行追記
+    (recipient masked)
+- LINE app 受信確認: 22:49 JST 頃、上記 test message が Fujiwara の
+  LINE app に届いているはず。受信確認 1 件のみ (= 重複なし) であれば
+  本タスク完了。
+- 完了報告: /tmp/f062_r4_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md (= 4 回目成功記録)
+- 軽微改善候補 (F062-R5 後検討):
+  1. build_production_send_callable に channel_token の ASCII /
+     latin-1 encode 事前検査を追加 (= 今回の U+2028 問題を HTTP 層
+     到達前に refuse 可能に)
+  2. production_config.recipient_id を output_json に full 記録 →
+     length / prefix のみへの絞り込み検討
+- 次タスク: Fujiwara LINE 受信確認 → F062-R5 First Production
+  Advisory Small Launch (max_chunks 1〜2、少数候補、手動レビュー前提)
