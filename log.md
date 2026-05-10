@@ -4722,3 +4722,90 @@ HQ 判断要請 5 項目 (計画書 §9):
   orchestrator: F119 → AdvisoryBuilder → attach_advisories) /
   F062-R1 LINE Advisory Notification Template (5 部屋通知に
   advisory ブロック追加) / R2-G4 5d 用 rule 設計
+
+## [2026-05-10] milestone | F111-R2 Research Advisory Output Preview / Smoke Runner 完了
+- 目的: F111-R1 で付与した ResearchAdvisory metadata を Fujiwara が
+  手動レビューできる JSON / CSV / preview text に整形する純関数群 +
+  read-only smoke runner を実装。LINE 本番送信 / 注文生成 / 楽天操作
+  には一切接続しない preview / smoke 専用。
+- 実装ファイル:
+  - agents/research_advisory_preview.py (541 行、新規)
+  - scripts/jobs/run_f111_research_advisory_preview.py (546 行、新規)
+  - tests/agents/test_research_advisory_preview.py (42 PASS)
+  - tests/scripts/jobs/test_run_f111_research_advisory_preview.py
+    (26 PASS)
+- preview output 仕様:
+  - JSON: list[dict]、ROW_FIELDS 31 項目固定順
+  - CSV: 同 31 項目、list は ";" 連結 / bool は "true"/"false"
+  - preview text: header + 各候補ブロック + safety lines。1 候補
+    ごとに「手動発注前提、自動発注禁止」reminder を付与
+  - summary JSON: candidate_count / with/missing_advisory /
+    label_counts / boost/avoid/caution_flag_counts /
+    top_*_candidates / safety_notes / auto_order_allowed_true_count
+    (★ > 0 で runner fail)
+- 安全強制 (二重防御):
+  - advisory_to_row が caller / dataclass / advisory のいずれの経路
+    でも manual_review_required=True / auto_order_allowed=False に
+    強制矯正
+  - F111-R1 の ResearchAdvisory.__post_init__ と組み合わせて二重防御
+  - run_preview が summary 経由で auto_order_allowed_true_count > 0
+    / manual_review_required_count != candidate_count を検出した
+    場合 AdvisoryPreviewSafetyViolation raise → main exit 3
+- runner CLI 設計:
+  - --sample / --candidate-json / --candidate-csv / --output-json
+    / --output-csv / --output-text / --summary-json /
+    --max-candidates / --include-missing-advisory / --dry-run
+  - --line / --broker / --rakuten / --order / --write /
+    --computer-use / --playwright option は意図的に作らない
+  - sqlite3 / linebot / TradeOrder / place_order / send_order /
+    selenium / playwright の import / 文字列を runner module
+    source に含めない (= test で source 検証)
+- SAMPLE_CANDIDATES 6 ケース:
+  1. 1234: normal × 情報通信 × 5月 (h20 +11.42%/win 88%) →
+     boost_with_caution
+  2. 8801: 不動産 × 3月 (h20 -5.36%/win 33.3%) → avoid
+  3. 9984: cautious × 10月 (h20 -3.36%/win 23.3%) → avoid
+  4. 7203: 8月 normal h20 強 / h5 弱 → boost_with_caution
+  5. 0000: advisory 未付与 → missing_advisory
+  6. 9999: caller が auto_order=True を渡しても矯正 → neutral
+- smoke 結果 (--sample / --dry-run):
+  - candidate_count=6 / with_advisory=5 / missing_advisory=1
+  - manual_review_required_count=6 (= candidate_count、矯正成功)
+  - auto_order_allowed_true_count=0 (= 9999 の True 矯正成功)
+  - advisory_label_counts: boost_with_caution=2 / avoid=2 /
+    missing_advisory=1 / neutral=1
+  - artifacts: JSON 7.7KB / CSV 3.1KB / text 4KB / summary 3KB
+- 安全要件遵守:
+  - DB write なし (sqlite3.connect / .connect( / DB_PATH 文字列を
+    runner source に含めない、test で source 検証)
+  - production / develop / staging DB 全 last_modified 完全 unchanged
+    (May 7 / May 9 のまま、smoke 前後で 3 件変化なし)
+  - LINE 送信なし (notifications.line_bot / linebot を import せず、
+    --line option も作らない)
+  - order / broker / 楽天証券操作 / Computer Use / Playwright
+    全て構造的非接続 (= 文字列レベルで test 検証)
+  - F115 / F140 / F133 即時 SL/TP / 自動発注ロジックには接続せず
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (3 commit すべて
+    `git add <specific files>` で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 68 PASS (formatter 42 + runner 26)
+  - regression 2,779 PASS (= 2,711 baseline + 68 新規、F111 / F115 /
+    F140 / F133 / F132 / F119 / F286 全て 0 件回帰)
+- Codex pre-commit:
+  - 全 3 commit (feat formatter / chore runner / test) 通過
+  - CRITICAL 指摘 0 件 (= 修正対応 0 件)
+  - --no-verify 全 3 commit で flag 不使用
+- commit: c382a38 (feat formatter) → 16a3a07 (chore runner) →
+  424c5fb (test) → 0478efb (vault) → (本 commit) log
+- 02_todo/F111_R2_research_advisory_preview.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (二重防御で auto_order_allowed=True
+  / manual_review_required=False を完全遮断) / preview output 4 形式
+  完成 / sample smoke 全項目 PASS / Stage 3 Live Advisory
+  接続準備の手前 (= LINE 通知へ進む前段) 完了
+- 次 step (HQ 判断): F062-R1 LINE Advisory Notification Template
+  (template module 追加 + 本番送信は接続しない F062-R2 で別タスク
+  化) / F111-R3 Real Wiring Smoke (F119 evaluate →
+  AdvisoryBuilder → preview を実データで連結) / R2-G4 5d 用 rule 設計
