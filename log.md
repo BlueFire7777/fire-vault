@@ -4548,3 +4548,115 @@ HQ 判断要請 5 項目 (計画書 §9):
   recommended_v2 + R2-H month/sector フィルタ組込み、F119 Evaluation
   で interpretation × sector × month 別 PnL) / R2-G4 5d 用 rule 設計 /
   R1-B5 v1/v2 swap
+
+## [2026-05-10] milestone | F119 Evaluation by interpretation × sector × month 完了
+- F119 "Evaluation by interpretation × sector × month" 完了
+- ★ 目的: R2-H で取得した直交示唆を F119 evaluation 側で受け取れる
+  ようにし、Lane integration の前に interpretation × sector × month
+  × top_bucket の 12 cut で PnL/勝率/DD 集計と strong/avoid/caution
+  自動抽出を可能にする
+- 実装範囲 (5 commit + log):
+  - feat (1e710fe): evaluation/interpretation_evaluation.py 477 行
+    (aggregate_by_three_keys / aggregate_all_cuts (12 cuts) /
+    F119Thresholds / extract_f119_insights (strong/avoid/caution) /
+    evaluate_signals_with_interpretation orchestrator)
+  - chore (f001750): scripts/jobs/run_f119_interpretation_evaluation.py
+    577 行 (read-only runner、--write 自体存在しない、
+    --rule-version で recommended_v2 適用、6 個別 output ファイル
+    --output-json/csv / --insights-json / --strong/avoid/caution-csv)
+  - test (1f96d25): 28 PASS (module 16 + runner 12)
+  - docs (1ef6614): 02_todo/F119_interpretation_evaluation.md vault
+- ★ Codex CRITICAL 2 件 全て即時対応:
+  1. count gate に valid_return_count を追加 (= count>=20 だが
+     valid<min で signal が strong/avoid に分類されるのを防ぐ、
+     double gate 化)
+  2. _summary_to_record の `valid_return_count_h20` hard-coded を
+     `valid_return_count_h{h1}` に動的化 (= --horizons から 20 を
+     外した場合の CSV writer 整合)
+- 12 cuts:
+  単独 (5): overall / interpretation / sector_17 / month_of_year /
+           top_bucket
+  2-key (4): interp×sector_17 / interp×month / sector_17×month /
+            top_bucket×interp
+  3-key (3): interp×sector_17×month / top_bucket×interp×sector_17 /
+            top_bucket×interp×month
+- smoke (staging / 22 base_dates / r2g3_recommended_v2 / top100 /
+  min_count=20):
+  - leak check: regime / sector_flow 双方 violations=0、
+    max_price_date_used=2026-02-27
+  - overall (h=20d): count 2,200 / +2.58% / win 56.6%
+- ★ Insight summary:
+    strong_candidates:    30
+    avoid_candidates:     59
+    caution_candidates:  621 (= 多くは count<20 の信頼度低)
+- ★ Top 5 strong candidates (h=20d):
+    interp_sector_month: normal × 情報通信 × 5月    count 25  +11.42% win 88.0%
+    top_bucket_interp_month: top50 × normal × 8月  count 20  +10.76% win 85.0%
+    interp_sector_month: normal × 情報通信 × 8月    count 30  +10.01% win 80.0%
+    interp_month: normal × 8月                   count 87  +9.47%  win 78.2%
+    top_bucket_interp_month: top50 × normal × 5月  count 20  +9.44%  win 85.0%
+- ★ Top 5 avoid candidates (h=20d):
+    sector_17_month: 不動産 × 3月          count 21  -5.36% win 33.3% ★ 最弱
+    top_bucket_interp_month: top50 × normal × 3月    count 40  -5.17% win 32.5%
+    interp_month: cautious × 10月         count 73  -3.36% win 23.3%
+    sector_17_month: 情報通信 × 3月         count 60  -2.95% win 40.0%
+    interp_sector_month: normal × 情報通信 × 3月 count 60  -2.95% win 40.0%
+- ★ R2-H 既知示唆との完全整合 + 新規 insight:
+  - 5月 +7.04%/win 71.7% (= R2-H 完全一致)
+  - 8月 normal が最強 (count 87 / +9.47% / win 78.2%) ★ R2-H で見えなかった
+    細粒度
+  - 3月の弱さが sector 別に明確化:
+    不動産 × 3月 -5.36% / 情報通信 × 3月 -2.95% / top50 × normal ×
+    3月 -5.17%
+  - 9-10月の cautious 系も明確に弱い (-3% / win 23%)
+  - F119 interpretation 集計が R2-G3 と完全一致
+    (= strong 131/+6.20%/64.1%、normal 1552/+2.88%/59.1%、
+       cautious 266/+0.59%/47.0%、suppress 251/+0.85%/47.7%)
+- ★ Stage 3 Live Advisory への示唆:
+  強く採用する条件:
+    - normal × 情報通信 × 5月 (count 25, +11.42%, win 88%)
+    - top50 × normal × 8月 (count 20, +10.76%, win 85%)
+    - normal × 情報通信 × 8月 (count 30, +10.01%, win 80%)
+    - normal × 8月 (count 87, +9.47%, win 78%)
+    - strong × 2月 (count 27, +9.31%, win 63%)
+    - top30 × normal × 6月 (count 26, +7.08%, win 69%)
+  完全見送り条件:
+    - 3月新規 entry (sector 関係なく弱)
+    - 9-10月の cautious / suppress
+  Position sizing 注意:
+    - 不動産系 sector × month で worst_dd 注意 (R2-H 整合)
+- 制約遵守:
+  - DB write 一切なし (--write option 自体存在しない設計)
+  - FIRE_ENV=staging で実行、production / develop 完全無触
+  - market_prices_daily / market_listings / signals / indicators
+    全 read-only
+  - rule v2 適用 / cut keys / insights 全て in-memory または
+    artifact 出力のみ
+  - pre-commit Codex review 通過 × 3、CRITICAL 2 件即修正
+  - --no-verify 不使用、個別 commit 厳守
+  - seed_pattern_layer1.py / historical_indicators.py の既存
+    modified 一切触らず
+- DB last_modified 確認:
+  - production.db: 存在しない
+  - develop.db: 2026-05-07 18:14:26 (R2-G〜F119 期間 unchanged)
+  - staging.db: 2026-05-09 22:40:35 → 同 (read-only 保証)
+- 出力 (/tmp/f119_eval_*):
+  summary.json (1.7 MB) + summary.csv (575 KB) +
+  insights.json (420 KB) +
+  strong_candidates.csv (30 件) + avoid_candidates.csv (59 件) +
+  caution_candidates.csv (621 件)
+- tests: 28 PASS (module 16 + runner 12)、
+  regression 2,687 PASS (= 2,659 + 28)
+- 進行中断と再開:
+  - 03:08 ごろに ChatGPT Codex usage limit に到達 (連続 6 セッション
+    で usage limit エラー)、test commit 段階で停止
+  - HQ 確認後、12:44 に test commit / smoke / vault / log 順に再開、
+    Codex pre-commit 全件通過
+- commit: 1e710fe (feat) → f001750 (runner) → 1f96d25 (tests) →
+  1ef6614 (vault) → (本 commit) log
+- 02_todo/F119_interpretation_evaluation.md 新規 vault
+- ★ Go/No-Go: framework PASS / R2-H 完全整合 + 3-key 新規 insight /
+  Stage 3 Live Advisory 接続準備完了
+- 次 step (HQ 判断): Lane integration (F111 Daytrade に v2 rule +
+  F119 strong 条件 (情報通信×5月 等) 組込み) / R2-G4 5d 用 rule 設計 /
+  R1-B5 v1/v2 swap / caution_candidates 絞り込み版 (count<20 除外)
