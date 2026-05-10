@@ -4660,3 +4660,65 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): Lane integration (F111 Daytrade に v2 rule +
   F119 strong 条件 (情報通信×5月 等) 組込み) / R2-G4 5d 用 rule 設計 /
   R1-B5 v1/v2 swap / caution_candidates 絞り込み版 (count<20 除外)
+
+## [2026-05-10] milestone | F111-R1 Research Lane Advisory Signal Integration 完了
+- 目的: F111 Daytrade Selection 候補に Research Lane / F119 由来の
+  advisory metadata を付与し、Live Advisory での Fujiwara 手動レビュー
+  を補強する。F119 の優位は h20 中心のため daytrade 即時 SL/TP には
+  接続しない (= manual review 専用)。
+- 実装ファイル:
+  - agents/research_advisory.py (450 行、新規)
+  - agents/daytrade_selection.py (+27/-1、advisory フィールド +
+    attach_advisories 追加)
+  - tests/agents/test_research_advisory.py (778 行、52 PASS)
+- ResearchAdvisory dataclass の安全仕様:
+  - 21 フィールド (research_* / market_* / sector_* / month /
+    top_bucket / f119_boost/avoid/caution_flags / expected_h20/h5 /
+    position_sizing_note / advisory_comment / advisory_version /
+    manual_review_required / auto_order_allowed)
+  - __post_init__ で manual_review_required=True /
+    auto_order_allowed=False を強制矯正 (caller が逆値投入しても
+    上書き、テストで invariant 検証)
+- DaytradeCandidate wiring:
+  - advisory: Optional[ResearchAdvisory] = None (default None で
+    既存 ctor 完全 backward compatible)
+  - DaytradeSelectionAgent.attach_advisories(result, dict) ヘルパ追加
+  - F115 / F140 / F133 / F132 即時 SL/TP / 自動発注ロジックは
+    advisory を一切参照しない (= 構造的非接続)
+- F119 matching cut: CUT_TYPE_KEYS に 12 cut 全種登録 (overall /
+  interpretation / sector_17 / month / top_bucket / 4 つの 2-key /
+  3 つの 3-key)。" × " separator で group_key 分解、
+  month は 02d zero-pad、None/空は "(none)" として比較。
+- expected metrics fallback 順 (min_count=20 gate):
+  1. interpretation_sector_17_month (3-key 最 specific)
+  2. interpretation_month
+  3. interpretation
+  4. overall (count 0 でも採用)
+- 安全要件遵守:
+  - 自動発注禁止 / broker 接続なし / 楽天証券操作なし /
+    Computer Use なし / Playwright なし / DB write なし /
+    staging read-only も未使用 / pure in-memory
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- tests:
+  - 新規 52 PASS (invariant 5 / matches_cut 12 / collect_flags 5 /
+    expected_metrics 5 / build_advisory 10 / derive_top_bucket 8 /
+    advisory_comment 2 / DaytradeCandidate wiring 5)
+  - regression 2,711 PASS (= 2,659 baseline + 52 新規、F111 / F115 /
+    F140 / F133 / F132 全て 0 件回帰)
+- Codex pre-commit:
+  - 全 3 commit (feat module / feat wiring / test) 通過
+  - CRITICAL 指摘 0 件 (= 修正対応 0 件)
+  - --no-verify 全 3 commit で flag 不使用
+- commit: 07453f7 (feat module) → f4a63f1 (feat wiring) →
+  1a8b03b (test) → b840db3 (vault) → (本 commit) log
+- 02_todo/F111_R1_research_advisory_signal_integration.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (manual_review_required=True /
+  auto_order_allowed=False 強制) / F119 12 cut matching 完備 /
+  expected metrics 4 段 fallback / Stage 3 Live Advisory metadata
+  注入経路の準備完了
+- 次 step (HQ 判断): F111-R2 Advisory Wiring Runner (read-only
+  orchestrator: F119 → AdvisoryBuilder → attach_advisories) /
+  F062-R1 LINE Advisory Notification Template (5 部屋通知に
+  advisory ブロック追加) / R2-G4 5d 用 rule 設計
