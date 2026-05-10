@@ -6380,3 +6380,47 @@ HQ 判断要請 5 項目 (計画書 §9):
   で日次 rotate) 導入は別 task で検討。
 - 次タスク: F062-R5 First Production Advisory Small Launch
   (HQ 判断後に開始)
+
+## [2026-05-11] milestone | F062-R5 First Production Advisory Small Launch 停止 (DATA-R2 gate=warning)
+- 状態: **停止**。env preflight (token length=516 / ASCII=True /
+  whitespace=False / recipient prefix='U' length=33) は全 pass、
+  しかし最新 staging で再生成した DATA-R2 gate が **gate-5-other
+  (soft) の announcements 鮮度低 lag=6 営業日** で warning となり
+  `line_send_allowed=False`。タスク仕様の停止条件「gate pass 必須」
+  「line_send_allowed=True 必須」に該当、Advisory 送信を実施せず停止。
+- DATA-R2 gate 詳細:
+  overall=warning / line_send_allowed=False / as_of=2026-05-11 /
+  allow_warning=False
+  gate-1-prices required PASS  (max=2026-05-08 lag=1 / codes=4448)
+  gate-2-signals required PASS (max=2026-05-09 lag=0 / codes=109)
+  gate-3-index recommended PASS (max=2026-05-08 lag=1)
+  gate-4-derived recommended PASS (max=2026-05-08 lag=1 / codes=42)
+  gate-5-other soft WARNING (announcements max=2026-05-01 lag=6,
+    threshold=5、GW 期間直前の最終 announcement で停止)
+- 実施せず:
+  - F062-R5 用 Advisory payload 生成 (= F111-R4 / F062-R1 runner 未呼)
+  - 送信前 dry-run / 本番 1 chunk send (= LineBotClient.send_text 未呼)
+  - token / recipient leak 検査 (= 送信していないので artifact 不在)
+- 安全要件 (= 全遵守):
+  - 送信 0 通 / 自動発注 / 楽天操作 / Computer Use 0
+  - token 平文出力なし / recipient 平文出力なし (件数のみ)
+  - DB write 0 (= gate runner は read-only) / 3 DB 全 mtime unchanged
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- 解決案 (要 HQ 判断):
+  案 A (推奨): announcements 再 fetch (= F101 / DATA-R0 jobs)。
+    ただし GW 期間中の TDnet 物理停止が原因なら再 fetch でも改善せず。
+  案 B (明示承認): `--allow-warning` で gate を再生成 → 即 F062-R5
+    再実行。タスク仕様「gate pass 必須」を緩めるため Fujiwara 明示
+    承認が必要。
+  案 C (延期): GW 明け TDnet announcement 再開後に F062-R5 再実行。
+- 完了報告: /tmp/f062_r5_completion_report.txt
+- 02_todo/F062_R5_first_production_advisory_small_launch.md 新規 vault
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、gate runner 実行のみ)
+  - fire-vault (main):
+    - 本 milestone log + F062-R5 vault doc
+- 次タスク: HQ (Fujiwara) が案 A/B/C を選択 → 該当案実施後に F062-R5
+  再起動。並走候補: F286-PNL-R1 設計 / F286-DATA-R3 cron 化 /
+  F242 OpenClaw / F022 FIRE Runner / F013 launchd
