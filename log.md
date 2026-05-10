@@ -5611,3 +5611,90 @@ HQ 判断要請 5 項目 (計画書 §9):
   4500 を 1500 単位 3 回に分割) → gate-1 完全 pass / F062-R2
   LINE Send 分離 (gate を組み込み、refuse 時は本番送信 refuse) /
   persist runner 統合 (derived / signals 自動連鎖)
+
+## [2026-05-10] milestone | F286-DATA-R1.3 Remaining Symbols Price Refresh / Gate Pass Smoke 完了
+- 目的: DATA-R1.2 で gate-1 prices REFUSE (1499 < 4000) のままだった
+  状態を、missing symbols CSV を分割 staging-only write して gate-1
+  完全 pass / overall=pass / line_send_allowed=True 達成。
+  fire 側コード変更なし、運用 smoke + docs のみ。
+- 実施 phase:
+  - Phase 1: missing symbols 抽出 (read-only) → 2950 銘柄、
+    1000-batch / 300-batch CSV を生成
+  - Phase 2 (1000-batch、失敗): rate limit exhausted → status=
+    error:JQuantsRateLimitError、exit 4 で安全停止 (= DATA-R1.1
+    rate limit safe break が機能、ただし HistoricalDataFetcher
+    内部で部分書き込み +119 件発生)
+  - Phase 2 v2 (300-batch × 10): 各 batch で 429 hit 数回 / client
+    retry 1-2 回で復帰、status=ok 維持、連続 retry exhaustion なし
+    - part1: +299 (1499 → 1917)
+    - part2-7: 各 +300 (1917 → 3717)
+    - part8: +300 (3717 → 4017、★ gate-1 閾値 4000 突破)
+    - part9: +300 (4017 → 4317)
+    - part10: +131 (4317 → 4448、最終)
+  - Phase 5: DATA-R2 gate 再実行 → 全 5 段 PASS
+- before/after metrics:
+  - prices distinct_codes_at_max:
+    DATA-R1.1: 10 / DATA-R1.2: 1499 / DATA-R1.3: 4448
+    (★ ×444.8 改善)
+  - prices rows: 2,082,335 → 2,085,284 (+2949)
+  - prices max_date: 2026-05-08 (変わらず)
+  - missing 残: 2950 → 1 (= J-Quants 側にデータなし銘柄)
+- DATA-R2 gate before/after:
+  - gate-1 prices: REFUSE 1499 → ★ PASS 4448 (+2949 codes)
+  - gate-2 signals: pass → pass (= r2d_v1 max=2026-05-09 / 109)
+  - gate-3 index: pass → pass
+  - gate-4 derived: pass → pass (= 2026-05-08 / 42 codes mini_100)
+  - gate-5 other: pass → pass
+  - overall_status: refuse → ★ pass
+  - line_send_allowed: False → ★ True
+  - exit code: 4 → 0
+- rate limit 安全:
+  - Phase 2 (1000-batch、初回): rate limit exhausted で安全停止
+    → batch サイズを 300 に縮小して再試行
+  - Phase 2 v2 (300-batch × 10): 全 batch で連続 retry なし、
+    DATA-R1.1 rate limit safe break が継続的に機能
+- 安全要件遵守:
+  - DB write は staging.db のみ (= 3 段 staging guard 通過後)
+  - production / develop / staging.db 全 last_modified 確認:
+    staging 5/10 17:25 → 5/10 18:22 (★ 多数 write された)
+    develop 5/7 18:14 → unchanged ✅
+    fire (production) 5/7 16:12 → unchanged ✅
+  - LINE 本番送信なし (line_send_allowed=True が初めて出たが、
+    本タスクで送信せず、F062-R2 で接続予定)
+  - token 直接読み込みなし / order / broker / 楽天 / Computer Use
+    / Playwright / Selenium / subprocess 不使用は維持
+  - rate limit 時は連続 retry せず safe break (= Phase 2 で発火、
+    Phase 2 v2 で回避)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - fire 側 commit なし (= 運用 smoke のみで完結)、unrelated を
+    巻き込まない
+  - TODO Excel 未更新
+- tests:
+  - 新規 tests なし (運用 smoke のみで完結)
+  - regression / pytest 実行なし (コード変更ないため不要)
+  - baseline 3,079 PASS (= DATA-R2 完了時点と同一)
+- Codex pre-commit:
+  - fire 側 commit なし → Codex pre-commit hook 未走行
+  - --no-verify 未使用 (fire-vault 2 commit とも flag 不使用)
+  - usage limit / rate limit / auth error なし (J-Quants の rate
+    limit は API 側のもの、Codex とは別)
+- artifact:
+  - /tmp/f286_data_r1_3_missing_symbols.csv (全 2950 銘柄)
+  - /tmp/f286_data_r1_3_v2_part1-10.csv (300-batch × 10)
+  - /tmp/f286_data_r1_3_v2_part1-10.json (各 phase summary)
+  - /tmp/f286_data_r1_3_gate_after.json (★ Phase 5 gate JSON)
+  - /tmp/f286_data_r1_3_gate_after.txt (★ Phase 5 gate text)
+  - /tmp/f286_data_r1_3_completion_report.txt (本完了報告)
+- commit: 09fff82 (vault) → (本 commit) log
+- 02_todo/F286_DATA_R1_3_remaining_symbols_refresh.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (rate limit safe / staging-only /
+  production-develop unchanged) / coverage ×444.8 改善
+  (DATA-R1.1 10 → DATA-R1.3 4448 銘柄) / DATA-R2 全 5 段 gate
+  pass / line_send_allowed=True 初達成 / Stage 3 LINE 本番 Advisory
+  送信前提が完成
+- 次 step (HQ 判断): F062-R2 LINE Send 分離 (DATA-R2 gate を
+  組み込み、--send 明示時 + gate pass 時のみ本番送信、
+  --allow-warning 連携) / persist runner 統合 (derived / signals
+  自動連鎖、300-batch を default に) / derived full_eligible 拡大
+  (HQ 承認 flag 必須、gate-4 distinct_codes を 42 → 4000+ に)
