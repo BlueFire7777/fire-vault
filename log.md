@@ -5161,3 +5161,87 @@ HQ 判断要請 5 項目 (計画書 §9):
   safety footer / forbidden phrases 再検査 + LineBotClient
   dry_run mode 活用) / F111-R5 アンサンブル評価 / R2-G4 5d 用
   rule 設計
+
+## [2026-05-10] milestone | F286-DATA-R0 J-Quants Pipeline Audit / Freshness Design 完了
+- 目的: F062 LINE 本番送信を許可する前段として、J-Quants 由来
+  dataset (8 table) の freshness を read-only で棚卸し、
+  DATA-R1 daily refresh / DATA-R2 freshness gate の実装方針を
+  確定。新規本実装 (= daily refresh) は本タスク外。
+- 実装ファイル:
+  - scripts/jobs/audit_jquants_freshness.py (300 行、新規 read-only)
+  - tests/scripts/jobs/test_audit_jquants_freshness.py (16 PASS)
+- audit 対象 8 dataset:
+  market_prices_daily (F100 /v2/prices/daily_quotes)
+  market_prices_intraday (F284 /v2/prices/prices_am, prices_pm)
+  market_financials_v2 (F286-R1-B /v2/fins/statements)
+  market_listings (F100 /v2/listed/info snapshot)
+  index_data (F104 /v2/indices)
+  announcements (F101 /v2/fins/announcement + TDnet)
+  research_derived_indicators (F286-R2-A 派生)
+  research_watchlist_signals (F286-R2-D 派生)
+- staging audit 結果 (2026-05-10 06:39 UTC):
+  - market_prices_daily:    max=2026-05-01 (★ 8 日遅延、要 daily)
+  - market_prices_intraday: max=2026-05-01 (60 日 / 479 codes)
+  - market_financials_v2:   max=2026-05-08 (2 日遅延)
+  - market_listings:        snapshot 4,449 銘柄
+  - index_data:             max=2026-05-01 (★ 8 日遅延)
+  - announcements:          max=2026-05-01 (sparse 7 件)
+  - research_derived_indicators: 1 base_date のみ (2026-05-01)
+  - research_watchlist_signals:  28 base_dates / 910 codes
+- DATA-R1 daily refresh 対象 Tier 分け:
+  Tier-A 必須: market_prices_daily / index_data /
+              research_derived_indicators / research_watchlist_signals
+  Tier-B 推奨: market_financials_v2 / announcements / market_listings
+  Tier-C 当面手動: market_prices_intraday
+- DATA-R2 freshness gate 5 段:
+  gate-1 (必須) daily_quotes coverage: max_date >= 直近営業日 +
+                distinct_codes >= 4000
+  gate-2 (必須) signals coverage: max base_date >= 直近営業日 +
+                distinct_codes (当該日) >= top_n (=100)
+  gate-3 (推奨) index_data coverage: max_date >= 直近営業日
+  gate-4 (推奨) research_derived_indicators coverage
+  gate-5 (緩い) financials/announcements 鮮度
+  → 未達: LINE 本番送信 refuse (F062-R2 で接続)
+- idempotent upsert 方針:
+  既存 INSERT OR REPLACE / DELETE → INSERT pattern を踏襲、
+  PK / UNIQUE 必須、1 base_date 1 transaction、resume safe、
+  fetched_at column で debug 性確保
+- staging から始める実装方針:
+  4 段 guard (CLI default / resolve_db_path / FIRE_ENV /
+  pre-write check) で staging 限定、production / develop は
+  DATA-R3 以降に分離
+- 安全要件遵守:
+  - DB write 0 (URI mode=ro + PRAGMA query_only=ON)
+  - J-Quants API call なし、token / api_key 読まない
+  - LINE / order / broker / 楽天 / Computer Use 全て構造的非接続
+    (test で source 文字列検証)
+  - production / develop / staging 全 DB last_modified 完全
+    unchanged (smoke 前後で 3 DB 全て変化なし)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (3 commit すべて
+    git add <specific files> で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 16 PASS (open_readonly_connection / AUDIT_TARGETS /
+    audit_freshness 各 table 集計 / safety_notes / CLI / module
+    source safety / write SQL refuse 検証)
+  - regression 2,955 PASS (= 2,939 baseline + 16 新規、F062 /
+    F111 / F119 / F286 全て 0 件回帰)
+- Codex pre-commit:
+  - 全 2 commit (chore audit / test) 通過、CRITICAL 0 件
+  - --no-verify 全 2 commit で flag 不使用
+  - usage limit / rate limit / auth error なし
+- commit: cf4cf2b (chore audit) → 90bb152 (test) → b4712c7
+  (vault) → (本 commit) log
+- 02_todo/F286_DATA_R0_jquants_pipeline_audit_freshness_design.md
+  新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (read-only audit 確立) /
+  staging freshness 実態把握完了 (= daily_quotes が 8 日遅延と
+  判明) / DATA-R1 / DATA-R2 設計確定 / Stage 3 LINE 本番送信
+  許可前の必須前提が整理された
+- 次 step (HQ 判断): DATA-R1 J-Quants Daily Refresh staging 限定
+  (daily_quotes 差分 + index_data + derived_indicators + signals
+  再計算) / DATA-R2 Freshness Gate (gate-1..5 純関数 + F062-R2
+  接続) / DATA-R3 production 伝播 (DATA-R1/R2 が staging で
+  1 週間以上稼働後)
