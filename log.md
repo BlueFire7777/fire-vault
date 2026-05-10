@@ -6424,3 +6424,59 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ (Fujiwara) が案 A/B/C を選択 → 該当案実施後に F062-R5
   再起動。並走候補: F286-PNL-R1 設計 / F286-DATA-R3 cron 化 /
   F242 OpenClaw / F022 FIRE Runner / F013 launchd
+
+## [2026-05-11] milestone | F062-R5 案 A (announcements 再 fetch) 完了 / DATA-R2 gate=pass 回復
+- 目的: F062-R5 が gate-5-other (announcements 鮮度低 lag=6) で停止
+  したため、案 A (= TDnet announcement 再 fetch) を staging 限定で
+  実施し、gate を pass に回復させる。
+- 実施:
+  - /fins/announcement (J-Quants API) を試行 → HTTP 403 (= ライト
+    プラン未対応の endpoint)。staging.db への書き込み 0、安全に切替。
+  - TDnet HTML 直接取得 (F101 Phase 2、fetch_tdnet_html.py) を
+    2026-05-04 〜 2026-05-11 の各営業日 1 日ずつ実行 (rate limit
+    1 req/sec 厳守)。
+- 取得結果 (staging のみ):
+  5/04 (月、振替): schema parse error (= GW 開示なし) inserted=0
+  5/05 (火、子供): schema parse error                inserted=0
+  5/06 (水、振替): schema parse error                inserted=0
+  5/07 (木、平日): OK                               inserted=294
+  5/08 (金、平日): OK                               inserted=797
+  5/11 (本日朝): schema parse error (= 当日 TDnet 未開示) inserted=0
+  合計 inserted=1,091 件
+- announcements before / after (staging):
+  total_rows: 7 → 1,098
+  max_date:   2026-05-01 → **2026-05-08** ★
+  distinct dates: 2 → 4
+- DATA-R2 gate before / after:
+  overall:           warning → **pass** ★
+  line_send_allowed: False → **True** ★
+  gate-5-other:      warning (announcements lag=6) → **pass** (lag=1)
+  他の 4 段 (prices/signals/index/derived): 維持 (= 全 PASS)
+- DB write 状態:
+  fire.db          unchanged ✅
+  fire.develop.db  unchanged ✅
+  fire.staging.db  5/10 18:22 → **5/11 01:35** (= announcements 1,091
+                   行追加)
+- 安全要件:
+  - LINE 送信 0 (= LineBotClient.send_text 未呼出)
+  - F062-R5 を勝手に再開しない ✅
+  - --allow-warning を勝手に使わない ✅ (= 案 A 素直 fetch で gate
+    pass、案 B 不要)
+  - production/develop DB write 禁止 ✅
+  - staging のみ write ✅
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- 完了報告: /tmp/f062_r5_case_a_completion_report.txt
+- 02_todo/F062_R5_first_production_advisory_small_launch.md (= 案 A
+  実施結果 section 追記)
+- F062-R5 再開可否: **可能**。env / token / recipient masking は維持、
+  gate=pass。ただし本タスクは案 A 結果報告まで。F062-R5 再起動は
+  HQ (Fujiwara) 判断後。
+- 軽微改善候補 (本タスク対象外):
+  - fetch_tdnet_html.py に --from / --to 範囲指定追加
+  - schema parse error の中で「empty page」と「real schema change」
+    を区別する error 化
+  - F286-DATA-R3 cron 化で本問題が再発しにくくなる
+- 次タスク: HQ (Fujiwara) が F062-R5 再開を承認 → F062-R5 再実行
