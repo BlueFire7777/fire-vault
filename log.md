@@ -5026,3 +5026,138 @@ HQ 判断要請 5 項目 (計画書 §9):
   実用 advisory が用意できたので Fujiwara 向け実 LINE 文面が
   作れる) / F111-R5 アンサンブル評価 (複数 source_version で共通
   boost/avoid 抽出) / R2-G4 5d 用 rule 設計
+
+## [2026-05-10] milestone | F062-R1 LINE Advisory Notification Template 完了
+- 目的: F111-R4 で生成できるようになった real advisory candidate
+  (boost/avoid/caution + expected_h20) を、Fujiwara が LINE で
+  読める dry-run preview text に変換する template module + runner。
+  本番送信は F062-R2 で別タスク化。
+- 実装ファイル:
+  - notifications/templates/research_advisory.py (563 行、新規)
+  - scripts/jobs/run_f062_research_advisory_line_preview.py
+    (588 行、新規)
+  - tests/notifications/templates/
+    test_research_advisory_line_template.py (45 PASS)
+  - tests/scripts/jobs/
+    test_run_f062_research_advisory_line_preview.py (20 PASS)
+- LINE preview template 仕様:
+  - LABEL_PRIORITY: avoid > boost_with_avoid > suppress > caution
+    > boost_with_caution > boost > neutral > missing_advisory
+    (boost_with_avoid は警告寄りで avoid 直後に並ぶ)
+  - LABEL_HEADING:【見送り候補】/【要注意】/【注意候補】/
+    【有望・注意あり】/【有望候補】/【参考候補】/【advisory
+    未付与・参考】/【抑制候補】
+  - LABEL_NOTE: 各 label の備考 (note 行) を自動添付
+  - format_header / format_summary / format_candidate / format_footer
+  - select_candidates: priority sort + max_per_label (5) +
+    max_candidates (20) + include / exclude filter
+    (default include=avoid/boost_with_avoid/suppress/caution/
+    boost_with_caution/boost、neutral/missing_advisory は除外)
+  - chunk_text: max_chars 3000 default、各 chunk 先頭に
+    "title (i/N)" prefix + 末尾に safety footer 強制
+  - SAFETY_FOOTER_LINES (8 行: Safety / LINE 送信なし / 自動発注
+    なし / 楽天操作なし / Computer Use なし / 注文価格・数量・
+    執行指示は生成しない / F119 の優位は 20d 寄り / Fujiwara
+    manual review required)
+  - FORBIDDEN_PHRASES 13 種 (買え / 発注せよ / 発注しろ / 発注
+    して / 自動で注文 / そのまま約定 / そのまま発注 / 楽天で実行
+    / 確実に勝てる / 必ず勝てる / 確実に儲かる / 必ず儲かる /
+    必勝) を全 chunk で検査、検出時 AdvisoryLineSafetyViolation
+  - assert_row_safety_flags: bool 厳密検査 (str "true" /
+    int 1 / list [] / 必須キー欠落を全て refuse)、True bool のみ
+    通過
+  - build_advisory_line_preview Top-level orchestrator が
+    assert_row_safety_flags + assert_safety_invariants を内部で
+    強制呼び出し (= caller 経路問わず安全)
+- runner CLI 設計:
+  - --preview-json / --preview-csv (排他) / --summary-json /
+    --output-json/text/summary-json / --completion-report /
+    --max-candidates / --max-per-label / --include-labels /
+    --exclude-labels / --max-chars / --dry-run
+  - --send / --send-line / --line-token / --channel-token /
+    --line / --write / --broker / --rakuten / --order /
+    --auto-order / --computer-use / --playwright option を
+    意図的に作らない (= argparse help / source 文字列で test
+    検証)
+  - exit code: refused → 2 / safety violation → 3 / 0 件 → 4 /
+    success → 0
+- safety violations exit code:
+  refused → 2 / safety violation → 3 / 0 件 → 4 / success → 0
+- smoke 結果 (F111-R4 artifacts 入力 / dry-run / max_candidates 20
+  / max_per_label 5 / max_chars 3000):
+  - input_candidate_count = 400 (F111-R4 4 base_dates × 100)
+  - selected_candidate_count = 20
+  - message_chunk_count = 5
+  - selected_label_counts: avoid 5 / boost_with_avoid 5 /
+    caution 5 / boost_with_caution 5 (boost 0、入力に boost 単独
+    label が無く、boost 系は全て boost_with_caution /
+    boost_with_avoid に分類されているため = 設計通り)
+  - auto_order_allowed_true_count = 0 ★
+  - manual_review_required_count = 400 (= input_candidate_count) ★
+  - forbidden_phrase_count = 0 ★
+  - safety_footer_present = True
+  - token_read_count = 0 ★
+  - line_send_count = 0 ★
+  - 出力 text 例: 【見送り候補】96280 / sector 情報通信・サービス
+    その他 × 3月 / F119 h20 -8.58% / win 13.3% / note 「F119 上
+    avoid 条件が該当。原則見送り、手動レビューでも慎重扱い。」
+  - artifacts: payload.json 74KB / preview.txt 16KB /
+    summary.json 20KB / completion_report.txt 1.8KB
+- Codex CRITICAL 2 件と修正:
+  CRITICAL #1 (feat commit): build_advisory_line_preview が
+  assert_row_safety_flags を強制していない →
+  build_advisory_line_preview 内で強制呼び出し追加、template 単体
+  でも auto_order_allowed=True row を refuse、test 2 ケース追加
+  CRITICAL #2 (test commit): bool 型を厳密検査せず str truthy 値
+  ("auto_order_allowed: 'true'") が is True 判定をすり抜けうる →
+  assert_row_safety_flags を isinstance(v, bool) 厳密化、CSV
+  loader も "true"/"false" 以外を変換せず生値のまま残し非 bool
+  として refuse、test 4 ケース追加 (str / int / list / 欠落)
+  個別 commit 遵守: db2c08a (fix + test まとめ commit) を
+  git reset --soft HEAD^ で巻き戻し → tests を unstage → fix
+  commit (0f1254f) → test commit (4023577) と再分割
+- 安全要件遵守:
+  - DB write 0 / DB access 0 (sqlite3 unimported)
+  - production / develop / staging.db last_modified 完全 unchanged
+    (smoke 前後で 3 DB 全て変化なし)
+  - LINE 本番送信なし (LineBotClient / linebot / send_text /
+    push_message / reply_message を import / 文字列で完全排除、
+    test で source 検証)
+  - token / channel secret / .env / dotenv / LINE_CHANNEL_TOKEN
+    読み込みなし (test で source 検証)
+  - order / broker / 楽天 / Computer Use / Playwright / Selenium
+    / subprocess 全て構造的非接続
+  - manual_review_required=True を全 400 candidate で強制 (5 重
+    防御: build_advisory → __post_init__ → advisory_to_row →
+    run_preview safety 検査 → assert_row_safety_flags bool 厳密)
+  - auto_order_allowed=False を全 400 candidate で強制 (同上)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (4 commit すべて
+    git add <specific files> で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 65 PASS (template 45 + runner 20)
+  - regression 2,939 PASS (= 2,874 baseline + 65 新規、F062 /
+    F111 / F115 / F140 / F133 / F132 / F119 / F286 全て 0 件
+    回帰)
+- Codex pre-commit:
+  - 全 4 commit (feat / chore / fix / test) 通過、CRITICAL 2 件
+    即修正
+  - --no-verify 全 4 commit で flag 不使用
+  - usage limit / rate limit / auth error なし、連続 retry なし
+- 完了報告: /tmp/f062_r1_completion_report.txt にも保存
+- commit: 4ebf285 (feat template) → 7b6ad6c (chore runner) →
+  0f1254f (fix bool tighten) → 4023577 (test) → 157996c (vault)
+  → (本 commit) log
+- 02_todo/F062_R1_line_advisory_notification_template.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (LINE 本番送信 / token / DB /
+  order / broker / rakuten / Computer Use 全て構造的非接続) /
+  F111-R4 400 候補から 20 件選抜 5 chunks 生成 / forbidden 0 /
+  safety footer 全 chunk / Stage 3 Live Advisory への LINE 文面
+  接続準備完了 / F062-R2 (本番送信導線) 接続準備完了
+- 次 step (HQ 判断): F062-R2 LINE Send dry-run / production 分離
+  (notifications/router 拡張 + 本番送信は --send 明示時のみ +
+  safety footer / forbidden phrases 再検査 + LineBotClient
+  dry_run mode 活用) / F111-R5 アンサンブル評価 / R2-G4 5d 用
+  rule 設計
