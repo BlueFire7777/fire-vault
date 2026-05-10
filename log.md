@@ -4809,3 +4809,101 @@ HQ 判断要請 5 項目 (計画書 §9):
   (template module 追加 + 本番送信は接続しない F062-R2 で別タスク
   化) / F111-R3 Real Wiring Smoke (F119 evaluate →
   AdvisoryBuilder → preview を実データで連結) / R2-G4 5d 用 rule 設計
+
+## [2026-05-10] milestone | F111-R3 Research Advisory Real Wiring Smoke 完了
+- 目的: F111-R1 (advisory build) + F111-R2 (preview formatter) を
+  staging 実データに対して read-only dry run で連結。Stage 3 Live
+  Advisory 全工程の最初の real-data smoke。
+- 実装ファイル:
+  - agents/research_advisory_real_wiring.py (476 行、新規)
+  - scripts/jobs/run_f111_research_advisory_real_wiring_smoke.py
+    (450 行、新規)
+  - tests/agents/test_research_advisory_real_wiring.py (32 PASS)
+  - tests/scripts/jobs/
+    test_run_f111_research_advisory_real_wiring_smoke.py (17 PASS)
+- DB read-only 二重防御:
+  - URI レベル: `file:{db}?mode=ro`
+  - PRAGMA レベル: `PRAGMA query_only=ON` を open 直後に強制
+  - source レベル: write SQL execute pattern
+    (.execute("INSERT, UPDATE, DELETE, DROP, CREATE TABLE,
+     executescript, executemany("INSERT) が runner / module
+    source に一切無いことを test 検証
+  - CLI レベル: --write / --auto-order / --line-send / --broker /
+    --rakuten / --order / --computer-use / --playwright option を
+    作らない (= argparse help で test 検証)
+  - INSERT 投入を試みると sqlite3.OperationalError で refuse される
+    ことを test_insert_refused_by_query_only で検証、CREATE TABLE も
+    test_create_table_refused で検証
+- wiring 経路:
+  staging signals → load_signal_rows (top_n filter) →
+  build_wiring_context (regime/sector_flow features) →
+  build_joined_rows (F119 _build_joined_rows と同形) →
+  enrich_with_interpretation (apply_candidate v2) →
+  build_candidate_dict (★ 中核 / build_advisory 中継) →
+  candidates_to_rows → build_summary →
+  preview JSON / CSV / preview text / summary JSON
+- smoke 条件:
+  DB: data/fire.staging.db (label=staging) /
+  source_version: r2f4_baseline_v1 / rule_version: r2g3_recommended_v2
+  / candidate_name: cautious_mixed_to_suppress / base_date:
+  2026-03-01 (= source_version の最新) / top_n: 100 / mode:
+  dry-run / read-only / F119 insights/cut_summaries: なし (advisory
+  は neutral に倒れる仕様)
+- smoke 結果:
+  - candidate_count=100 / with_advisory=100 / missing_advisory=0
+  - manual_review_required_count=100 (= candidate_count) ★
+  - auto_order_allowed_true_count=0 ★
+  - advisory_label_counts: neutral=100 (F119 入力なし、boost/avoid/
+    caution 判定材料がないため neutral に倒れる、設計通り)
+  - safety_notes: no auto order / no broker connection /
+    no rakuten operation / no Computer Use / Playwright /
+    no LINE send (preview only) / no DB write /
+    F119 edge is h20-centric / manual review required
+  - artifacts: preview.json 141K / preview.csv 58K /
+    preview.txt 72K / summary.json 685B /
+    completion_report.txt 2.3K
+- 安全要件遵守:
+  - DB write 0 (URI mode=ro + PRAGMA query_only=ON 二重防御)
+  - staging.db last_modified が smoke 前後で完全 unchanged
+    (2026-05-09T22:40:35.385124 のまま)
+  - production.db / develop.db も last_modified 完全 unchanged
+    (May 7 のまま)
+  - LINE 本番送信なし (linebot / LineBotClient / send_text /
+    push_message を import / 文字列で排除)
+  - order/broker/rakuten/Computer Use/Playwright/Selenium/
+    subprocess 全て構造的非接続 (test で source 検証)
+  - F115/F140/F133 即時 SL/TP に接続せず
+  - manual_review_required=True を全 100 candidate で強制
+    (build_advisory → __post_init__ → advisory_to_row の三重防御)
+  - auto_order_allowed=False を全 100 candidate で強制 (同上)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (3 commit すべて
+    `git add <specific files>` で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 49 PASS (real_wiring 32 + runner 17)
+  - regression 2,828 PASS (= 2,779 baseline + 49 新規、F111 / F115 /
+    F140 / F133 / F132 / F119 / F286 全て 0 件回帰)
+- 既存 regression test_no_hardcoded_fire_db_in_production_code が
+  docstring の `~/fire/data/fire.{label}.db` を検出 → 文言を
+  `$HOME/fire/data/ 下の fire.{label}.db` に変えて回避 (実コードは
+  既存 F119 と同形式)
+- Codex pre-commit:
+  - 全 3 commit (feat module / chore runner / test) 通過
+  - CRITICAL 指摘 0 件
+  - --no-verify 全 3 commit で flag 不使用
+  - usage limit / rate limit / auth error なし
+- 完了報告: /tmp/f111_r3_completion_report.txt にも保存 (tmux
+  画面コピー困難時の保険)
+- commit: 44b9764 (feat module) → 4fb3176 (chore runner) →
+  7b47114 (test) → af8d31c (vault) → (本 commit) log
+- 02_todo/F111_R3_research_advisory_real_wiring_smoke.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (DB read-only 二重防御 + advisory
+  三重防御) / staging 実 100 候補 wiring smoke 全項目 PASS /
+  Stage 3 Live Advisory dry run 経路完成
+- 次 step (HQ 判断): F062-R1 LINE Advisory Notification Template
+  (template module + 本番送信は F062-R2 で別タスク) /
+  F111-R4 Multi base_date Smoke + F119 evaluate 内蔵 (advisory に
+  実 boost/avoid/caution/expected_h20 を埋める real real wiring) /
+  R2-G4 5d 用 rule 設計
