@@ -2,7 +2,7 @@
 id: F062-R4
 phase: P5: 通知 / 第 14 章 LINE 通知配信
 priority: 最優先
-status: 停止 (token に U+2028 混入で UnicodeEncodeError、token sanitize が必要)
+status: 完了 ★ (2026-05-10、初回 real LINE send 成功)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - F062-R3 (LINE production send path 構造的安全性 PASS)
@@ -13,180 +13,190 @@ chapter: 第 14 章 / 第 19 章 R-19-08 / 第 26 章
 
 # F062-R4: First Real LINE Send Smoke
 
-最終更新: 2026-05-10 (3 回目試行)
+最終更新: 2026-05-10 (4 回目試行、成功)
+
+## ★ 状態: 完了 (実 LINE API 1 通送信成功)
+
+| 項目 | 結果 |
+|---|---|
+| sent_count                  | **1** ✅ |
+| line_api_call_count         | **1** ✅ |
+| partial_delivery            | False ✅ |
+| send_text_status            | ok ✅ |
+| dry_run_line_api            | False (= 実 push_message) |
+| token leak (4 artifact)      | **0** 件 ✅ |
+| DB write                    | 0 (3 DB 全 mtime unchanged) ✅ |
+| 通常 Advisory                | 未開始 (= test-message-only 固定) ✅ |
+| Codex pre-commit            | docs commit のため対象外 |
 
 ## 試行履歴
 
-| 試行 | 状態 | 主因 |
-|---|---|---|
-| 1 回目 | 停止 | env 未提供 |
-| 2 回目 | 停止 | LINE API 401 invalid_token (旧 token) |
-| 3 回目 | **停止 (本書)** | UnicodeEncodeError (token に U+2028 混入) |
-
-## 状態: 停止 (token に U+2028 LINE SEPARATOR 混入)
-
-3 回目試行で env から token / recipient は再度正しく読み込まれた:
-
-| 項目 | 結果 |
-|---|---|
-| LINE_CHANNEL_TOKEN_SET     | True (length=518) ← 1 回目 197 から再発行で長くなった |
-| FIRE_LINE_RECIPIENT_ID_SET | True (prefix='U', length=33) |
-| LINE /v2/oauth/verify       | verify_status=200 (Fujiwara 既報告) |
-
-しかし real send で **UnicodeEncodeError** が発生し sent=0 / partial=False
-で停止。
-
-### 文字構成検査 (= 値非表示、文字種統計のみ)
-
-```
-token length:                  518
-is_ascii:                       False
-encode_to_latin1_ok:            False
-  bad char position:           172
-  bad char: U+2028 (LINE SEPARATOR)
-encode_to_utf8_ok:              True
-non_ascii_char_count:           2 ← U+2028 が 2 文字混入
-unicode_category top 5:
-  Ll (lowercase letter):       222
-  Lu (uppercase letter):       210
-  Nd (decimal digit):           66
-  Po (other punctuation):       12  ← U+2028 はここに含まれる
-  Sm (math symbol):              6
-```
-
-### 何が起きたか
-
-- LINE Developers Console から token を copy-paste した際、UI 構造によっては
-  「不可視 Unicode 改行」(U+2028 LINE SEPARATOR、または U+2029 PARAGRAPH
-  SEPARATOR) が **見えない形で混入** することがある
-- token 値そのものは LINE 側に登録されているため `/v2/oauth/verify` は
-  200 を返すが、HTTP ヘッダの **Authorization: Bearer ...** を送る際に
-  Python の http.client / urllib3 は Latin-1 (ISO-8859-1) で encode する
-  ため、U+2028 (= 0x2028 > 0xFF) は **ordinal 範囲外で encode 失敗**
-- LineBotClient.send_text 内で `push_message(...)` を呼ぶ前段階で
-  UnicodeEncodeError が raise → F062-R3 sender が logger.error 後に
-  propagate → F062-R2 router が partial_delivery=False で SendResult
-  返却 → exit 4
+| 試行 | 日時 (JST) | 状態 | 主因 |
+|---|---|---|---|
+| 1 回目 | 2026-05-10 21:30 頃 | 停止 | env 未提供 |
+| 2 回目 | 2026-05-10 21:53 頃 | 停止 | LINE API 401 invalid_token (旧 token) |
+| 3 回目 | 2026-05-10 22:35 頃 | 停止 | UnicodeEncodeError (token に U+2028 混入、length=518) |
+| **4 回目** | **2026-05-10 22:49** | **★ 成功** | **token sanitize 後 (length=516, is_ascii=True, latin1_ok=True)** |
 
 ## 実施結果
 
-### Step 1: env 確認 ✅
-LINE_CHANNEL_TOKEN length=518 (= 1 回目 197 から再発行)、
-FIRE_LINE_RECIPIENT_ID prefix='U' length=33。
+### Step 1: env ✅
+```
+LINE_CHANNEL_TOKEN_SET:        True
+LINE_CHANNEL_TOKEN_LENGTH:     516       ← sanitize 後 (518 - U+2028 × 2)
+LINE_CHANNEL_TOKEN_IS_ASCII:   True      ← 不可視 Unicode 改行除去済
+LATIN1_OK:                     True      ← Authorization ヘッダ encode 可能
+FIRE_LINE_RECIPIENT_ID_PREFIX: 'U'
+FIRE_LINE_RECIPIENT_ID_LENGTH: 33
+```
 
 ### Step 2: gate ✅
-overall=pass / line_send_allowed=True / 5 段全 PASS。
+```
+overall_status:    pass
+line_send_allowed: True
+5 段 (prices/signals/index/derived/other): 全 pass
+reasons:           []
+allow_warning:     False
+```
 
 ### Step 3: 事前 dry-run ✅
 ```
-exit: 0 / mode: dry_run / send_allowed: True
-sent=0 / api=0 / token_read=0 / production_callable_built: False
+exit: 0
+mode: dry_run / send_allowed: True
+sent=0 / line_api=0 / token_read=0 / production_callable_built: False
 forbidden_phrase_count: 0 / safety_footer_present: True
-manual_review_required_count: 0
+manual_review_required_count: 0 (= test-message-only で空 list 化)
 ```
 
-### Step 4: real send ✗ (UnicodeEncodeError)
+### Step 4: real send ★ 成功
 ```
-exit: 4
-mode: send / dry_run: False / send_allowed: False
-sent_count: 0
-line_api_call_count: 0
-partial_delivery: False  ← retry 可
-token_read_count: 1
-production_callable_built: True  ← config 構築 OK (= str / 非空 / U/C/R prefix チェック PASS)
-hq_approved_send: True / max_chunks: 1 / test_message_only: True
-forbidden_phrase_count: 0 / safety_footer_present: True
-selected_row_count: 0 / payload_chunks_total: 1
-production_outcomes: []
-refused_reasons:
-  - chunk send failed: 0/1 sent before failure
-  - production_send_callable raised at chunk_index=0:
-    UnicodeEncodeError: 'latin-1' codec can't encode character
-    ' ' in position 179: ordinal not in range(256)
+exit: 0
+mode: send / dry_run: False / send_allowed: True
+sent_count:                    1
+line_api_call_count:           1
+stub_invocations:              0
+partial_delivery:              False
+token_read_count:              1
+production_callable_built:     True
+hq_approved_send:              True
+max_chunks:                    1
+test_message_only:             True
+payload_chunks_total:          1
+forbidden_phrase_count:        0
+safety_footer_present:         True
+selected_row_count:            0
+production_outcomes:
+  - chunk_index=0
+    status=ok
+    dry_run_line_api=False  ← 実 push_message
+    chunk_length=234
+refused_reasons: []
 ```
 
-### Step 5: token leak / DB unchanged
-- TOKEN_LEAK_HITS: 0 (4 artifact 内 grep) ✅
-- DB mtime: data/fire.db / fire.develop.db / fire.staging.db 全 unchanged ✅
+### Step 5: token leak / DB unchanged ✅
+- TOKEN_LEAK_HITS: 0 (4 artifact 内 grep) ★
+- RECIPIENT_HITS_IN_ARTIFACTS: 2 (= production_config.recipient_id /
+  production_outcomes.to に full 記録、F062-R3 設計通り)
+- DB mtime: data/fire.db / fire.develop.db / fire.staging.db **全 unchanged**
+- LINE log (logs/notifications/notifications_line.log) に
+  `SEND <recipient> [FIRE] LINE 送信導通テスト (F062-R3) ...` を 1 行追記
 
-## 安全要件遵守
+## 安全要件遵守 (本 4 回目試行 = 成功時)
 
 | 項目 | 結果 |
 |---|---|
-| 送信は 0 通                                         | ✅ |
-| partial_delivery=False (= retry 可)                | ✅ |
-| token leak 0 (4 artifact)                           | ✅ |
-| 通常 Advisory payload 送ろうとしていない            | ✅ |
-| 自動発注 / 楽天操作 / Computer Use                  | 0 ✅ |
-| DB write 0、3 DB 全 mtime unchanged                 | ✅ |
-| TODO Excel                                          | 未更新 ✅ |
-| scripts/seed_pattern_layer1.py / historical_indicators.py | 未接触 ✅ |
-| unrelated modified                                  | 未 stage / 未 commit ✅ |
-| --no-verify                                         | 不使用 ✅ |
-| Codex pre-commit (docs commit のため対象外)         | ✅ |
+| 送信は 1 通                                         | ✅ |
+| --test-message-only / --max-chunks 1                | ✅ |
+| --send / --hq-approved-send                         | ✅ |
+| recipient_id は Fujiwara 個人宛 (先頭 'U')          | ✅ |
+| token 平文出力なし (artifact / log / chat)          | ✅ |
+| partial_delivery=False (= retry 不要、重複なし)     | ✅ |
+| forbidden_phrase 0 / safety_footer 全 8 行          | ✅ |
+| 通常 Advisory payload (銘柄候補 / 価格 / 数量 / 執行) 送らない | ✅ |
+| 自動発注                                          | 0 ✅ |
+| 楽天証券操作                                       | 0 ✅ |
+| Computer Use                                       | 0 ✅ |
+| DB write                                           | 0 ✅ |
+| 3 DB mtime                                         | 全 unchanged ✅ |
+| TODO Excel                                         | 未更新 ✅ |
+| scripts/seed_pattern_layer1.py                     | 未接触 ✅ |
+| simulation/research_lane/historical_indicators.py  | 未接触 ✅ |
+| unrelated modified を stage / commit               | しない ✅ |
+| --no-verify                                        | 不使用 ✅ |
+| Codex pre-commit (docs commit のため対象外)        | ✅ |
 
-## token sanitize 修正案 (要 Fujiwara 判断)
+## 送信内容 (= test-message-only の固定文面)
 
-### 案 1 (推奨、最も安全): Fujiwara が手動で再貼り付け
-
-1. LINE Developers Console から token を改めて copy
-2. **plain text editor** (= TextEdit 「フォーマット → 標準テキストにする」、
-   または `nano ~/.fire_secrets/line.env` で直接編集) を使う
-3. 貼り付け時に「Paste and Match Style」(= ⌥⇧⌘V) で書式なし貼り付け
-4. shell に直接貼るのが最も確実:
-   ```
-   nano ~/.fire_secrets/line.env
-   # LINE_CHANNEL_TOKEN='...' の行を全て選択して再貼り付け
-   ```
-5. 貼り付け後、文字数検査で 516 (= 518 - 2 個の U+2028) になることを確認
-
-### 案 2: Claude が tr で U+2028 を除去 (Fujiwara 承認後のみ)
+production_outcomes.send_text_preview に preview として記録された冒頭 50 文字:
 
 ```
-# U+2028 (UTF-8: 0xe2 0x80 0xa8) を削除
-tr -d $'\xe2\x80\xa8' < ~/.fire_secrets/line.env > /tmp/line.env.cleaned
-# 値を画面に出さず、length 比較で sanitize 効果を確認
-mv /tmp/line.env.cleaned ~/.fire_secrets/line.env
-chmod 600 ~/.fire_secrets/line.env
+[FIRE] LINE 送信導通テスト (F062-R3)
+本メッセージは HQ 承認済みの単発疎通
 ```
 
-これは「Claude が secret file を加工する」ことになるため、Fujiwara の
-明示承認後のみ実施。本タスクでは **未実施**。
-
-### 検証方法 (両案共通)
+実際の chunk 全文 (chunk_length=234) は `_TEST_MESSAGE_TEMPLATE`
+(scripts/jobs/run_f062_line_production_send_smoke.py の固定文字列):
 
 ```
-source ~/.fire_secrets/line.env && .venv/bin/python - <<'PY'
-import os
-t = os.environ.get("LINE_CHANNEL_TOKEN", "")
-print("length:", len(t))
-print("is_ascii:", t.isascii())
-try:
-    t.encode("latin-1")
-    print("latin1_ok: True")
-except UnicodeEncodeError as e:
-    print(f"latin1_ok: False (bad pos={e.start})")
-PY
+[FIRE] LINE 送信導通テスト (F062-R3)
+本メッセージは HQ 承認済みの単発疎通テストです。
+Safety
+- LINE 送信なし (dry-run / template only)
+- 自動発注なし
+- 楽天操作なし
+- Computer Use なし
+- 注文価格・数量・執行指示は生成しない
+- F119 の優位は 20d 寄り (daytrade 即時判断には使わない)
+- Fujiwara manual review required
 ```
 
-期待: `is_ascii: True` / `latin1_ok: True`。
+→ 銘柄候補 / 価格 / 数量 / 執行指示 を **構造的に含まない** test message。
+
+## LINE app での Fujiwara 受信確認 (依頼)
+
+22:49 JST (= 2026-05-10T13:49:35 UTC) ごろに上記 test message が
+Fujiwara の LINE app に届いているはず。**受信確認をお願いします**。
+
+確認ポイント:
+- 通知は 1 通だけ (= 重複なし、上記時刻の 1 件のみ)
+- 文面冒頭が `[FIRE] LINE 送信導通テスト (F062-R3)` で始まる
+- Safety footer 8 行が含まれる
+- 銘柄候補 / 注文価格 / 数量 / 執行指示は含まれない
+
+## DB 不変確認
+
+| DB | pre / post mtime | 不変 |
+|---|---|---|
+| data/fire.db          | May  7 16:12:38 / May  7 16:12:38 | ✅ |
+| data/fire.develop.db  | May  7 18:14:26 / May  7 18:14:26 | ✅ |
+| data/fire.staging.db  | May 10 18:22:36 / May 10 18:22:36 | ✅ |
+
+## 通常 Advisory 本番送信は未開始である確認
+
+- `--test-message-only` で payload chunks を 1 個の固定 test message
+  に置換 (= selected_rows=[] / selected_count=0 / send_intent=
+  "f062-r3 hq approved test message")
+- 銘柄候補 / 注文価格 / 数量 / 執行指示は構造的に含まれない
+- production_outcomes 1 件の chunk_length=234 (= 上記固定文の長さ)
+- 通常 Advisory 本番送信は **完全に未開始**
+
+## 軽微改善候補 (F062-R5 後検討、本タスクでは修正しない)
+
+1. **build_production_send_callable に ASCII / latin-1 encode 事前検査
+   を追加**: 今回 3 回目試行で発覚した U+2028 混入問題を、HTTP 層に
+   到達する前に refuse できるようにする
+2. **production_config.recipient_id を output_json に full 記録している件**:
+   token は length のみだが recipient は full。F062-R5 後に length /
+   prefix のみへの絞り込み検討
 
 ## 次タスク
 
-1. Fujiwara が token 再貼り付け (案 1) か、Claude による tr sanitize 承認
-   (案 2) を選択
-2. token sanitize 後、length=516 (= 518 - 2) と is_ascii=True を確認
-3. F062-R4 を再実行
-4. sent_count=1 / line_api_call_count=1 / partial_delivery=False が出れば
-   LINE app で Fujiwara 受信確認
-5. 受信成功時: F062-R5 First Production Advisory Small Launch
+1. **Fujiwara が LINE app で受信確認** (= 1 通だけ、上記文面)
+2. 受信成功確認後 → **F062-R5 First Production Advisory Small Launch**
    (max_chunks 1〜2、少数候補、手動レビュー前提)
-
-## 観察された軽微改善候補 (本タスクでは修正しない、F062-R5 後検討)
-
-- `assert_production_safe(cfg)` で channel_token に **ASCII / latin-1
-  encode 可能** の事前検査を追加すれば、HTTP 層に到達する前に refuse
-  できる。今回のような U+2028 混入は build_production_send_callable で
-  検出されず、push_message 時に初めて検出された
-- production_config.recipient_id を output_json に full 記録している件
-  (前回試行でも記録済) は引き続き F062-R5 後の改善候補
+3. 並走候補:
+   - F062-R3 で記録した軽微改善候補の解消
+     (channel_token ASCII guard / recipient_id length-only logging)
+   - F286-DATA-R3 daily refresh の cron 化 (post_launch_high_priority)
+   - F242 OpenClaw / F022 FIRE Runner / F013 launchd
+     (post_launch_high_priority)
