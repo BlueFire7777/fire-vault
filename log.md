@@ -6026,3 +6026,47 @@ HQ 判断要請 5 項目 (計画書 §9):
   2. LINE Channel Type 違い (Messaging API ではなく LINE Login 等)
   3. 余分な空白 / 改行 / 引用符が混入
   4. 本番 / test channel 取り違え
+
+## [2026-05-10] milestone | F062-R4 First Real LINE Send Smoke 停止 (3 回目: U+2028 LINE SEPARATOR 混入)
+- 状態: **停止**。Fujiwara が token を再発行 (length=518) し
+  /v2/oauth/verify=200 を確認した上で本タスクを再開したが、real
+  send で **UnicodeEncodeError** が発生し sent=0 / partial=False で
+  停止。
+- 原因: token 値に **U+2028 (LINE SEPARATOR)** が 2 文字混入。
+  - 文字構成検査 (値非表示):
+    length=518 / is_ascii=False / encode_to_latin1_ok=False
+    bad char position=172 / bad char=U+2028 LINE SEPARATOR
+    non_ascii_char_count=2 (= U+2028 が 2 個)
+  - LINE Developers Console UI から copy-paste 時、不可視 Unicode 改行
+    が混入する典型パターン
+  - LINE 側に登録された値そのものは valid (verify=200) だが、Python
+    の http.client / urllib3 が Authorization ヘッダを Latin-1 で
+    encode するため 0x2028 (> 0xFF) で UnicodeEncodeError
+- 実施結果:
+  - Step 1 env: LINE_CHANNEL_TOKEN length=518、recipient prefix='U' length=33
+  - Step 2 gate: overall=pass / line_send_allowed=True / 5 段全 PASS
+  - Step 3 dry-run: exit 0 / sent=0 / api=0 / token_read=0 / production_callable_built=False
+  - Step 4 real send: exit 4 / sent=0 / line_api_call_count=0 /
+    partial_delivery=False / token_read=1 / production_callable_built=True
+    refused_reasons: chunk send failed: 0/1 sent before failure;
+    UnicodeEncodeError: 'latin-1' codec can't encode character ' '
+    (U+2028) in position 179: ordinal not in range(256)
+  - Step 5 token leak: 0 件 (4 artifact 内 grep)
+- 安全要件: 全遵守 (送信 0 通 / partial_delivery=False で retry 可 /
+  token leak 0 / LINE 側に流出した形跡なし / DB write 0 / 3 DB 全 mtime
+  unchanged / 通常 Advisory 未開始 / 自動発注 / 楽天 / Computer Use 0
+  / Excel 未更新 / scripts/seed_pattern_layer1.py 未接触 /
+  simulation/research_lane/historical_indicators.py 未接触 / unrelated
+  未 stage / --no-verify 不使用)
+- 完了報告: /tmp/f062_r4_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md 3 回目試行記録
+- 修正案 (要 Fujiwara 判断):
+  案 1 (推奨): Fujiwara が ~/.fire_secrets/line.env を plain text editor
+       で再貼り付け (= ⌥⇧⌘V Paste and Match Style、または nano 経由)
+  案 2: Claude が tr -d $'\xe2\x80\xa8' で sanitize (Fujiwara 承認後のみ)
+- 検証期待 (sanitize 後): length=516 (= 518-2)、is_ascii=True、
+  encode_to_latin1_ok=True
+- 軽微改善候補 (F062-R5 後検討):
+  build_production_send_callable.assert_production_safe で channel_token
+  の ASCII / latin-1 encode 可能性を事前検査すれば、HTTP 層に到達する
+  前に refuse できる
