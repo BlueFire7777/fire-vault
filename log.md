@@ -5245,3 +5245,111 @@ HQ 判断要請 5 項目 (計画書 §9):
   再計算) / DATA-R2 Freshness Gate (gate-1..5 純関数 + F062-R2
   接続) / DATA-R3 production 伝播 (DATA-R1/R2 が staging で
   1 週間以上稼働後)
+
+## [2026-05-10] milestone | F286-DATA-R1 J-Quants Daily Refresh Pipeline 完了
+- 目的: DATA-R0 で確認した freshness ギャップ (daily_quotes /
+  index_data 8 日遅延) を staging 限定 daily refresh で詰める
+  ための runner + helpers を実装。default dry-run / --write 時
+  のみ staging 3 段 guard 通過後に write、production / develop は
+  構造的に refuse。
+- 実装ファイル:
+  - agents/jquants_daily_refresh.py (597 行、新規)
+  - scripts/jobs/run_jquants_daily_refresh.py (422 行、新規)
+  - tests/agents/test_jquants_daily_refresh.py (27 PASS)
+  - tests/scripts/jobs/test_run_jquants_daily_refresh.py
+    (21 PASS)
+- 対象 dataset:
+  - prices (= market_prices_daily) → 本 runner で直接 write
+  - index (= index_data) → 本 runner で直接 write
+  - derived (= research_derived_indicators) → 本 runner では
+    plan のみ (= write_supported=False、既存 persist runner で
+    別途実行)
+  - signals (= research_watchlist_signals) → 同上
+- CLI 設計:
+  --db-path / --db-label (staging|develop|production|other) /
+  --datasets / --from-date / --to-date / --max-days (default 3,
+  hard cap 14) / --source-version / --rule-version / --top-n
+  (future signals 用) / --dry-run (default) / --write (排他) /
+  --output-json / --completion-report
+  → --send / --send-line / --line / --token / --api-key /
+    --broker / --rakuten / --order / --auto-order / --computer-use
+    / --playwright option を作らない (test で argparse help 検証)
+- 3 段 staging guard (--write 時):
+  1. db_label == "staging"
+  2. db_path.resolve().name == "fire.staging.db"
+  3. FIRE_ENV == "staging"
+  + db.exists() / not is_symlink() / 不在 refuse
+  → develop / production / wrong basename / FIRE_ENV 不在 を
+    F286DataR1RunRefused で refuse、test で全網羅
+- dry-run 設計:
+  default_prices_refresh / default_index_refresh で
+  market_data.historical / index_fetcher を遅延 import、
+  dry-run mode では build_plans のみ呼ばれて execute_refresh は
+  呼ばれない → API call 0 / DB write 0 / token 読まない、
+  終了前に DB mtime 不変を再検査 (変化していれば exit 3)
+- exit code:
+  0 = success / 2 = refused (設定不正等) / 3 = safety violation
+  (DB mtime 変化 / staging guard 違反) / 4 = partial / error
+  (★ Codex CRITICAL 対応で導入)
+- Codex CRITICAL 1 件と修正:
+  指摘: execute_refresh が API/DB 例外を DatasetRefreshResult
+        (error=...) に詰めて続行するため、main で error_count>0
+        でも exit 0 を返してしまい cron/launchd 上で silent
+        fail する
+  対応: main で summary.totals.error_count > 0 と fetch_status の
+        "error:*" / "partial" を明示検査して exit 4 を返すよう
+        修正、test 2 ケース追加 (RuntimeError raise / partial
+        status) で再 commit (f6d4836) → OK
+- dry-run smoke 結果 (staging 4 dataset / max_days 3):
+  plan 表示で各 dataset の対象範囲を read-only で出力
+  prices/index/derived: 2026-05-02〜2026-05-04 (capped_to_max_days_3)
+  signals: 2026-05-10 (diff_from_max_date)
+  staging.db / develop.db / fire.db last_modified 完全 unchanged
+  (smoke 前後)
+- --write smoke の試行と判断:
+  staging で 1 営業日 prices+index 取得を試みたところ J-Quants
+  standard plan の HTTP 429 rate limit が連続多発、4400+ 銘柄
+  逐次 fetch で長時間化したため、タスク指示「rate limit が
+  出たら連続 retry せず、1 回で停止して報告」に従い process
+  kill。staging.db は write 段階に到達せず last_modified 完全
+  unchanged。→ 実 write smoke は DATA-R1.1 で
+  --symbols-limit / --symbols-csv option を追加してから 5-10
+  銘柄から段階的に走らせる方針 (= 本タスク内では dry-run + test
+  まで)
+- 安全要件遵守:
+  - DB write 0 (本 smoke は dry-run のみ)
+  - production / develop / staging.db 全 last_modified 完全
+    unchanged
+  - LINE 本番送信なし (LineBotClient / linebot 未 import、test
+    source 検証)
+  - token / channel_secret / api_key / .env / dotenv 直接読み
+    込みなし (= --write 時のみ market_data.client が遅延 import
+    で読む、本 runner 自身は読まない)
+  - order / broker / 楽天 / Computer Use / Playwright / Selenium
+    / subprocess 不使用 (test で source 検証)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (3 commit すべて
+    git add <specific files> で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 50 PASS (helper 27 + runner 21 + Codex CRITICAL 対応 +2)
+  - regression 3,005 PASS (= 2,955 baseline + 50 新規、F286 /
+    F119 / F111 / F062 / F100 / F284 全て 0 件回帰)
+- Codex pre-commit:
+  - 全 3 commit (feat helper / chore runner / test) 通過、
+    CRITICAL 1 件即修正
+  - --no-verify 全 3 commit で flag 不使用
+  - usage limit / rate limit / auth error なし、連続 retry なし
+- commit: b5f7ac2 (feat helper) → f6d4836 (chore runner、CRITICAL
+  対応版) → 16b0d8e (test) → ab75c03 (vault) → (本 commit) log
+- 02_todo/F286_DATA_R1_jquants_daily_refresh.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (3 段 staging guard + dry-run
+  default + error_count → exit 4) / dry-run smoke 完全成功 /
+  実 write smoke は HQ 主導 (= rate limit 回避のため
+  --symbols-limit DATA-R1.1 で追加して再実行) / DATA-R2
+  Freshness Gate 接続準備完了
+- 次 step (HQ 判断): DATA-R1.1 --symbols-limit 追加 + 実 write
+  smoke (5-10 銘柄から段階的) / DATA-R2 Freshness Gate
+  (gate-1..5 純関数 + F062-R2 接続) / persist runner 統合
+  (derived/signals を本 runner から薄い wrapper 経由で呼ぶ)
