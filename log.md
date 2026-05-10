@@ -6119,3 +6119,51 @@ HQ 判断要請 5 項目 (計画書 §9):
      length / prefix のみへの絞り込み検討
 - 次タスク: Fujiwara LINE 受信確認 → F062-R5 First Production
   Advisory Small Launch (max_chunks 1〜2、少数候補、手動レビュー前提)
+
+## [2026-05-10] milestone | ★ F062-R4 正式完了 (Fujiwara LINE app 受信確認済み)
+- 状態: ★ **正式完了**。22:49 JST に送信した test-message-only 1 通
+  を Fujiwara が LINE app で受信確認した。
+- Fujiwara 確認内容:
+  - LINE app で 1 通の受信を確認
+  - 通常 Advisory 本番送信は未開始
+  - test-message-only の 1 通のみ
+  - 銘柄候補 / 注文価格 / 数量 / 執行指示は未送信
+  - 重複送信なし
+- 受信確認後の追加 LINE 送信: **0 通** (= scripts.jobs.run_f062_line_
+  production_send_smoke を一切呼び出していない、LineBotClient.send_text
+  未呼出)
+- 安全要件再確認 (本受信確認反映 commit):
+  - dry-run 結果:        exit 0 / mode=dry_run / send_allowed=True /
+                          sent=0 / api=0 / token_read=0 ✅
+  - real send 結果:      exit 0 / mode=send / dry_run=False /
+                          send_allowed=True ✅
+  - sent_count:          1 ★
+  - line_api_call_count: 1 ★
+  - partial_delivery:    False (= retry 不要)
+  - token leak:          0 件 (4 artifact 内 grep)
+  - recipient 種別:      Fujiwara 個人 LINE userId (先頭 'U' length 33)
+  - DATA-R2 gate:        overall=pass / line_send_allowed=True /
+                          5 段全 PASS
+  - 通常 Advisory:        未開始
+  - Fujiwara LINE app 受信確認: ★ 確認済み
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新
+  - --no-verify 不使用
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified 未 stage / 未 commit
+- 完了報告: /tmp/f062_r4_completion_report.txt (最終確定版)
+- 02_todo/F062_R4_first_real_line_send_smoke.md (= 受信確認済み追記)
+- 試行履歴 (= 4 回目で成功):
+  1) env 未提供で停止
+  2) 401 invalid_token (旧 token) で停止
+  3) UnicodeEncodeError (token に U+2028 混入、length=518) で停止
+  4) ★ 成功 (token sanitize 後、length=516)
+- 次タスク: **F062-R5 First Production Advisory Small Launch** は
+  HQ (Fujiwara) 判断後に開始。本完了報告だけで自動着手しない。
+  並走候補 (= F062-R5 と独立に進められる):
+  - 軽微改善候補解消 (channel_token ASCII guard / recipient_id
+    length-only logging)
+  - F286-DATA-R3 daily refresh の cron 化
+  - F242 OpenClaw / F022 FIRE Runner / F013 launchd
