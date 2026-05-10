@@ -6339,3 +6339,44 @@ HQ 判断要請 5 項目 (計画書 §9):
   sanitize は別運用判断 (= rotate / 削除 / 個別 sanitize) で対応。
 - 次タスク: F062-R5 First Production Advisory Small Launch
   (HQ 判断後に開始)
+
+## [2026-05-11] milestone | F236-R1.1 Legacy LINE Log Sanitize 完了
+- 目的: F236-R1 残課題 (= 既存 logs/notifications/notifications_line.log
+  の F062-R3/R4 試行ログに full recipient_id が残存) を F062-R5 本番
+  Advisory 送信前に塞ぐ。
+- 採用方針: in-place sanitize (= 退避ファイルにも full ID が残る
+  リスクを避けるため、退避なし)。データ消失防止に atomic write
+  (tempfile + os.replace) を採用、file mode は 0o644 維持。
+- 書き換え: 各行 col 3 (to カラム) を format_masked_recipient_field
+  で masked 形式に置換、既に masked の行は触らず、timestamp / mode
+  / message 本文は保持。
+- 結果 (= 件数のみ、値は記録しない):
+  BEFORE: total=901 / masked=5 / ucr_full=792 / other_to=103 / short=1
+  AFTER:  total=901 / masked=900 / ucr_full=**0** / other_to=**0**
+          / short=1
+  - 行数保持 ✅
+  - 60+ 連続 ASCII (= token 候補) の残存: 0 件 ✅
+  - file mode: 0o644 維持 ✅
+  - file size: 190,327 → 209,542 (= masked 形式が full ID より長い)
+- 安全要件:
+  - 実 LINE 送信なし (= LineBotClient.send_text 未呼出)
+  - token leak 0 (画面 / file / report)
+  - recipient_id leak 0 (画面 / file / report、件数のみ表示)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - fire コード変更なし (logs/ は .gitignore 対象、fire commit 不要)
+- commits:
+  - fire (develop):  なし (= logs/ は git ignored、コード変更なし)
+  - fire-vault (main):
+    - 本 milestone log + 02_todo/F236_R1_1_legacy_line_log_sanitize.md
+- 完了報告: /tmp/f236_r1_1_completion_report.txt
+- 注意: 本タスクは 1 回限りの運用作業。新規 LINE 送信は本タスク内で
+  発生せず、masked 形式の追記は F062-R5 / 通常 Advisory 送信時に
+  起こる。
+- 軽微残課題: 必要に応じて将来 log rotate (logrotate / launchd / cron
+  で日次 rotate) 導入は別 task で検討。
+- 次タスク: F062-R5 First Production Advisory Small Launch
+  (HQ 判断後に開始)
