@@ -5934,3 +5934,43 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 02_todo/FIRE_TODO_R1_pre_launch_todo_triage.md 新規 vault
 - 次タスク: 1) First Real LINE Send Smoke (HQ 承認 + 1 通発火)
   2) First Production Advisory Small Launch (= 本番運用開始)
+
+## [2026-05-10] milestone | F062-R4 First Real LINE Send Smoke 停止 (HQ 環境変数未提供)
+- 目的: F062-R3 で実装した LINE production send path を使い、HQ
+  承認済みの最小条件 (--send --hq-approved-send --recipient-id +
+  --max-chunks 1 --test-message-only) で本物 LINE API へ 1 通だけ
+  test-message-only を発火する初回 real send smoke。
+- 状態: **停止** (HQ 環境変数未提供のため real send / dry-run 共に
+  実行していない)。
+- 検証済 (実行したもの):
+  - artifact 3 個存在確認 (F062-R1 payload / DATA-R2 gate / F062-R3
+    完了報告)
+  - DATA-R2 gate JSON: overall=pass / line_send_allowed=True /
+    5 段全 PASS / reasons=[] / allow_warning=False
+  - 環境変数チェック (= 値非表示):
+    LINE_CHANNEL_TOKEN     set=False  length=0
+    FIRE_LINE_RECIPIENT_ID set=False  length=0
+  - DB mtime: data/fire.db / fire.develop.db / fire.staging.db いずれも
+    前回値と同じ (= 本タスクで一切書き込みなし)
+- 停止条件 hit:
+  - LINE_CHANNEL_TOKEN 未設定
+  - FIRE_LINE_RECIPIENT_ID 未設定
+- タスク仕様遵守:
+  - chat 上で token を要求しない (= Fujiwara への直接質問なし)
+  - token をログ / report / JSON に出さない (= そもそも送信していない)
+  - 通常 Advisory 送信は未開始
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - DB write 0 / production / develop / staging.db 全 unchanged
+  - TODO Excel 未更新
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - --no-verify 不使用
+- 完了報告: /tmp/f062_r4_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md 新規 vault
+- 再開条件: Fujiwara が LINE_CHANNEL_TOKEN + FIRE_LINE_RECIPIENT_ID
+  を shell session に直接 export (= チャットではなく ~/.zshrc 等)、
+  その後新しい Claude Code session で F062-R4 タスクを再起動
+- 次タスク (HQ 提供後): F062-R4 再実行 → real LINE 受信確認 →
+  F062-R5 First Production Advisory Small Launch (max_chunks 1〜2、
+  少数候補、手動レビュー前提)
