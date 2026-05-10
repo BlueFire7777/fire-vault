@@ -4907,3 +4907,122 @@ HQ 判断要請 5 項目 (計画書 §9):
   F111-R4 Multi base_date Smoke + F119 evaluate 内蔵 (advisory に
   実 boost/avoid/caution/expected_h20 を埋める real real wiring) /
   R2-G4 5d 用 rule 設計
+
+## [2026-05-10] milestone | F111-R4 Multi base_date Smoke + F119 Built-in Insights 完了
+- 目的: F111-R3 で advisory neutral=100 だった real wiring smoke を、
+  F119 evaluate を read-only で接続して実用 boost/avoid/caution に
+  分類できるよう拡張。multi base_date 対応 + F119 inline / artifact
+  JSON / 3 CSV の 3 経路接続。Stage 3 Live Advisory dry run 最終形。
+- 実装ファイル:
+  - agents/research_advisory_f119_inline.py (373 行、新規)
+  - scripts/jobs/run_f111_research_advisory_real_wiring_r4_smoke.py
+    (838 行、新規)
+  - tests/agents/test_research_advisory_f119_inline.py (14 PASS)
+  - tests/scripts/jobs/
+    test_run_f111_research_advisory_real_wiring_r4_smoke.py (32 PASS)
+- F119 接続経路:
+  resolve_f119_artifacts の優先順:
+    1. inline (--evaluate-f119): staging から signal/regime/
+       sector_flow を読み、F119 既存ロジック (build_market_regime_
+       features / build_sector_flow_features / _build_joined_rows /
+       apply_candidate / evaluate_signals /
+       evaluate_signals_with_interpretation) を read-only で再
+       orchestrate
+    2. JSON (--f119-summary-json / --f119-insights-json): 既存 F119
+       runner output を読み込み、cut_summaries dict と insights dict
+       を取り出す
+    3. CSV (--f119-strong-csv / avoid-csv / caution-csv): 3 CSV を
+       合成して insights のみ提供
+    4. none: 何も接続しない (= advisory neutral、F111-R3 同等)
+- multi base_date:
+  --base-date と --base-dates カンマ区切り (排他)、未指定なら最新
+  base_date 1 件、各 base_date で run_real_wiring → aggregate
+- runner CLI 設計:
+  --evaluate-f119 / --f119-summary-json / --f119-insights-json /
+  --f119-strong-csv / --f119-avoid-csv / --f119-caution-csv /
+  --f119-output-dir / --horizons (default 1,5,20) / --min-count
+  (default 20) / --base-date / --base-dates / --top-n /
+  --output-json/csv/text / --summary-json / --completion-report /
+  --dry-run。--write / --line / --send-line / --broker / --rakuten
+  / --order / --auto-order / --computer-use / --playwright option
+  は意図的に作らない (= argparse help / source 文字列で test 検証)
+- safety violations exit code:
+  refused → 2 / safety violation → 3 / no candidates → 4 /
+  F119 接続済みなのに non_neutral=0 → 5 (= 接続失敗の早期検出)
+- smoke 結果 (--evaluate-f119 / 4 base_dates 5月/6月/8月/3月 /
+  top_n=100):
+  - candidate_count=400 / with_advisory=400 / missing=0
+  - manual_review_required_count=400 (= candidate_count) ★
+  - auto_order_allowed_true_count=0 ★
+  - non_neutral_count=400 (★ 全件分類)
+  - boost_candidate_count=250 (boost + boost_with_caution +
+    boost_with_avoid)
+  - avoid_candidate_count=116 (avoid + boost_with_avoid)
+  - caution_candidate_count=284 (caution + boost_with_caution)
+  - expected_h20_metric_present_count=400 / h5=400 (★ 全件)
+  - advisory_label_counts: boost_with_caution=217 / avoid=83 /
+    caution=67 / boost_with_avoid=33
+  - per_base_date_counts:
+    - 2025-05-01: boost_with_caution 99 + boost_with_avoid 1
+      (5月強さ反映)
+    - 2025-06-01: boost_with_caution 26 / caution 67 /
+      boost_with_avoid 2 / avoid 5 (混在)
+    - 2025-08-01: boost_with_caution 92 + boost_with_avoid 8
+      (8月強さ反映)
+    - 2026-03-01: avoid 78 + boost_with_avoid 22 (3月弱さ反映)
+  - F119 月別 strong/avoid 傾向が candidate advisory_label に
+    そのまま反映 = Stage 3 Live Advisory として適切に機能
+  - artifacts: preview.json 1.0MB / preview.csv 668KB /
+    preview.txt 702KB / summary.json 18KB / completion_report.txt
+    2.2KB / f119_insights.json 131KB / f119_summary.json 403KB
+- Codex CRITICAL 1 件と修正:
+  指摘: --output-json / --output-csv 等が任意 Path に書けるため
+  --db-path data/fire.staging.db --output-json data/fire.staging.db
+  と指定すると mode=ro / PRAGMA query_only=ON では防げず DB を
+  file write で上書き破壊しうる
+  対応: _assert_output_paths_safe guard を runner 冒頭に追加し、
+  output Path のいずれかが db_path / db-shm / db-wal / 同名同
+  ディレクトリと衝突する場合 F111R4RunRefused で exit 2
+  検証: 5 ケースの test 追加 (no_collision / exact / relative /
+  wal-shm / main で --output-json=db_path 指定 → exit 2)
+- 安全要件遵守:
+  - DB write 0 (URI mode=ro + PRAGMA query_only=ON +
+    output Path 衝突 guard の三重防御)
+  - staging.db last_modified 完全 unchanged
+    (2026-05-09T22:40:35.385124 のまま smoke 前後)
+  - production.db / develop.db も last_modified 完全 unchanged
+    (May 7 のまま)
+  - LINE 本番送信なし (linebot / LineBotClient / send_text /
+    push_message を import / 文字列で完全排除)
+  - order/broker/rakuten/Computer Use/Playwright/Selenium/
+    subprocess 全て構造的非接続 (test で source 検証)
+  - F115/F140/F133 即時 SL/TP に接続せず
+  - manual_review_required=True を全 400 candidate で強制 (4 重防御)
+  - auto_order_allowed=False を全 400 candidate で強制 (同上)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (5 commit すべて
+    `git add <specific files>` で個別 stage)
+  - TODO Excel 未更新
+- tests:
+  - 新規 46 PASS (F119 inline + artifact loader 14 + R4 runner 32)
+  - regression 2,874 PASS (= 2,828 baseline + 46 新規、F111 / F115
+    / F140 / F133 / F132 / F119 / F286 全て 0 件回帰)
+- Codex pre-commit:
+  - 全 3 commit 通過 (CRITICAL 1 件 / 即修正後再 commit で OK)
+  - --no-verify 全 3 commit で flag 不使用
+  - usage limit / rate limit / auth error なし、連続 retry なし
+- 完了報告: /tmp/f111_r4_completion_report.txt にも保存 (tmux
+  画面コピー困難時の保険)
+- commit: 74e2276 (feat module) → fe8d170 (chore runner、CRITICAL
+  対応版) → 8dee93a (test) → 6550c33 (vault) → (本 commit) log
+- 02_todo/F111_R4_multi_base_date_f119_insights_smoke.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (DB read-only 三重防御 + advisory
+  四重防御) / staging 実 400 候補に F119 boost/avoid/caution +
+  expected_h20 が実際に付与 / Stage 3 Live Advisory dry run 最終形
+  完成 / F062-R1 LINE template 接続準備完了
+- 次 step (HQ 判断): F062-R1 LINE Advisory Notification Template
+  (template module + 本番送信は F062-R2 で別タスク化、F111-R4 で
+  実用 advisory が用意できたので Fujiwara 向け実 LINE 文面が
+  作れる) / F111-R5 アンサンブル評価 (複数 source_version で共通
+  boost/avoid 抽出) / R2-G4 5d 用 rule 設計
