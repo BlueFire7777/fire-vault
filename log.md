@@ -5443,3 +5443,89 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次 step (HQ 判断): DATA-R2 Freshness Gate (gate-1..5 純関数 +
   F062-R2 接続) / DATA-R1.2 銘柄絞り込み拡大 (100 → 500 → 全件) /
   persist runner 統合 (derived/signals)
+
+## [2026-05-10] milestone | F286-DATA-R2 Data Freshness Gate / Stale Data Warning 完了
+- 目的: LINE 本番 Advisory 送信前に J-Quants 由来 dataset と
+  Research signals の鮮度・coverage を read-only で検査し、古い /
+  不十分な場合は送信を refuse できる安全装置を作る。
+- 実装ファイル:
+  - agents/data_freshness_gate.py (731 行、新規)
+  - scripts/jobs/run_data_freshness_gate.py (351 行、新規)
+  - tests/agents/test_data_freshness_gate.py (27 PASS)
+  - tests/scripts/jobs/test_run_data_freshness_gate.py (21 PASS)
+- gate 仕様 (5 段):
+  - gate-1 prices (必須): max_date >= 直近営業日 +
+    distinct_codes_at_max_date >= 4000
+  - gate-2 signals (必須): max_base_date >= 直近営業日 +
+    distinct_codes >= top_n
+  - gate-3 index (推奨): max_date 鮮度
+  - gate-4 derived (推奨): research_derived_indicators 鮮度
+  - gate-5 other (緩め): financials / announcements / listings
+- overall_status:
+  - 必須 gate refuse → refuse / line_send_allowed=False (絶対)
+  - 推奨 gate warning → warning / line_send_allowed=False
+    (★ Codex CRITICAL safe-by-default、--allow-warning で True 許可)
+  - 全 gate pass → pass / line_send_allowed=True
+- ★ Codex CRITICAL 対応 (safe-by-default 再設計):
+  指摘: warning でも line_send_allowed=True を返していた、
+       鮮度 warning 状態で本番 Advisory が誤送信される事故防止
+       が成立しない
+  対応: strict 引数を allow_warning に rename、default False、
+       pass のみ True、caller が明示で allow_warning=True を渡した
+       ときのみ warning を許可、必須 refuse 時は allow_warning に
+       関わらず False を維持。test 3 ケース追加 (default warning
+       blocks / allow_warning permits / refuse never allowed)
+- exit code 仕様:
+  0 = pass / 2 = refused / 3 = warning / 4 = refuse
+- staging smoke 結果 (as_of=2026-05-08 / top_n=100):
+  - gate-1 prices: REFUSE (max_date=2026-05-08 の distinct_codes
+    =10 < 4000、= DATA-R1.1 で 10 銘柄のみ update した結果)
+  - gate-2 signals: PASS (109 codes / lag=0)
+  - gate-3 index: PASS (max=2026-05-08 / lag=0)
+  - gate-4 derived: WARNING (max=2026-05-01 / lag=5 営業日 > 1)
+  - gate-5 other: PASS
+  - overall_status: refuse / line_send_allowed: False / exit=4
+  - DATA-R1.1 で限定 update された現状を「正しく refuse」と判定
+- 安全要件遵守:
+  - DB write 0 (URI mode=ro + PRAGMA query_only=ON)
+  - production / develop / staging.db 全 last_modified 完全
+    unchanged (smoke 前後)
+  - LINE 本番送信なし (LineBotClient / linebot 未 import、
+    line_send_allowed: bool を結果として返すのみ)
+  - J-Quants API call なし (HTTP 不発生、JQuantsClient 未 import)
+  - token / channel_secret / .env / dotenv 直接読み込みなし
+  - order / broker / 楽天 / Computer Use / Playwright / Selenium
+    / subprocess 不使用 (test で source 検証)
+  - argparse help に --send / --line / --token / --api-key /
+    --broker / --rakuten / --order / --auto-order / --computer-use
+    / --playwright / --fetch / --refresh option 不在
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない (3 commit すべて
+    git add <specific files> で個別 stage)
+  - TODO Excel 未更新
+- threshold 一覧 (default):
+  prices_min_distinct_codes=4000 / max_date_lag=1 営業日 /
+  signals_min_distinct_codes=top_n / max_date_lag=1 営業日 /
+  index/derived max_date_lag=1 営業日 /
+  financials/announcements max_date_lag=5 営業日 /
+  listings_min_codes=3500
+- tests:
+  - 新規 48 PASS (evaluator 27 / runner 21、CRITICAL 対応で +3)
+  - regression 3,079 PASS (= 3,031 baseline + 48 新規)
+- Codex pre-commit:
+  - 全 3 commit (feat / chore / test) 通過、CRITICAL 1 件即修正
+  - --no-verify 全 3 commit で flag 不使用
+  - usage limit / rate limit / auth error なし
+- 完了報告: /tmp/f286_data_r2_completion_report.txt にも保存
+- commit: e8c80f8 (feat、CRITICAL 対応版) → 11c31ba (chore runner)
+  → 56baf6e (test) → f5b133f (vault) → (本 commit) log
+- 02_todo/F286_DATA_R2_data_freshness_gate.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (safe-by-default / read-only /
+  staging-only / production-develop unchanged) / 現状の限定 update
+  状態を「正しく refuse」と判定 / F062-R2 LINE 送信導線への gate
+  接続準備完了
+- 次 step (HQ 判断): F062-R2 LINE Send 分離 (gate を組み込み、
+  refuse 時は本番送信 refuse) / DATA-R1.2 銘柄絞り込み拡大 (50 →
+  500 → 全件、gate-1 coverage を 4000+ まで埋める) / persist
+  runner 統合 (derived / signals)
