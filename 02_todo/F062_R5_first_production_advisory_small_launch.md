@@ -147,3 +147,125 @@ GW 明けに TDnet announcement が再開されてから F062-R5 を再実施。
    - F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計
    - F286-DATA-R3 daily refresh cron 化
    - F242 OpenClaw / F022 FIRE Runner / F013 launchd
+
+---
+
+## 案 A 実施結果 (2026-05-11、announcements 再 fetch 完了)
+
+### 実施内容
+
+1. **/fins/announcement (J-Quants API)** を試行 → HTTP 403 (endpoint
+   does not exist for this contract plan)。J-Quants ライト契約では
+   `/fins/announcement` を叩けないことを確認。staging.db への書き込み 0。
+2. **TDnet HTML 直接取得 (F101 Phase 2、scripts/jobs/fetch_tdnet_html.py)**
+   を 2026-05-04 〜 2026-05-11 の各営業日 1 日ずつ実行 (rate limit
+   1 req/sec 厳守)。
+
+### 取得結果 (staging のみ)
+
+| 日付 | 結果 | inserted |
+|---|---|---|
+| 2026-05-04 (月、GW 振替) | schema parse error (= 開示なし) | 0 |
+| 2026-05-05 (火、GW 子供の日) | schema parse error | 0 |
+| 2026-05-06 (水、GW 振替) | schema parse error | 0 |
+| 2026-05-07 (木、平日) | OK | **294** |
+| 2026-05-08 (金、平日) | OK | **797** |
+| 2026-05-11 (月、JST 01:35 早朝) | schema parse error (= 当日 TDnet 未開示) | 0 |
+
+合計 inserted: **1,091 件** (= 2026-05-07 + 2026-05-08)
+
+### staging announcements 状態 before / after
+
+| field | BEFORE | AFTER |
+|---|---|---|
+| total_rows                       | 7 | **1,098** |
+| max_announced_date               | 2026-05-01 | **2026-05-08** ★ |
+| distinct dates                   | 2 | 4 |
+| 直近 2 営業日 (5/7 + 5/8)        | 0 件 | 1,091 件 |
+
+### DATA-R2 gate before / after (案 A 実施)
+
+| 項目 | BEFORE | AFTER |
+|---|---|---|
+| overall_status                                 | warning | **pass** ★ |
+| line_send_allowed                              | False | **True** ★ |
+| reasons (count)                                | 1 | 0 |
+| gate-1-prices (required)                       | pass | pass |
+| gate-2-signals (required)                      | pass | pass |
+| gate-3-index (recommended)                     | pass | pass |
+| gate-4-derived (recommended)                   | pass | pass |
+| gate-5-other (soft、announcements lag)         | warning (lag=6) | **pass** (lag=1) ★ |
+
+### gate-5-other 詳細 (after)
+
+`max_announced_date=2026-05-08 / business_day_lag=1` (= threshold=5
+を大幅クリア)。GW 期間 (5/4-5/6) は TDnet 物理停止のため空が正、
+fetch しても件数 0。GW 直後の 5/7 / 5/8 を取得すれば lag=1 営業日
+(= 5/11 - 5/8) で正常化することを確認。
+
+### 安全要件遵守
+
+| 項目 | 結果 |
+|---|---|
+| LINE 送信なし                                       | ✅ (= LineBotClient.send_text 未呼出) |
+| F062-R5 を勝手に再開しない                         | ✅ (= 本タスクは案 A 結果報告まで) |
+| --allow-warning を勝手に使わない                  | ✅ (= 案 A の素直な fetch でクリア、案 B 不要) |
+| production/develop DB write 禁止                  | ✅ (= mtime unchanged 確認、下記) |
+| staging のみ write                                | ✅ (= staging.db mtime 5/10 → 5/11) |
+| 自動発注 / 楽天操作 / Computer Use                 | 0 ✅ |
+| TODO Excel                                        | 未更新 ✅ |
+| --no-verify                                      | 不使用 ✅ |
+| scripts/seed_pattern_layer1.py / historical_indicators.py | 未接触 ✅ |
+| unrelated modified                                | 未 stage / 未 commit ✅ |
+| Codex pre-commit (docs commit のため対象外)       | ✅ |
+
+### DB mtime before / after
+
+| DB | before | after |
+|---|---|---|
+| data/fire.db          | May  7 16:12:38 2026 | May  7 16:12:38 2026 (unchanged ✅) |
+| data/fire.develop.db  | May  7 18:14:26 2026 | May  7 18:14:26 2026 (unchanged ✅) |
+| data/fire.staging.db  | May 10 18:22:36 2026 | **May 11 01:35:30 2026** (announcements 1,091 行追加) |
+
+### F062-R5 再開可否
+
+**再開可能** ★。
+
+- DATA-R2 gate **全 5 段 PASS** / `line_send_allowed=True`
+- env / token / recipient は F062-R4 試行時の最終検証から変動なし
+  (length=516 / ASCII=True / no whitespace、recipient prefix='U' length=33)
+- token preflight + recipient masking は F062-R4.1 / R4.2 / F236-R1
+  で全層整備済
+
+ただし、本タスクは「announcements 再 fetch + gate pass 確認」までを
+スコープとし、**F062-R5 再開は HQ (Fujiwara) 判断後に開始**。タスク
+仕様「F062-R5 を勝手に再開しない」を遵守。
+
+### 警告: 5/11 (本日) TDnet 未開示
+
+2026-05-11 (本日) の TDnet 取得は schema parse error 扱い。これは
+当日 16:00 以前の早朝に走らせたため (= TDnet 開示は通常 16:00 以降)。
+本タスクで取得したのは 5/7 + 5/8 のみ。lag=1 営業日 (= 5/11 - 5/8)
+は閾値 5 内なので gate=pass。当日中に 5/11 分が出たら再 fetch して
+lag=0 にすることも可能だが、本タスクではそこまでやらない。
+
+### 軽微改善候補 (本タスク対象外)
+
+- TDnet 1 日単位 fetch を 1 つの runner で 範囲指定 (--from / --to)
+  できるように拡張すれば、`fetch_announcements.py` と整合する。本
+  タスク対象外。
+- 5/11 の schema parse error は「TDnet ページが空 / フォーマット異」
+  だが、log では同じ error message。「empty page」と「real schema
+  change」を区別できると望ましい。本タスク対象外。
+- F286-DATA-R3 cron 化が完了すれば、本問題は自動的に出にくくなる。
+
+### 次タスク (案 A 実施完了後)
+
+1. ★ 案 A 完了報告 → HQ (Fujiwara) が F062-R5 再開を承認
+2. F062-R5 First Production Advisory Small Launch 再実行
+   - 最新 staging から Advisory payload 生成
+   - dry-run → 1 chunk 本番送信
+3. 並走候補:
+   - F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計
+   - F286-DATA-R3 daily refresh cron 化
+   - F242 OpenClaw / F022 FIRE Runner / F013 launchd
