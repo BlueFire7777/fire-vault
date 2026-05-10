@@ -2,7 +2,7 @@
 id: F062-R4
 phase: P5: 通知 / 第 14 章 LINE 通知配信
 priority: 最優先
-status: 停止 (HQ 環境変数未提供のため、real send 未実施。dry-run / real send 共に実行していない)
+status: 停止 (LINE API 401 Unauthorized、token 再確認が必要)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - F062-R3 (LINE production send path 構造的安全性 PASS)
@@ -15,170 +15,184 @@ chapter: 第 14 章 / 第 19 章 R-19-08 / 第 26 章
 
 最終更新: 2026-05-10
 
-## 状態: 停止 (HQ 環境変数未提供)
+## 状態: 停止 (LINE API 401 Unauthorized)
 
-本タスクは「実 LINE API へ 1 通だけ test-message-only を手動発火する
-初回 real send smoke」だが、必要な環境変数が **HQ (Fujiwara) から
-セッションへ提供されていない** ため、タスク仕様の停止条件に従って
-**dry-run / real send を共に実行せず停止** した。
+initial real send で **LINE API が 401 Unauthorized で拒否** したため、
+タスク仕様の停止条件「real sendが 1 通以外」(= 0 通) に該当し停止。
+ただし以下の安全要件はすべて維持され、partial delivery / DB write /
+token leak は発生していない。
 
-## 環境変数チェック結果
+LineBotClient の F278-Pre Q1 実装どおり、401 / 403 は構造的エラー
+として retry せず即 raise → F062-R3 sender が `logger.error` 後に
+propagate → F062-R2 router が `F062R2SendRefused` に wrap せず
+partial state 保持で SendResult 返却 → exit 4。
 
-|  | set? | length | prefix |
-|---|---|---|---|
-| LINE_CHANNEL_TOKEN     | False | 0 | (n/a) |
-| FIRE_LINE_RECIPIENT_ID | False | 0 | (n/a) |
+> ★ 重要: partial_delivery=False / sent_count=0 のため、**retry 可能**
+> な状態 (= 重複送信リスクなし)。
 
-両方未設定のため、停止条件 (= token / recipient 未設定で即停止) に
-該当。タスク仕様 (= 「チャット上で token を要求しない」「token を
-ログに出さない」) を遵守し、Fujiwara への直接要求はしていない。
+## env / gate 検証
 
-## 実施した検証
-
-### 1. 必要 artifact 存在確認 ✅
-- `/tmp/f062_r1_line_preview_payload.json`     74K  (F062-R1 payload)
-- `/tmp/f286_data_r1_3_gate_after.json`         3.3K (DATA-R2 pass gate)
-- `/tmp/f062_r3_completion_report.txt`          10K (F062-R3 完了報告)
-
-### 2. DATA-R2 gate JSON 検証 ✅
-
-| field | value |
+| 項目 | 結果 |
 |---|---|
-| overall_status     | pass ✅ |
-| line_send_allowed  | True ✅ |
-| as_of_date         | 2026-05-08 |
-| db_label           | staging |
-| allow_warning      | False |
-| reasons            | [] (= 全 PASS、refuse 理由 0 件) |
-| gate-1 (prices)    | status=pass ✅ |
-| gate-2 (signals)   | status=pass ✅ |
-| gate-3 (index)     | status=pass ✅ |
-| gate-4 (derived)   | status=pass ✅ |
-| gate-5 (other)     | status=pass ✅ |
+| LINE_CHANNEL_TOKEN_SET     | True (length=197) ✅ |
+| FIRE_LINE_RECIPIENT_ID_SET | True (prefix='U', length=33) ✅ |
+| ~/.fire_secrets/line.env mode | 600 ✅ |
+| DATA-R2 overall_status     | pass ✅ |
+| DATA-R2 line_send_allowed  | True ✅ |
+| DATA-R2 5 段 gate          | 全 pass ✅ |
 
-### 3. 環境変数チェック ✗ (停止条件 hit)
+env から token / recipient は **構造的に正しく** 読み込まれた
+(= length / prefix 整合)。401 は token の値そのものが LINE 側で
+無効と判定されたことを意味する (= 期限切れ / 貼り付けミス / 別 channel
+の token / production と test の取り違え等)。
 
-LINE_CHANNEL_TOKEN / FIRE_LINE_RECIPIENT_ID 両方未設定。
+## 実施結果
 
-「停止して報告」の方針に従い、以下を **実行していない**:
-- 事前 dry-run (`scripts/jobs/run_f062_line_production_send_smoke.py` の dry-run mode)
-- real send smoke (`--send --hq-approved-send ...` 経路)
+### 事前 dry-run (Step 3) ✅
 
-理由:
-- タスク仕様「停止条件」: LINE_CHANNEL_TOKEN / FIRE_LINE_RECIPIENT_ID 未設定で即停止
-- タスク仕様「最重要制約」: token を画面表示・要求しない / 画面に出さない
-- token なしでも dry-run は構造的に可能だが、recipient 未設定の場合
-  `--recipient-id ""` を渡してしまうと argparse で空文字列が通り、
-  runner 側のガードに依存する。タスク仕様は「両方未設定なら停止」と
-  明記しているため、最も保守的に dry-run も実施しない判断とした。
+```
+mode: dry_run
+send_allowed: True
+sent_count: 0
+line_api_call_count: 0
+stub_invocations: 0
+partial_delivery: False
+token_read_count: 0  ← dry-run 経路で env を読まない
+production_callable_built: False
+forbidden_phrase_count: 0
+safety_footer_present: True
+manual_review_required_count: 0  ← test-message-only で selected_rows=[] 化
+exit code: 0
+```
 
-## 実施した安全要件遵守
+### Real send (Step 4) ✗ (401)
 
-| 要件 | 結果 |
+```
+mode: send
+dry_run: False             ← Codex CRITICAL #5 対応で厳密反映
+send_allowed: False
+sent_count: 0
+line_api_call_count: 0     ← 構造的に increment されていない
+stub_invocations: 0
+partial_delivery: False    ← retry 可
+token_read_count: 1        ← --send + --hq-approved-send で env 読みに行った
+production_callable_built: True  ← config 構築は成功 (= length / prefix 検査 PASS)
+hq_approved_send: True
+max_chunks: 1
+test_message_only: True
+forbidden_phrase_count: 0
+safety_footer_present: True
+selected_row_count: 0
+payload_chunks_total: 1
+exit code: 4
+production_outcomes: []
+```
+
+refuse 内訳:
+- `chunk send failed: 0/1 sent before failure`
+- `production_send_callable raised at chunk_index=0: UnauthorizedException: (401)`
+- LINE response: `Authentication failed. Confirm that the access token in the authorization header is valid.`
+- LINE www-authenticate ヘッダ: `error="invalid_token"`
+
+### 安全要件遵守
+
+| 項目 | 結果 |
 |---|---|
-| 送信は 0 通 (= token / recipient 未設定で停止) | ✅ |
-| chat 上で token を要求しない | ✅ |
-| token をログ / report / JSON に出力しない | ✅ (= そもそも送信していない) |
-| LINE 本番送信なし | ✅ |
-| 自動発注なし | ✅ |
-| 楽天証券操作なし | ✅ |
-| Computer Use なし | ✅ |
-| DB write なし | ✅ |
-| TODO Excel 未更新 | ✅ |
-| scripts/seed_pattern_layer1.py 未接触 | ✅ |
-| simulation/research_lane/historical_indicators.py 未接触 | ✅ |
-| unrelated modified file を stage / commit しない | ✅ |
-| --no-verify 不使用 | ✅ |
-| Codex pre-commit (docs commit のため対象外) | ✅ |
+| 送信は 0 通                                         | ✅ (= 1 通も到達せず) |
+| partial_delivery                                   | False ✅ (= retry 可) |
+| token leak 0 (4 artifact 内)                        | ✅ (`grep token /tmp/f062_r4_*.{json,txt}` → 0 件) |
+| LineBotClient response body 内に token 含有        | ✅ (= 401 response に token は含まれない、本物 token は外部に流出していない) |
+| 通常 Advisory payload (銘柄候補 / 注文価格 / 数量 / 執行指示) | 送ろうとしていない ✅ |
+| 自動発注                                          | 0 ✅ |
+| 楽天証券操作                                       | 0 ✅ |
+| Computer Use                                       | 0 ✅ |
+| DB write                                           | 0 ✅ |
+| data/fire.db / fire.develop.db / fire.staging.db    | 全 mtime unchanged ✅ |
+| TODO Excel                                         | 未更新 ✅ |
+| scripts/seed_pattern_layer1.py                     | 未接触 ✅ |
+| simulation/research_lane/historical_indicators.py  | 未接触 ✅ |
+| unrelated modified                                 | 未 stage / 未 commit ✅ |
+| --no-verify                                        | 不使用 ✅ |
+| Codex pre-commit (docs commit のため対象外)        | ✅ |
+
+### 観察された 1 点 (= 改善候補、本タスクでは修正しない)
+
+`scripts/jobs/run_f062_line_production_send_smoke.py` の output_json
+は `production_config.recipient_id` を full string で記録している
+(= F062-R3 設計時に意図したもの、token は length のみ)。
+
+artifact `/tmp/f062_r4_first_real_send.json` に recipient_id (= 'U...'
+本人 ID) が full 形で残っている。本ファイルは `/tmp` 配下で git 管理
+外、外部送信もしないため漏洩リスクは限定的だが、運用次第では
+「length / prefix のみ記録」に絞ったほうが防御的。
+
+→ 改善候補として **F062-R5 後** に検討。本タスクでは現状維持で記録。
 
 ## DB 不変確認
 
-| DB | mtime |
-|---|---|
-| data/fire.db          | 5月 7 16:12:38 (前回値と同じ) ✅ |
-| data/fire.develop.db  | 5月 7 18:14:26 (前回値と同じ) ✅ |
-| data/fire.staging.db  | 5月 10 18:22:36 (前回値と同じ) ✅ |
-
-本タスクで一切 DB 書き込みなし。
+| DB | pre / post mtime | 不変 |
+|---|---|---|
+| data/fire.db          | May  7 16:12:38 / May  7 16:12:38 | ✅ |
+| data/fire.develop.db  | May  7 18:14:26 / May  7 18:14:26 | ✅ |
+| data/fire.staging.db  | May 10 18:22:36 / May 10 18:22:36 | ✅ |
 
 ## token leak 確認
 
-- 本タスクで artifact 新規作成なし (= dry-run / real send 未実施)
-- 既存 /tmp/f062_r3_*.{json,txt} は F062-R3 で生成済み、本タスクで触らない
-- 過去 F062-R3 で `grep -l "DUMMY_TOKEN_FOR_SMOKE" /tmp/f062_r3_*.{json,txt}` → 0 件
-  (= F062-R3 でも leak 0 確認済)
-
-## 実送信内容の確認
-
-- 送信していない (= 0 通)
-- test-message-only でも本物 token / recipient が無いと発火不可
-- 通常 Advisory payload (= 銘柄候補一覧 / 注文価格 / 数量 / 執行指示) を
-  送ろうとしていない
-- 本タスクで送信を試行する箇所はなく、通常 Advisory 送信は **未開始**
-
-## HQ への提供依頼 (= タスク再開条件)
-
-本タスクを再開するには、以下 2 つの環境変数を Fujiwara が **直接 shell
-session に export** する必要がある (= チャット経由では受け取らない):
-
 ```
-# .env や ~/.zshrc に書くのが最も安全
-export LINE_CHANNEL_TOKEN='...'             # LINE Messaging API channel access token
-export FIRE_LINE_RECIPIENT_ID='Uxxxxxxxx...' # Fujiwara 個人 LINE userId (先頭 'U')
+TOKEN_LEAK_HITS: 0
+RECIPIENT_HITS_IN_ARTIFACTS: 1  ← 設計通り (production_config.recipient_id full 記録)
 ```
 
-設定確認方法 (値は表示しない):
+token は 4 artifact のいずれにも平文で含まれていない。本物 token が
+外部 (LINE API 以外) に流出した形跡なし。
 
-```
-python - <<'PY'
-import os
-t = os.environ.get("LINE_CHANNEL_TOKEN")
-r = os.environ.get("FIRE_LINE_RECIPIENT_ID")
-print("token_set:", bool(t), "len:", len(t) if t else 0)
-print("recipient_set:", bool(r), "prefix:", r[:1] if r else "", "len:", len(r) if r else 0)
-PY
-```
+## 通常 Advisory 本番送信は未開始である確認
 
-その後、新しい Claude Code session で改めて F062-R4 タスクを起動する
-ことで、本書の手順 5-6 (= dry-run + real send) を実行できる。
+- `--test-message-only` で payload chunks を 1 個の固定 test message
+  に置換 (= selected_rows=[] / selected_count=0 / send_intent="f062-r3
+  hq approved test message")
+- 銘柄候補一覧 / 注文価格 / 数量 / 執行指示 は構造的に送れない
+- そもそも sent_count=0 (= LINE API 受信前に 401 で停止)
+- 通常 Advisory は **完全に未開始**
 
-## 再実行コマンド (HQ 提供後)
+## LINE app での Fujiwara 受信確認
 
-### 5. 事前 dry-run
+- 受信 0 通 (= sent_count=0、API レベルで拒否)
+- Fujiwara の LINE app / iSPEED 通知に本タスク由来のメッセージは
+  届かない
 
-```
-.venv/bin/python -m scripts.jobs.run_f062_line_production_send_smoke \
-  --payload-json /tmp/f062_r1_line_preview_payload.json \
-  --gate-json    /tmp/f286_data_r1_3_gate_after.json \
-  --recipient-id "$FIRE_LINE_RECIPIENT_ID" \
-  --max-chunks 1 --test-message-only \
-  --output-json       /tmp/f062_r4_pre_real_send_dryrun.json \
-  --completion-report /tmp/f062_r4_pre_real_send_dryrun_report.txt
-```
+## Fujiwara への依頼 (= タスク再開条件)
 
-期待: exit 0 / sent=0 / api=0 / token_read=0 / forbidden 0 / safety footer ✓
+LINE_CHANNEL_TOKEN を再確認してください。401 invalid_token は以下の
+いずれかが原因:
 
-### 6. 初回 real LINE send smoke
+1. token が LINE Developers コンソールで **regenerate** されている
+   (= 旧 token が無効化された)
+2. LINE Channel Type が違う (= Messaging API ではなく LINE Login や
+   別 channel の token を貼ってしまった)
+3. token に余分な空白 / 改行 / 引用符が混入した
+4. 本番 / test channel の取り違え
 
-```
-.venv/bin/python -m scripts.jobs.run_f062_line_production_send_smoke \
-  --payload-json /tmp/f062_r1_line_preview_payload.json \
-  --gate-json    /tmp/f286_data_r1_3_gate_after.json \
-  --send --hq-approved-send \
-  --recipient-id "$FIRE_LINE_RECIPIENT_ID" \
-  --max-chunks 1 --test-message-only \
-  --output-json       /tmp/f062_r4_first_real_send.json \
-  --completion-report /tmp/f062_r4_first_real_send_report.txt
-```
+確認手順:
+- LINE Developers Console → 該当 Provider → Messaging API channel →
+  「Channel access token (long-lived)」を再発行 or 既存値を確認
+- `~/.fire_secrets/line.env` の `LINE_CHANNEL_TOKEN=...` を更新
+- `chmod 600 ~/.fire_secrets/line.env` 維持
+- 再度ターミナルで `source ~/.fire_secrets/line.env` 後に length 確認:
+  ```
+  python3 -c "import os; t=os.environ.get('LINE_CHANNEL_TOKEN'); print('len:',len(t) if t else 0)"
+  ```
+- 一般的な LINE Messaging API channel access token は **約 170-180
+  文字または 200+ 文字** (= 197 文字は妥当範囲)。length 自体は問題
+  なし。値 (= 内容) を再確認。
 
-期待: exit 0 / sent=1 / line_api_call_count=1 / partial_delivery=False
-/ token leak 0 / DB unchanged
+その後、本 F062-R4 タスクをそのまま再起動 (= 同じ vault doc / 同じ
+artifact path) で再 send 試行。
 
-## 次タスク提案
+## 次タスク
 
-1. **HQ (Fujiwara) が LINE_CHANNEL_TOKEN + FIRE_LINE_RECIPIENT_ID を
-    shell session に export する** (= チャット送信ではなく `~/.zshrc` 等)
-2. F062-R4 タスクを再起動 → 上記 5-6 を実行
-3. real LINE 受信を Fujiwara が iSPEED / LINE app で確認
-4. 成功時: F062-R5 First Production Advisory Small Launch
+1. Fujiwara が LINE_CHANNEL_TOKEN を再確認 / 必要なら再発行
+2. F062-R4 を再実行 (= 同 runner、同 artifact)
+3. 401 が解消し sent_count=1 になれば LINE app で受信確認
+4. 受信成功時: F062-R5 First Production Advisory Small Launch
    (max_chunks 1〜2、少数候補、手動レビュー前提)
