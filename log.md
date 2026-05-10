@@ -5773,3 +5773,118 @@ HQ 判断要請 5 項目 (計画書 §9):
   (= production_send_callable 別 path、HQ 承認 flag 必須、
   実 LineBotClient.send_text bind) / F286-DATA-R3 daily refresh
   production 化 / persist runner 統合
+
+## [2026-05-10] milestone | F062-R3 LINE Production Send Path / Final Safety Smoke 完了
+- 目的: F062-R2 で構造的に refuse される実送信 path に、HQ 承認 flag
+  と recipient ID 明示を必須にした上で **別 module 隔離の
+  production_send_callable** を追加。最初は 1 chunk / test message
+  only に限定。本タスク内では実 LINE API 送信は実施せず、HQ 承認後に
+  Fujiwara が手動で発火する設計。
+- 実装ファイル:
+  - agents/line_production_sender.py (218 行、新規、LineBotClient
+    隔離 module)
+  - agents/line_advisory_send.py (+21/-7、production_send_callable
+    引数追加 + _test_send_stub と排他 + production_outcomes field)
+  - scripts/jobs/run_f062_line_production_send_smoke.py (297 行、新規)
+  - tests/agents/test_line_production_sender.py (33 PASS)
+  - tests/scripts/jobs/test_run_f062_line_production_send_smoke.py
+    (13 PASS)
+- 多段 guard (P-1〜P-5 + G-6 + preflight):
+  - P-1 ProductionSendConfig: bool 厳密 (str truthy/int 1 refuse) /
+    channel_token 非空 / recipient_id 非空 / hq_approved is True /
+    max_chunks >= 1 / label 非空
+  - P-2 recipient_id 先頭 1 文字を 'U' (user) / 'C' (group) / 'R'
+    (room) に限定 (= broadcast / multicast 構造的防御)
+  - P-3 各 chunk で safety footer 8 行 + forbidden phrase 13 種を
+    本 module 内で再検査 (defense-in-depth)
+  - P-4 max_chunks 超過は F062R3ProductionRefused
+  - P-5 LineBotClient は **関数内で遅延 import** (= 本 module を
+    import しない限り linebot SDK / token は読まれない構造)
+  - G-6 router 側で _test_send_stub と production_send_callable を
+    排他 (両方指定で F062R2SendRefused、両方 None の send mode は
+    send_allowed=False に強制)
+  - preflight (CRITICAL #3 対応): callable.max_chunks 属性を見て、
+    payload chunks > max_chunks のとき送信前に 0 件で refuse
+    (= partial 通知 / retry 重複の構造的防止)
+  - partial state preserve (CRITICAL #4 対応): chunk loop 途中失敗
+    時、F062R2SendRefused を raise せず partial state 保持で
+    SendResult を返す。SendResult.partial_delivery=True で
+    「retry 厳禁」を caller に明示
+- ★ Codex CRITICAL 5 件と修正:
+  #1: send_text の retry/durable log なし → notification miss
+      → sender 内で logger.error / logger.info で structured log
+        (LineBotClient の internal retry=2 と組み合わせ)
+  #2: send_text 戻り Mapping を success と即断、status='error' を
+      sent 扱い
+      → sender 内で status not in ('ok','dry_run') で raise + log、
+        router 側でも outcome status verify (defense-in-depth)
+  #3: max_chunks=1 default + payload 2+ chunks で partial 通知 +
+      retry 重複
+      → callable に max_chunks 属性 attach、router で preflight
+  #4: multi-chunk send が non-atomic、途中失敗で raise → partial 状態
+      lost、retry 重複リスク
+      → router で chunk loop try/except wrap、partial state preserve
+        + SendResult.partial_delivery=True
+  #5: dry_run = (mode==DRY_RUN or not send_allowed) で partial
+      delivery 後 dry_run=True に倒れる → 「実 LINE 呼んでない」と
+      誤解釈
+      → dry_run = (mode == MODE_DRY_RUN) に厳密反映、partial でも
+        False を保つ
+- CLI 仕様: default dry-run / --send 明示必須 / --hq-approved-send
+  明示必須 / --recipient-id 必須 / --max-chunks 1 default /
+  --test-message-only / --dry-run-line-api / --completion-report
+- exit code: 0 = pass / 2 = refused / 3 = exception / 4 =
+  send_allowed=False
+- smoke 結果 (7 phase):
+  - Phase 1 (dry-run): exit 0 / sent=0 / token_read=0 /
+    callable_built=False
+  - Phase 2 (--send only): exit 4 / build_error="requires
+    --hq-approved-send" / token_read=0
+  - Phase 3 (no token): exit 4 / build_error="token env var not set"
+    / token_read=1
+  - Phase 4 (no recipient): exit 4 / build_error="requires
+    --recipient-id"
+  - Phase 5 (broadcast="all"): exit 4 / build_error="must start with
+    U/C/R"
+  - Phase 6 (mock send + --dry-run-line-api + --test-message-only):
+    exit 0 / sent=1 / line_api_call_count=1 / outcome dict 蓄積 /
+    token NOT leaked
+  - Phase 7 (refuse gate): exit 4 / line_api_call_count=0 / gate
+    refuse 理由が refused_reasons に
+- 安全要件遵守:
+  - 実 LINE API 未呼び出し: Phase 6 で LineBotClient(dry_run=True)
+    を構築したが push_message は構造的に呼ばれない (= send_text が
+    {"status": "dry_run"} を即返却)
+  - token leak 0: production_outcomes / completion_report /
+    output_json に channel_token は平文で含まれない (channel_token_length
+    のみ)、grep -l "DUMMY_TOKEN_FOR_SMOKE" /tmp/f062_r3_*.{json,txt}
+    → 0 件
+  - DB write 0: data/fire.db / fire.develop.db / fire.staging.db
+    全て smoke 前後で mtime unchanged
+  - 構造的隔離: AST 検査で agents/line_advisory_send.py が
+    linebot / notifications.line_bot / agents.line_production_sender
+    / dotenv のいずれも import しない
+  - 排他性検証: _test_send_stub と production_send_callable を両方
+    渡すと F062R2SendRefused / non-Mapping 返却で refuse / 例外を
+    F062R2SendRefused に wrap
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - TODO Excel 未更新
+- tests:
+  - 新規 61 PASS (sender 47 + runner 14)
+  - F062-R2 既存 52 PASS (refuse 文言 + safety_notes + dry_run 厳密
+    反映を F062-R3 形式に追従)
+  - regression 3,192 PASS (= 3,131 baseline + 61 新規)
+- Codex pre-commit: 全 commit 通過 (CRITICAL 5 件即修正)、--no-verify
+  不使用、usage / rate limit / auth error なし
+- 完了報告: /tmp/f062_r3_completion_report.txt
+- 02_todo/F062_R3_line_production_send_smoke.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (LineBotClient 隔離 / HQ 承認 flag
+  必須 / broadcast 防御 / max_chunks 1 default / dry_run_line_api
+  段階導入モード) / F062-R1 payload + DATA-R2 pass gate +
+  --hq-approved-send + --dry-run-line-api で sent=1 /
+  line_api_call_count=1 / token leak 0 確認
+- 次 step (HQ 判断): 実 LINE API 1 chunk / test message 送信 (HQ
+  承認後、Fujiwara が手動で --hq-approved-send + recipient + 本物
+  token で発火) / F286-DATA-R3 daily refresh production 化 /
+  persist runner 統合
