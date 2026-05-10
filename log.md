@@ -5974,3 +5974,55 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク (HQ 提供後): F062-R4 再実行 → real LINE 受信確認 →
   F062-R5 First Production Advisory Small Launch (max_chunks 1〜2、
   少数候補、手動レビュー前提)
+
+## [2026-05-10] milestone | F062-R4 First Real LINE Send Smoke 停止 (401 Unauthorized)
+- 状態: **停止**。HQ 提供 ~/.fire_secrets/line.env 経由で env は
+  正しく読み込まれた (= token length 197、recipient prefix 'U'
+  length 33) が、LINE API が **401 Unauthorized (invalid_token)**
+  で拒否。sent_count=0、partial_delivery=False (= retry 可)。
+- 実施結果:
+  - 事前 dry-run: exit 0 / mode=dry_run / send_allowed=True /
+    sent=0 / api=0 / token_read=0 / forbidden=0 / safety_footer=True
+  - real send: exit 4 / mode=send / dry_run=False (= Codex CRITICAL
+    #5 厳密反映) / send_allowed=False / sent=0 / api=0 /
+    partial_delivery=False / token_read=1 / production_callable_built
+    =True / hq_approved_send=True / max_chunks=1 / test_message_only
+    =True
+  - refuse 内訳: production_send_callable raised at chunk_index=0:
+    UnauthorizedException (401 invalid_token)
+- 安全要件遵守:
+  - 送信は 0 通 (= 1 通も到達せず)
+  - partial_delivery: False (= retry 可、重複送信リスクなし)
+  - token leak 0 (4 artifact 内 grep → 0 件)
+  - LineBotClient の 401 response body に token 含有なし (= 本物
+    token の外部流出なし)
+  - LineBotClient の F278-Pre Q1 実装どおり 401/403 は構造的エラー
+    として retry なしで即 raise → F062-R3 sender が logger.error
+    後に propagate → F062-R2 router が partial state 保持で
+    SendResult 返却
+  - 通常 Advisory payload (銘柄候補 / 注文価格 / 数量 / 執行指示)
+    送ろうとしていない (= test-message-only で固定文に置換、
+    selected_rows=[]、selected_count=0)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - DB write 0 / production / develop / staging.db 全 mtime unchanged
+  - TODO Excel 未更新
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - unrelated modified 未 stage / 未 commit
+  - --no-verify 不使用
+- 観察された軽微改善候補 (本タスクでは修正しない):
+  - production_config.recipient_id を output_json に full 記録
+    (token は length のみ、recipient は full)。/tmp 配下 git 外、
+    外部送信なしで漏洩リスクは限定的だが、F062-R5 後に length /
+    prefix のみへの絞り込み検討
+- 完了報告: /tmp/f062_r4_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md 更新 vault
+- 再開条件: Fujiwara が LINE_CHANNEL_TOKEN を再確認 / 必要なら
+  LINE Developers Console で再発行 → ~/.fire_secrets/line.env を
+  更新 (chmod 600 維持) → F062-R4 タスクを同 vault doc / 同
+  artifact path で再 send 試行
+- 401 invalid_token の典型原因:
+  1. token が regenerate されて旧値が無効化
+  2. LINE Channel Type 違い (Messaging API ではなく LINE Login 等)
+  3. 余分な空白 / 改行 / 引用符が混入
+  4. 本番 / test channel 取り違え
