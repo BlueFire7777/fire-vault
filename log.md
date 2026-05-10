@@ -6167,3 +6167,52 @@ HQ 判断要請 5 項目 (計画書 §9):
     length-only logging)
   - F286-DATA-R3 daily refresh の cron 化
   - F242 OpenClaw / F022 FIRE Runner / F013 launchd
+
+## [2026-05-10] milestone | F062-R4.1 LINE Token ASCII Preflight Guard 完了
+- 目的: F062-R4 の 3 回目試行で発覚した channel_token への U+2028
+  (LINE SEPARATOR、不可視 Unicode 改行) 混入 → HTTP Authorization
+  ヘッダの Latin-1 encode で UnicodeEncodeError、を HTTP 層到達前に
+  preflight で refuse する。F062-R5 前の本番送信 safety 強化。
+- 実装: agents/line_production_sender.assert_production_safe に
+  preflight 3 段検査追加
+  - isascii() == True (違反: "non-ASCII char at position N
+    codepoint U+XXXX")
+  - 全文字 isspace() == False (違反: "whitespace at position N
+    codepoint U+XXXX")
+  - encode("latin-1") 成功 (違反: "failed latin-1 encode at
+    position N")
+- 設計: token 値そのものは raise message に **絶対に含めない**
+  (= length / position / codepoint のみ、log / artifact / chat に
+  token leak しない構造)
+- tests: TestTokenASCIIPreflight 11 件追加
+  - valid ASCII pass / U+2028 refused / U+2029 refused /
+    \n \r refused / \t refused / U+0020 space refused /
+    Japanese U+3042 refused / U+00A0 refused
+  - error message に "Bearer_xyz_super_secret_DO_NOT_LEAK..." 等の
+    識別 fragment が一切含まれない検証
+  - F062-R4 sanitize 後 token と同 length (516) の合成 ASCII pass
+  - dry-run path で token_read_count=0 維持の回帰
+- full pytest: 3,203 PASS (= 3,192 baseline + 11 新規)、回帰 0 件
+- Codex pre-commit: fix / test 両 commit 通過、CRITICAL 0 件
+- 安全要件:
+  - 実 LINE 送信 0 (= 本タスクで runner / send_text 未呼出)
+  - token leak 0 (= raise message に token 値含めない構造)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新
+  - --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- commits:
+  - fire (develop):
+    - dc07d4c fix(F062-R4): add LINE token ASCII preflight guard
+    - f35480e test(F062-R4): add token preflight guard tests
+  - fire-vault (main):
+    - 本 milestone log
+- 完了報告: /tmp/f062_r4_1_completion_report.txt
+- 02_todo/F062_R4_first_real_line_send_smoke.md (= 軽微改善候補 1
+  を「解消済み」に更新)
+- 残課題: 改善候補 2 (production_config.recipient_id を length /
+  prefix のみへの絞り込み) は引き続き F062-R5 後検討
+- 次タスク: F062-R5 First Production Advisory Small Launch (HQ 判断
+  後に開始)

@@ -188,14 +188,17 @@ LineBotClient.send_text 未呼出)。
 - production_outcomes 1 件の chunk_length=234 (= 上記固定文の長さ)
 - 通常 Advisory 本番送信は **完全に未開始**
 
-## 軽微改善候補 (F062-R5 後検討、本タスクでは修正しない)
+## 軽微改善候補 (= 一部解消済み、残りは F062-R5 後検討)
 
-1. **build_production_send_callable に ASCII / latin-1 encode 事前検査
-   を追加**: 今回 3 回目試行で発覚した U+2028 混入問題を、HTTP 層に
-   到達する前に refuse できるようにする
+1. ★ **F062-R4.1 で解消済み**: assert_production_safe に channel_token
+   の ASCII / whitespace / latin-1 encode preflight 検査を追加 (= U+2028
+   等の不可視 Unicode 改行を HTTP 層到達前に refuse、length/position/
+   codepoint のみを raise message に出して token 値は出さない)
+   - fire commit dc07d4c fix(F062-R4): add LINE token ASCII preflight guard
+   - fire commit f35480e test(F062-R4): add token preflight guard tests
 2. **production_config.recipient_id を output_json に full 記録している件**:
    token は length のみだが recipient は full。F062-R5 後に length /
-   prefix のみへの絞り込み検討
+   prefix のみへの絞り込み検討 (← 本残課題)
 
 ## 次タスク
 
