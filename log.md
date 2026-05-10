@@ -5888,3 +5888,49 @@ HQ 判断要請 5 項目 (計画書 §9):
   承認後、Fujiwara が手動で --hq-approved-send + recipient + 本物
   token で発火) / F286-DATA-R3 daily refresh production 化 /
   persist runner 統合
+
+## [2026-05-10] milestone | FIRE-TODO-R1 Pre-Launch TODO Triage 完了
+- 目的: 初回本番 LINE Advisory 送信前に残っている TODO を棚卸しし、
+  6 カテゴリに分類する。Excel は更新せず、提案案のみ作成。
+- 結論: **pre_launch_required = 0 件**。F062-R3 + DATA-R2 で構造的
+  安全性 PASS、Fujiwara が HQ 承認の上で `--hq-approved-send` +
+  本物 token + recipient_id + `--max-chunks 1 --test-message-only`
+  を 1 回手動実行すれば本番運用開始可能。実弾投入完了率 約 98 %。
+- 分類件数:
+  - pre_launch_required:        0 件
+  - post_launch_high_priority:  9 件 (F242 OpenClaw / F022 Runner /
+    F013 launchd / F267 features pipeline / F235 楽天メール /
+    F276 events seeding / F277 例外伝播 / F278 git gov / 新規提案
+    F286-DATA-R3 cron 化)
+  - shadow_or_research:         6 件 (F285 / F286_R2_G/G2/G3 /
+    F286_R1_Sector_Flow / F105 PhaseC2)
+  - hold:                       6 件 (F210_phase_1b 凍結 / F279
+    休日専業 / F287 / F268 / F269 / F281)
+  - integrated_or_done:        87 件 (P0-P9 全完了 + R-prefix 系
+    14 件 + F011 統合済 + F062/F111/F119 元タスクが R-prefix 系で
+    拡張済)
+  - delete_candidate:           1 件 (F050_Paper_Live_Stage_2.md =
+    本体と重複 placeholder)
+- 重要観点:
+  - LINE 本番送信前必須項目: 0 件 (= 構造的に整っている)
+  - DATA freshness 系: DATA-R0/R1/R1.1/R1.2/R1.3/R2 全完了、残は
+    DATA-R3 (cron 自動化) = post_launch_high_priority
+  - F062/F111/F119 統合済: F062-R1/R2/R3、F111-R1〜R4、F119
+    Phase1/2/3+interpretation で完全閉ループ
+  - Lane C / R2-G/G2/G3 / F285: 全て shadow_or_research、本番後
+  - 自動発注 / 楽天操作 / Computer Use 系の危険タスク 0 件
+    (= R-01-08 / 第 04 章で不採用が明文化)
+  - 統合済み扱いすべき task: F011 (= SQLite で統合) / F062 / F111 /
+    F119 / F243
+- Excel 更新案: 33 task の current_status / proposed_status /
+  proposed_category / reason / action を表形式で本書に記載
+  (Excel 自体は更新しない)
+- 安全要件遵守: TODO Excel 未更新 / DB write 0 / LINE 送信 0 /
+  自動発注 0 / 楽天操作 0 / Computer Use 0 / production /develop /
+  staging.db 全 unchanged / scripts/seed_pattern_layer1.py 未接触 /
+  simulation/research_lane/historical_indicators.py 未接触 /
+  unrelated modified 未接触 / --no-verify 不使用
+- 完了報告: /tmp/fire_todo_r1_completion_report.txt
+- 02_todo/FIRE_TODO_R1_pre_launch_todo_triage.md 新規 vault
+- 次タスク: 1) First Real LINE Send Smoke (HQ 承認 + 1 通発火)
+  2) First Production Advisory Small Launch (= 本番運用開始)
