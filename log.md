@@ -6278,3 +6278,64 @@ HQ 判断要請 5 項目 (計画書 §9):
   recipient を full 記録する。F236 範囲のため別 task で対応検討。
 - 次タスク: F062-R5 First Production Advisory Small Launch
   (HQ 判断後に開始)
+
+## [2026-05-11] milestone | F236-R1 LineBotClient Recipient Log Mask 完了
+- 目的: F062-R4.2 で残った最後の recipient leak 経路 (=
+  notifications/line_bot.py の LineBotClient._log が
+  logs/notifications/notifications_line.log に full recipient_id を
+  記録する) を F062-R5 本番 Advisory 送信前に塞ぐ。
+- 実装:
+  - notifications/recipient_mask.py (新規):
+    - mask_recipient(rid) -> dict (= F062-R4.2 と同仕様、prefix /
+      length / type (user/group/room/unknown) / hash8 (sha256 先頭
+      8 hex))
+    - format_masked_recipient_field(rid) -> str (= 1 行 log 用の
+      単一文字列形式 "user:prefix=U:len=33:hash8=ab12cd34")
+    - 依存: hashlib / typing のみ (= 循環 import を避ける独立
+      module)
+  - agents/line_production_sender.py:
+    - mask_recipient 本体定義を削除し notifications.recipient_mask
+      から import + re-export (後方互換維持)
+  - notifications/line_bot.py:
+    - _log で format_masked_recipient_field(to) を使い log file に
+      full recipient_id を書き込まない
+    - format: "{ts}\t{mode}\t{masked_to}\t{safe_msg}"
+    - send_text の戻り value (`r["to"]`) は backward compat のため
+      full のまま (= caller 側で mask する設計、F062-R3 sender は
+      既に outcome から full key を削除済)
+- 出力例 (full recipient_id は出さない):
+  "2026-05-11T03:30:00+00:00\tDRY\tuser:prefix=U:len=33:hash8=ab12cd34
+   \ttest message"
+- tests: 12 件追加 + 既存 1 件追従修正
+  - TestLogRecipientMasking (8): user/group/room/unknown 各 prefix、
+    hash8 deterministic、different recipients → different hash、
+    SEND mode (mock push_message) でも mask 効く、token 値 leak なし
+  - TestRecipientMaskHelper (4): format_masked_recipient_field の
+    user / None / 空 入力、recipient_mask module 独立 import 検証
+  - 既存 TestLog.test_log_creates_directory_and_writes は
+    "Uxxx" in → "Uxxx" not in + masked field assert に切替
+- full pytest: 3,233 PASS (= 3,221 baseline + 12 新規)、回帰 0 件
+- Codex pre-commit: fix / test 両 commit 通過、CRITICAL 0 件
+- 安全要件:
+  - 実 LINE 送信 0 (= 本タスクで runner / send_text 未呼出)
+  - token leak 0 (= F062-R4.1 + send_text のみ token を扱う構造維持)
+  - **recipient_id leak 0** ★ (= LineBotClient log まで含めて
+    全 sink masked、test で full ID 不在を caplog/file 双方検証)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- commits:
+  - fire (develop):
+    - c9fcc6a fix(F236): mask LINE recipient id in notification logs
+    - 7f9fb20 test(F236): add LINE recipient log masking tests
+  - fire-vault (main):
+    - 本 milestone log
+- 完了報告: /tmp/f236_r1_completion_report.txt
+- 残課題: 既存 logs/notifications/notifications_line.log に過去 4 通
+  の SEND/DRY 行が full recipient_id で残存している (= F062-R4 試行
+  時の履歴)。本コード修正以降の新規 log は masked のみ。過去 log の
+  sanitize は別運用判断 (= rotate / 削除 / 個別 sanitize) で対応。
+- 次タスク: F062-R5 First Production Advisory Small Launch
+  (HQ 判断後に開始)

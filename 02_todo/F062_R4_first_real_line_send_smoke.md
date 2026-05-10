@@ -208,9 +208,14 @@ LineBotClient.send_text 未呼出)。
      full pytest 3,221 PASS
 
 注: LineBotClient (= notifications/line_bot.py) の log file
-(logs/notifications/notifications_line.log) は引き続き full recipient
-を full 記録する。これは F236 範囲のため本系列では未着手、別 task で
-F236 の log mask 対応を検討する。
+(logs/notifications/notifications_line.log) も **F236-R1 で解消済み**
+(2026-05-11)。
+- fire commit c9fcc6a fix(F236): mask LINE recipient id in notification logs
+- fire commit 7f9fb20 test(F236): add LINE recipient log masking tests
+- notifications/recipient_mask.py 新規 (= mask_recipient と
+  format_masked_recipient_field を独立 helper として共有)
+- _log は "user:prefix=U:len=33:hash8=ab12cd34" 形式で記録、full
+  recipient は出ない
 
 ## 次タスク
 
