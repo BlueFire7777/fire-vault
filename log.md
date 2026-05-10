@@ -6546,3 +6546,81 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
   Actual PnL Tracking 設計。並走候補: F286-DATA-R3 cron 化 / F242
   OpenClaw / F022 FIRE Runner / F013 launchd
+
+## [2026-05-11] milestone | F062-R5.1 Production Advisory Message UX + Payload Freshness Guard 完了
+- 状態: ★ **完了** (本タスク内で実 LINE 送信なし、tests + dry-run のみ)
+- 解決した F062-R5 の 4 問題:
+  1. 本番送信なのに「dry-run / LINE 送信なし」を含む
+     → message_mode=production で構造的に除外、"本番 LINE 通知" 明示
+  2. base_date 2026-03-01 (= 2 ヶ月前) を本番送信
+     → payload freshness guard (= calendar lag <= 10 日のみ許可)
+  3. 文面が長く機械的、avoid のみで結論不明
+     → compact LINE UX (= 冒頭結論 + 絵文字 badge + 候補 2 行)
+  4. "新規買い検討候補なし" が冒頭で見えない
+     → format_compact_conclusion: avoid のみ → 🔴 結論: 新規買い検討
+       候補なし / boost あり → 🟢 結論: 買い検討候補あり
+- 主要実装:
+  - notifications/templates/research_advisory.py:
+    - MESSAGE_MODE_PREVIEW / MESSAGE_MODE_PRODUCTION 定数
+    - SAFETY_FOOTER_COMMON_LINES (7 行) + 固有 marker 2 種
+    - SAFETY_FOOTER_LINES_PRODUCTION / HEADER_LINES_FIXED_PRODUCTION
+    - safety_footer_lines / header_lines_fixed mode helper
+    - format_header / format_footer / build_advisory_line_preview
+      に message_mode / compact 引数追加
+    - assert_safety_invariants の mode marker 必須 + 反対 marker 不在
+    - COMPACT_LABEL_BADGE / format_compact_conclusion /
+      format_compact_candidate / format_compact_label_section
+  - scripts/jobs/run_f062_research_advisory_line_preview.py:
+    - --message-mode {preview,production} (default: preview)
+    - --compact (default: False)
+    - payload に metadata (message_mode/compact/source_version/
+      rule_version/base_dates/payload_base_date/generated_at_utc)
+  - scripts/jobs/run_f062_line_production_send_smoke.py:
+    - _check_payload_freshness 新設 (mode=production 必須 +
+      payload_base_date と gate-2-signals max_base_date の calendar
+      lag <= max_lag_days)
+    - --max-payload-base-date-lag-days (default 10) 引数
+    - output_json に payload_freshness_check (masked 診断) 追記
+    - _TEST_MESSAGE_TEMPLATE を production marker に切替
+  - agents/line_production_sender.py:
+    - _validate_chunk に production marker 必須 + preview marker 不在
+      検査追加 (production 経路で "dry-run / LINE 送信なし" 混入 chunk
+      を refuse)
+    - footer / forbidden 定数を template から import (= 単一情報源化)
+  - agents/line_advisory_send.py:
+    - footer 検査を template の common 7 行 + marker 2 種いずれか 1
+      に拡張 (両 mode 通過、production 厳格化は sender)
+- tests: 16 件追加 (+ 既存 helper 追従):
+  - template: TestMessageModeProduction (3) / TestCompactLineUX (5)
+  - production runner: TestPayloadFreshnessGuard (6)
+  - R1 runner: TestF062R51RunnerOutputs (2)
+- full pytest: **3,249 PASS** (= 3,233 baseline + 16)、回帰 0 件
+- Codex pre-commit: 全 3 commit (fix UX / fix freshness / test) 通過、
+  CRITICAL 0 件
+- 安全要件 (= 全遵守):
+  - 実 LINE 送信なし (本タスク内、runner / send_text 未呼出)
+  - token / recipient leak 0
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送らない (compact / default 共)
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- commits:
+  - fire (develop):
+    - a311e06 fix(F062-R5): separate production advisory message mode
+      and add compact LINE format
+    - 86731c5 fix(F062-R5): add production payload freshness guard
+      + production-marker chunk check
+    - 039a4a4 test(F062-R5): add production message UX and freshness
+      tests
+  - fire-vault (main): 本 milestone log + F062-R5 vault doc 追記
+- 完了報告: /tmp/f062_r5_1_completion_report.txt
+- 注: ユーザー指示の 5 commits は template ファイル単一に
+  message_mode + compact が両方入る構造から file 単位分割が現実的
+  でないため、fix(message_mode) と feat(compact) を 1 commit に統合
+  した 4 commits 構成 (= レビュー粒度のみ集約、変更量は同一)
+- 次タスク: F062 系次回送信は production + compact を default 化、
+  F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計、並走で
+  F286-DATA-R3 cron 化 / F242 OpenClaw / F022 FIRE Runner / F013
+  launchd
