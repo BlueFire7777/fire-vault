@@ -6480,3 +6480,69 @@ HQ 判断要請 5 項目 (計画書 §9):
     を区別する error 化
   - F286-DATA-R3 cron 化で本問題が再発しにくくなる
 - 次タスク: HQ (Fujiwara) が F062-R5 再開を承認 → F062-R5 再実行
+
+## [2026-05-11] milestone | ★ F062-R5 First Production Advisory Small Launch 成功
+- 状態: ★ **完了**。案 A (announcements 再 fetch) で gate=pass 回復
+  後の F062-R5 再開で、初回本番 Advisory 1 通送信成功。Fujiwara LINE
+  app 受信確認待ち。
+- 結果:
+  - exit: 0 / mode: send / dry_run: False / send_allowed: True
+  - sent_count:           **1** ★
+  - line_api_call_count:  **1** ★
+  - partial_delivery:     False
+  - hq_approved_send:     True / max_chunks: 1
+  - production_outcomes:  1 件 (chunk_index=0 / status=ok /
+    dry_run_line_api=False / chunk_length=1892 / recipient_type=user
+    / recipient_hash8=b344b213)
+  - refused_reasons:      []
+- payload 生成 (= 古い smoke payload を使い回さず最新 staging から):
+  - F111-R4 runner: source=r2f4_baseline_v1 / rule=r2g3_recommended_v2
+    / base_date=2026-03-01 (= r2f4_baseline_v1 の最新)
+    candidate_count=30 / boost=0 / avoid=30 / caution=0 /
+    auto_order_allowed_true=0 / manual_review=30
+  - F062-R1 line preview: max_candidates=8 / max_per_label=4 /
+    include avoid+boost_with_avoid+caution+boost_with_caution+boost
+    selected=4 (= avoid 系のみ) / chunks=1 (chunk_length=1892) /
+    forbidden_phrase=0 / safety_footer=True / auto_order=0 /
+    manual_review=4
+- env: token length=516 / ASCII=True / no whitespace、recipient
+  prefix='U' length=33。F062-R4 試行時から変動なし。
+- DATA-R2 gate: overall=pass / line_send_allowed=True / 5 段全 PASS
+- 安全要件 (= 全遵守):
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない (= F062-R1 template
+    設計、forbidden_phrase=0)
+  - max_chunks=1 固定 / selected=4 (= 5-10 範囲内)
+  - --send + --hq-approved-send 両指定
+  - recipient Fujiwara 個人宛 (= 先頭 'U'、artifact / log は masked のみ)
+  - token 平文出力 0 / full recipient leak 0 (artifact 全件 + LINE log
+    file を grep)
+  - LINE log: SEND 行に masked (`user:prefix=U:len=33:hash8=b344b213`)、
+    本文 preview に注文 / 価格 / 数量なし
+  - partial_delivery=False (= retry 不要)
+  - production / develop DB 接触なし (= mtime unchanged)
+  - staging DB は案 A の announcements fetch 時のみ touch、本送信では
+    touch なし
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- LINE log:
+  2026-05-10T16:50:14Z SEND user:prefix=U:len=33:hash8=b344b213
+    "FIRE Research Advisory Preview\ndry-run / LINE 送信なし / 自動発注
+    なし\n手動レビュー必須\nsource: r2f4_baseline_v1 / r2g3_recommended_v2..."
+- 観察事項:
+  - r2f4_baseline_v1 の最新 base_date は 2026-03-01 (= R2-F4 で生成
+    分のみ、現実時点から 2 ヶ月以上前)。「初回本番 Advisory + Fujiwara
+    手動レビュー前提」として送信、文面に source / base_date 明示。
+  - boost 系候補 0 件 (= r2f4_baseline_v1 では F119 evaluate が boost
+    判定する候補なし)、全 avoid 系。
+- 完了報告: /tmp/f062_r5_completion_report.txt
+- 02_todo/F062_R5_first_production_advisory_small_launch.md (= 本番送信
+  実施結果 section 追記、status を「完了 ★」に更新)
+- commits:
+  - fire (develop):  変更なし (= コード変更なし、runner 実行のみ)
+  - fire-vault (main):
+    - 本 milestone log + F062-R5 vault doc 更新
+- 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
+  Actual PnL Tracking 設計。並走候補: F286-DATA-R3 cron 化 / F242
+  OpenClaw / F022 FIRE Runner / F013 launchd
