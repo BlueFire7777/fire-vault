@@ -5529,3 +5529,85 @@ HQ 判断要請 5 項目 (計画書 §9):
   refuse 時は本番送信 refuse) / DATA-R1.2 銘柄絞り込み拡大 (50 →
   500 → 全件、gate-1 coverage を 4000+ まで埋める) / persist
   runner 統合 (derived / signals)
+
+## [2026-05-10] milestone | F286-DATA-R1.2 Refresh Coverage Expansion + Derived/Signals Refresh 完了
+- 目的: DATA-R2 で gate-1 prices coverage 不足 (10 < 4000) と
+  gate-4 derived stale が refuse / warning として検出された状態を、
+  既存 DATA-R1.1 / persist runner で段階拡大して改善する。
+  fire 側コード変更なし、運用 smoke + docs のみ。
+- 実施 phase:
+  - Phase 1: prices --symbols-limit 50 staging write (inserted=50
+    / status=ok / 429 hit 0)
+  - Phase 2: prices --symbols-limit 500 staging write (inserted=500
+    / status=ok / 429 hit 数回 / client retry 1 回で復帰)
+  - Phase 2b: prices --symbols-limit 1500 staging write
+    (inserted=1499 / status=ok / 429 hit 1 回 / 17 分 / client
+    retry 1 回で復帰)
+  - Phase 3-A: derived mini_100 persist (eligible=42 / inserted=42
+    / 7 指標 stats 出力、max_base_date 5/1 → 5/8 追加)
+  - Phase 3-B: signals 再生成 = 省略 (= 既に r2d_v1 max=2026-05-09
+    / 109 codes で gate-2 pass)
+  - Phase 4: DATA-R2 gate 再実行
+- before/after metrics:
+  - prices distinct_codes_at_max: 10 → 1499 (★ ×149.9 改善)
+  - prices rows: 2,080,846 → 2,082,335 (+1489)
+  - prices max_date: 2026-05-08 (変わらず)
+  - derived max_base_date: 2026-05-01 → 2026-05-08 (★ +5 営業日)
+  - derived rows: 3,708 → 3,750 (+42)
+  - signals (r2d_v1): max=2026-05-09 (変わらず)
+- DATA-R2 gate before/after:
+  - gate-1 prices: refuse → refuse (1499 < 4000、coverage 大幅改善
+    だが threshold 未達)
+  - gate-2 signals: pass → pass
+  - gate-3 index: pass → pass
+  - gate-4 derived: ★ warning → pass (lag=5 → lag=0、warning 解消)
+  - gate-5 other: pass → pass
+  - overall_status: refuse → refuse (gate-1 のみ依然 refuse)
+  - line_send_allowed: False → False (= 必須 refuse safe-by-default)
+  - exit code: 4 → 4
+- rate limit 安全:
+  - 全 phase で 429 連続 retry exhaustion なし
+  - DATA-R1.1 で実装した rate limit safe break は今回発火せず
+  - 4500 (HARD_MAX_SYMBOLS) は 50-60 分見込みのため本タスクで未試行
+- 安全要件遵守:
+  - DB write は staging.db のみ (= 3 段 staging guard 通過後)
+  - production / develop / staging.db 全 last_modified 確認:
+    staging 5/10 16:23 → 5/10 17:25 (write された)
+    develop 5/7 18:14 → unchanged ✅
+    fire (production) 5/7 16:12 → unchanged ✅
+  - LINE 本番送信なし / token 直接読み込みなし / order / broker /
+    楽天 / Computer Use / Playwright / Selenium / subprocess
+    不使用は維持
+  - rate limit 時は連続 retry せず safe break (= 今回未発火)
+  - scripts/seed_pattern_layer1.py 未接触
+  - simulation/research_lane/historical_indicators.py 未接触
+  - fire 側 commit なし (= 運用 smoke のみで完結)、unrelated を
+    巻き込まない
+  - TODO Excel 未更新
+- tests:
+  - 新規 tests なし (運用 smoke のみで完結)
+  - regression / pytest 実行なし (コード変更ないため不要)
+- Codex pre-commit:
+  - fire 側 commit なし → Codex pre-commit hook 未走行
+  - --no-verify 未使用 (fire-vault 2 commit とも flag 不使用)
+  - usage limit / rate limit / auth error なし
+- artifact:
+  - /tmp/f286_data_r1_2_phase1.json (Phase 1)
+  - /tmp/f286_data_r1_2_phase2.json (Phase 2)
+  - /tmp/f286_data_r1_2_phase2b.json (Phase 2b)
+  - /tmp/f286_data_r1_2_phase3a_derived.json (Phase 3-A)
+  - /tmp/f286_data_r2_after.json (Phase 4 gate 再実行)
+  - /tmp/f286_data_r2_after.txt
+  - /tmp/f286_data_r1_2_completion_report.txt
+- commit: c818327 (vault) → (本 commit) log
+- 02_todo/F286_DATA_R1_2_refresh_coverage_expansion.md 新規 vault
+- ★ Go/No-Go: 構造的安全性 PASS (rate limit safe / staging-only
+  write / production-develop unchanged) / coverage 大幅改善
+  (10 → 1499 銘柄、×150) / gate-4 derived warning 解消 / gate-1
+  prices は依然 refuse (1499 < 4000) のため次タスクで残り 2501
+  銘柄分を update して完全 pass を目指す
+- 次 step (HQ 判断): DATA-R1.3 残り 2501 銘柄分の prices update
+  (= --symbols-limit 4500 で 50-60 分の long-running smoke、または
+  4500 を 1500 単位 3 回に分割) → gate-1 完全 pass / F062-R2
+  LINE Send 分離 (gate を組み込み、refuse 時は本番送信 refuse) /
+  persist runner 統合 (derived / signals 自動連鎖)
