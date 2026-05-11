@@ -7020,3 +7020,70 @@ HQ 判断要請 5 項目 (計画書 §9):
   r2f4_baseline_live_v1 / 2026-05-09 の 109 行は再び消失予定。
   F062-R5.2 本起動は 5/11 〜 5/17 内に、または FIRE-OPS-R0 再発防止策
   案 1 (= 本番運用データを production に書く運用統一) を並行設計
+
+## [2026-05-11] milestone | ★ F062-R5.2 First Production Advisory Small Launch 成功 (3 段目)
+- 状態: ★ **完了**。F286-DATA-R1.5 / R1.6 完了後の 3 段目試行で
+  F119 wired 本番 Advisory 1 chunk 送信成功。Fujiwara LINE app
+  受信確認待ち。
+- 試行履歴 (= F062-R5.2 series):
+  1 段目 (5/11 07:30) 停止: staging.db 巻き戻り (= F282 weekly snapshot)
+  (案 A、F286-DATA-R1.4) 11:00 restore: snapshot 前 bak から復元
+  2 段目 (5/11 11:25) 停止: r2f4_baseline_v1 latest=2026-03-01 古さ
+                              で freshness guard refuse、HQ 判断「停止」
+  (再生成、F286-DATA-R1.5) 11:48: r2f4_baseline_live_v1 / 2026-05-09
+                                   staging 書込
+  (F119 wiring、F286-DATA-R1.6) 12:34: F119 historical artifact 適用、
+                                        non_neutral=30
+  **3 段目 (5/11 13:01) ★ 成功**: F119 wired 本番 Advisory 1 chunk
+                                    送信成功
+- 結果:
+  - exit: 0 / mode: send / dry_run: False / send_allowed: True
+  - sent_count: **1** ★
+  - line_api_call_count: **1** ★
+  - partial_delivery: False
+  - dry_run_line_api: **False** (= 実 push_message 呼出)
+  - production_callable_built: True / hq_approved_send: True
+  - max_chunks: 1 / payload_chunks_total: 1
+  - forbidden_phrase_count: 0 / safety_footer_present: True
+  - manual_review_required_count: 8 / auto_order_allowed_true_count: 0
+  - production_outcomes: 1 件 (chunk_index=0 / status=ok /
+    chunk_length=955 / recipient_type=user / recipient_hash8=b344b213)
+  - payload_freshness_check: lag_calendar_days=0 (natural pass)
+- payload 内容 (= F286-DATA-R1.5/R1.6 由来):
+  source_version=r2f4_baseline_live_v1 / rule_version=r2g3_recommended_v2
+  / base_date=2026-05-09 / message_mode=production / compact=True
+  / selected_count=8 (boost_with_avoid=4 / boost_with_caution=4)
+  冒頭 "🟢 結論: 買い検討候補あり"
+- LINE log (= F236-R1 masked):
+  2026-05-11T04:01:22Z SEND user:prefix=U:len=33:hash8=b344b213
+    "FIRE 本番 Advisory...🟢 結論: 買い検討候補あり..."
+- 安全要件 (= 全 ✅):
+  - 送信は 1 通だけ (--max-chunks 1)
+  - --send + --hq-approved-send
+  - token / recipient 平文出力 0
+  - TOKEN_LEAK / FULL_RECIPIENT artifact 全件 grep 0 件
+  - partial_delivery=False (retry 不要)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - production fire.db / develop fire.develop.db / staging fire.staging.db
+    全 mtime unchanged (= 本タスク内 DB write 0、F286-DATA-R1.5 末尾の
+    staging 状態 5/11 11:48:57 / 4.8 GB を維持)
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- Fujiwara LINE app 受信確認 (依頼):
+  送信時刻 2026-05-11T04:01:22 UTC = 13:01 JST
+  送信件数 1 件 (重複なし)
+  冒頭 "🟢 結論: 買い検討候補あり" / chunk_length=955 / Safety footer
+  8 行 (production version) / 注文 / 価格 / 数量 / 執行指示なし
+- 完了報告: /tmp/f062_r5_2_completion_report.txt (= 既存ファイル上書)
+- 02_todo/F062_R5_2_production_compact_advisory_launch.md 3 段目 section 追記
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、既存 runner + payload 使用)
+  - fire-vault (main): 本 milestone log + F062-R5.2 vault doc 更新
+- 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
+  Actual PnL Tracking 設計。並走候補: FIRE-OPS-R0 再発防止策案 1
+  (= 本番運用データを production に書く運用統一) / 03_design F282
+  運用ルール明文化 / F286-DATA-R3 cron 化 / F062 系の運用反復
+  (= 次回以降は本パイプライン再利用、F282 next snapshot 5/18 07:00
+  JST までに R1.5/R1.6 再実行が必要)
