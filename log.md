@@ -8334,3 +8334,102 @@ consistency.py の 3 ファイル合算)。
 - 本 entry 後の commit (= Wave 7 plan + 3 design doc + audit incident +
   results + log)
 - fire develop の 1 commit は別系統 (= CLAUDE.md 完了 table)
+
+## [2026-05-12] codex | FIRE-CODEX-R1 v1.1 Wave 8 完了 (W8-0-fix + REPORT-R1 impl + DATA-R3 sub-D2.3、CRITICAL 0 / HIGH 5→1 residual / 3,751 PASS)
+
+### HQ Wave 8 approve 受領 (= 2026-05-11)
+
+- W8-0-fix: TOCTOU + output path + NFKC 解消 承認
+- REPORT-R1 implementation: read-only aggregators + Markdown + dry-run runner + tests 承認
+- DATA-R3 sub-D2.3 --dry-run option追加: connection probe only 承認
+- W8-1 staging UPDATE smoke: 実行未承認 (= 別途 HQ 承認)
+- W4.1-B / cron sub-D3 / staging write: 凍結継続
+
+### Wave 8 投入結果 (= 10 sub-task)
+
+Phase 1 impl (= Codex 3 並列):
+- W8-1 W8-0-fix impl + tests (= 65 PASS)
+- W8-2 REPORT-R1 aggregators + tests (= 19 PASS)
+- W8-3 REPORT-R1 daily_report + markdown + runner + tests (= 33 PASS、合計 52)
+- W8-4 DATA-R3 sub-D2.3 --dry-run × 4 runner + tests (= 25 PASS)
+
+Phase 2 audit (= Codex 3 lane 順次):
+- W8-5 W8-0-fix audit: CRITICAL 0 / HIGH 1 (TOCTOU partial)
+- W8-6 REPORT-R1 audit: CRITICAL 0 / HIGH 2 (renderer 非純関数 + dangling symlink) / MEDIUM 2
+- W8-7 DATA-R3 sub-D2.3 audit: CRITICAL 0 / HIGH 2 (auth handling + generic exception) / MEDIUM 2
+
+Phase 3 fix:
+- W8a-fix: W8-5 + W8-7 HIGH 3 件解消 (= TOCTOU FD/inode + 401/403 + generic catch)
+- W8b-fix: W8-6 HIGH 2 + MEDIUM 2 解消 (= renderer 純関数化 + dangling symlink + completion-report + goal fallback)
+- W8a-fix-2 (= 本線手動): Codex pre-commit CRITICAL 解消 (probe external API no-op、env + DB のみ)
+
+Phase 4 final audit:
+- W8c-final-audit: CRITICAL 0 ★ / HIGH 1 residual (W8-5 sqlite3 標準 API 制約) / 新規 regression 0
+
+### W8-5 HIGH #1 residual TOCTOU (= HQ 判断仰ぐ documented risk)
+
+sqlite3 標準 API では `sqlite3.connect(str(path))` 後の実際の FD/inode を
+直接検証できないため、connect 中 path 差し替え race の完全閉鎖困難。
+W8a-fix で導入した `os.open(O_NOFOLLOW) + fstat` pre-check + PRAGMA
+database_list post-verify で TOCTOU window 大幅縮小、しかし完全閉鎖は
+不可。adversarial 前提 + 単一 user dev 機環境では現実化困難、W8-1 staging
+UPDATE smoke は HQ 明示承認時に再評価。
+
+### Codex pre-commit CRITICAL 即修正 (= W8a-fix-2)
+
+- 指摘: f100/f101 `_probe_external_api` が unauthenticated GET、本番では
+  常時 401/403 → exit 2 で probe 常時 fail
+- 修正: f100/f101 の probe を **no-op 化**、env + DB のみ verify
+- 理由: probe で auth 込み GET は secret 値読出 + 本番認証 fetch と相反
+- 対応 test: 401/403/503 connectivity_fail を「probe doesn't call external
+  API」test に置換
+
+### fire develop split commit (= 4 件)
+
+- 7247010 feat(F286-PNL-R3): W8-0-fix hardening
+- 637cea1 feat(F286-REPORT-R1): Daily PnL Report Generator
+- b20c92b feat(F286-DATA-R3): --dry-run × 4 sub-runners + auth/exception + probe simplification
+- cb55b9a docs+test(FIRE-CODEX-R1): Wave 8 完了 table + whitelist W8-3 runner
+
+### 安全 (Wave 8 全 ✓)
+
+- 実 LINE 送信 0 通 (= SEND 件数 4 のまま) / DB write 0
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0 (= W8a-fix-2 で外部 API call も 0)
+- 楽天 / 自動発注 / Computer Use / Playwright なし
+- workflow 変更 0 / --no-verify 不使用
+- cron / launchd / crontab 本番登録 0 (= sub-D3 凍結継続)
+- W4.1-B F062 経由 smoke 保留継続
+- W8-1 staging UPDATE smoke 実行は HQ 明示承認後 W9 で再評価
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+- subprocess --write 0 / subprocess env に secret 0
+
+### 並列効果
+
+- Wave 8 実時間 約 90-120 分 (= 最大 3 lane Codex 並列 + fix 2 + final audit)
+- 本線単独推定 360-480 分
+- 速度向上 **約 70-75% 短縮**
+- Wave 1-8 通算で 65-80% 短縮を **8 wave 連続達成** ★
+
+### 回帰
+
+3,751 PASS (= 3,637 baseline + 114 件新規)。
+W8-1+W8a-fix: +14+5 = 19 件 (65 PASS in 関連 path)
+W8-2: +19 件
+W8-3: +33 件 (52 PASS in tests/report/)
+W8-4+W8a-fix+W8a-fix-2: +25+5 = 30 件 (897 PASS in tests/scripts/jobs/)
+W8b-fix: +13 件
+
+### HQ 判断論点 (= 5 件)
+
+1. Wave 8 完了 → 次フェーズ進行可否 (推奨: approve)
+2. W8-5 HIGH #1 residual TOCTOU の受容判定 (推奨: 案 1 documented risk 受容)
+3. W9-1 W8-1 staging UPDATE smoke 実行判定 (= HQ 別 approve)
+4. W9-2 REPORT-R1 weekly/monthly 着手判定
+5. W9-3 DATA-R3 sub-D2.3.x staging write 個別 approve
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 8 plan + results + log)
+- fire develop の 4 commit は別系統 (= 上記)
