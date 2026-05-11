@@ -7229,3 +7229,41 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
   Actual PnL Tracking 設計。並走候補: FIRE-OPS-R0 再発防止策案 1 /
   03_design F282 運用ルール明文化 / F286-DATA-R3 cron 化
+
+
+## [2026-05-11] milestone | F062-R5.5 Practical Buyability Card UX 実装完了
+
+- F062-R5.3 card mode (chunk_length 491、48.6% 短縮) は情報量不足だったため、
+  card mode の superset として buyability_mode を実装。3 commits:
+  - feat(F062-R5): add practical buyability card UX (04516e1)
+  - test(F062-R5): add practical buyability card UX tests (1c39083)
+  - docs(F062-R5): log practical buyability card result (本コミット)
+- 新規モジュール / 関数:
+  - BUYABILITY_LABEL_VERDICT / BUYABILITY_LABEL_FOCUS
+  - _short_flag (F119 flag 詳細統計を payload JSON 側に残し文面 key のみ)
+  - format_buyability_conclusion (input_counts + selected_counts、Codex
+    CRITICAL F062-R5.3 #2 互換、表示 Top N で「慎重寄り」判定)
+  - format_buyability_overview / format_buyability_candidate
+  - build_advisory_line_preview(buyability_mode=...) (card_mode の superset)
+- runner: --buyability-mode + payload metadata.buyability_mode
+- 結論判定:
+  - 入力全体で「買い検討/見送り/該当なし」(F062-R5.3 #2 原則維持)
+  - 表示 Top N で「慎重寄り」修飾 (= 画面と結論文言を整合)
+- dry-run smoke (= F286-DATA-R1.6 の 30 件 advisory_preview、--card-top 5):
+  - chunks=1 / chunk[0] length=1,086 / selected=5 (= 全 boost_with_avoid)
+  - 結論: 🟠 買い検討候補あり。ただし慎重寄り ★ (= 画面と整合)
+  - forbidden_phrase_count=0 / safety_footer_present=True
+- F062-R5 シリーズ文面進化:
+  F062-R5 1,892 → R5.2 955 → R5.4 491 → R5.5 1,086 (= 情報密度↑)
+- tests: 18 件追加 (template 15 + runner 3)、回帰 3,288 PASS
+- 安全:
+  - 実 LINE 送信 0 / DB write 0 / token-recipient 平文 0
+  - 注文価格・数量・執行指示は構造的に出さない
+  - 3 DB 全 mtime unchanged
+  - TODO Excel / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py 全て未接触
+- Codex pre-commit: feat / test ともに OK
+- 次タスク: HQ 判断 (案 Y1: F062-R5.6 として --buyability-mode で本番送信、
+  案 Y2: F286-PNL-R1 設計)。並走候補: 銘柄名 (name 列) 埋め / FIRE-OPS-R0
+  再発防止策案 1 / F282 weekly snapshot 次回 (5/18 07:00 JST) 前に再送
+- 02_todo/F062_R5_5_practical_buyability_card_ux.md
