@@ -6805,3 +6805,74 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ (Fujiwara) が F062-R5.2 再起動タイミングを判断。
   並走候補: FIRE-OPS-R0 再発防止策案 1 実装、F286-DATA-R3 cron 化、
   F282 運用ルール明文化
+
+## [2026-05-11] milestone | F062-R5.2 再開試行 2 段目停止 (HQ 判断「本タスク停止」)
+- 状態: F286-DATA-R1.4 で staging restore 完了し DATA-R2 gate pass
+  復活した状態で F062-R5.2 を再開。env / gate 全 PASS、しかし
+  r2f4_baseline_v1 の latest base_date が 2026-03-01 で freshness
+  guard (default 10 days) で refuse される予定であることを Fujiwara
+  に提示。HQ 判断「本タスク停止」を受領し送信せず停止。
+- env / gate (post-restore):
+  token length=516 / ASCII=True / no whitespace
+  recipient prefix='U' length=33
+  DATA-R2 overall=pass / line_send_allowed=True
+  gate-2-signals max_base_date=2026-05-09 (= 全 source 横断 max、
+    r2d_v1 由来)
+- r2f4_baseline_v1 状態:
+  latest base_date = **2026-03-01** (109 rows / 109 codes)
+  → F286-R2-F4 broader historical sampling で生成された分のみ存在、
+    本タスク現実時点 (2026-05-11) から 69 calendar days 前
+- freshness guard 評価:
+  payload_base_date (r2f4_baseline_v1 max): 2026-03-01
+  gate signal max_base_date:                  2026-05-09
+  calendar lag:                                **69 days** (>> 10 default)
+  → F062-R5.1 freshness guard が refuse 予定
+- HQ (Fujiwara) 提示 3 案:
+  A: --max-payload-base-date-lag-days 100 で guard 緩めて r2f4
+     / 2026-03-01 を送信
+  B: r2d_v1 (latest 2026-05-09) で送信 (= タスク仕様 source 違反)
+  C: 本タスク停止 + r2f4_baseline_v1 を最新 base_date まで再生成
+     する別 task を提案
+- HQ 採用: **案 C (本タスク停止)** ★
+- HQ 理由:
+  - r2f4_baseline_v1 の latest_base_date が 2026-03-01 で古く、
+    F062-R5.1 freshness guard 設計意図に反する
+  - --max-payload-base-date-lag-days 100 で緩めるのは不可
+    (= guard を実質無効化、F062-R5.1 設計を否定)
+  - r2d_v1 は F286-R2-F4 で baseline 本線として採用していない
+    研究 R2 中間 source、本番初回 Advisory に使わない
+  - 現状で送信可能な production source_version が存在しないと判断
+- 実施せず:
+  - F111-R4 advisory rows 生成 / F062-R1 payload 生成
+  - 送信前 dry-run / 本番 1 chunk 送信
+  - token / recipient leak 検査 (送信していないため artifact 不在)
+- 安全要件 (= 全遵守):
+  - 送信 0 通 / LineBotClient.send_text 未呼出
+  - --max-payload-base-date-lag-days を勝手に緩めない ✅
+  - source_version を勝手に r2d_v1 に変えない ✅
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - token / recipient 平文出力 0
+  - DB write 0 (= gate runner read-only)
+  - production fire.db / develop fire.develop.db mtime unchanged
+  - staging fire.staging.db は F286-DATA-R1.4 restore 時点 (5/11
+    11:20:59 / 4.8 GB) で本タスク内 touched なし
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- 完了報告: /tmp/f062_r5_2_completion_report.txt
+- 02_todo/F062_R5_2_production_compact_advisory_launch.md
+  (2 段目停止 section 追記)
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、gate runner read-only)
+  - fire-vault (main): 本 milestone log + F062-R5.2 vault doc 追記
+- 次タスク提案 (HQ 指示):
+  ★ **F286-DATA-R1.5 Latest Baseline Signal Regeneration for
+     Production Advisory**
+     目的: r2f4_baseline_v1 を最新 base_date まで再生成して
+           freshness guard を自然に通せる状態にする
+     制約: LINE 送信なし / --allow-warning 不可 / guard 緩めない /
+           source 勝手変更しない / staging のみ write / production
+           / develop 無触 / TODO Excel 未更新
+- 並走候補: FIRE-OPS-R0 再発防止策案 1 設計レビュー / 03_design
+  F282 運用ルール明文化 / F286-DATA-R3 cron 化
