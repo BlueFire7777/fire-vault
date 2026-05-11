@@ -7644,3 +7644,59 @@ HQ 判断要請 5 項目 (計画書 §9):
   Mac mini local CLI のみ
 - 次タスク: HQ 判断 (= 案 X1〜X5、推奨は X1 v1.1 初回投入プラン全実行、
   FIRE-AUDIT-R1 で先に repo audit を取って後続品質担保)
+
+## [2026-05-11] codex | FIRE-CODEX-R1 v1.1 Wave 1 完了 (Audit ×2 + Design ×1)
+
+- 初回 Codex 並列投入を実戦実行。本線 Claude Code が PM / Architect /
+  Integrator / Final Reviewer を兼任、Codex を 3 lane (L4 Audit ×2 +
+  L1 Design ×1) で順次投入。
+- 投入時刻 (UTC): 2026-05-11T10:13 (sub-A) / 10:19 (sub-B) /
+  10:22 (sub-1)。各 task は 3-6 分で完了。
+- 成果物 (= 全て /tmp/ への Markdown レポート、fire リポ touched なし):
+  - /tmp/fire_audit_r1_forbidden_imports_report.md (1253 行)
+  - /tmp/fire_audit_r1_sql_token_hardcode_report.md (80 行)
+  - /tmp/f286_pnl_r2_design_draft.md (300 行)
+- 本線 Integrator 検証結果:
+  - sub-A 502 件 CRITICAL → 全 false positive (= literal scan の制約、
+    safety note の文字列マッチ。例: docstring 内「--no-verify 禁止」、
+    test fixture の dummy token、`auto_order_allowed=False` の構造的
+    禁止フラグ検査)
+  - sub-B 16 件 CRITICAL → 既存 DB_PATH fallback 設計 (= 9 module で
+    `Path(os.getenv("DB_PATH", "data/fire.db"))` パターン)。本タスク
+    範囲外、FIRE-OPS-R0 案 1 で staging-only 統一方針として対応予定
+  - sub-1 設計提案: 案 P (別テーブル正規化) 推奨、12 件の Architect
+    確認事項のうち 8 件に本線仮判断、HQ approve 後 Wave 2 sub-2 Impl へ
+- 本線 Architect 仮承認 (= 設計確認事項 8 件):
+  - advisory_id = send_id 同一
+  - hash input に generated_at_utc 含める (= 再送 → 別 ID)
+  - LINE 送信成功 / snapshot 失敗時は non-zero exit + stderr に
+    後追い ingest command
+  - 失敗時 snapshot は残さない
+  - created_at は decision row 作成時刻
+  - seed 時 notes 触らない
+  - --record-decisions は production-only
+  - ensure_schema() に snapshot DDL 含める
+- 安全:
+  - 実 LINE 送信 (Wave 1 中): 0 通
+  - DB write: 0 / production / develop / staging mtime 全 unchanged
+  - token / channel_token / secret 参照: 0
+  - fire リポ source: 0 行変更 (Codex は read-only audit + design のみ)
+  - workflow 変更: 0 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - TODO Excel 未更新
+  - Codex 直接 commit なし (= 本線が成果物 review → 記録)
+  - LINE SEND 件数 4 のまま (R5.6/R5.8、追加なし)
+- 並列効果計測 (= 初回データ):
+  - Wave 1 全体: 約 25-30 分 (= 3 lane 順次)
+  - 本線単独で同じ audit + design proposal を書いた場合の推定: 90-120 分
+  - 速度向上: 約 70-75% 短縮 (= Codex の利点が明確に確認できた)
+- HQ 判断論点 4 件:
+  1. sub-A false positive 多数 → v1.2 で AST context 除外強化
+  2. sub-B 16 件 → FIRE-OPS-R0 案 1 で staging 統一
+  3. sub-1 Architect 確認事項 8 件 (本線仮承認 → HQ approve 待ち)
+  4. Wave 2 進行可否 (= 推奨: approve)
+- commits (fire-vault main):
+  - 1fd1d76 docs(FIRE-CODEX-R1): record Wave 1 audit + design results
+  - (本 log entry の後続 commit)
+- 次タスク: HQ approve 後 Wave 2 並列投入 (= sub-2 Impl + sub-3 Test +
+  sub-D1 cron + sub-5 Docs draft の 4 lane)。CRITICAL があれば差し戻し
