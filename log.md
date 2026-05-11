@@ -7345,3 +7345,51 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
   Actual PnL Tracking 設計。並走候補: F286-DATA-R1.8 (上流 name 埋め) /
   FIRE-OPS-R0 案 1 / F282 5/18 前に再送
+
+## [2026-05-11] milestone | F062-R5.7 Action-First Advisory Decision UX 実装完了
+
+- F062-R5.5/R5.6 buyability mode の「強弱混在・慎重も買い検討にカウント」
+  問題を解決:
+  - 旧: 結論「買い検討 30」と Top 5「全 boost_with_avoid」が乖離
+  - 新: boost_with_avoid を「待ち」に分類変更、Top N 整合判定
+- 新規 action_mode (= card_mode の上位 superset、buyability_mode と排他):
+  - ACTION_LABEL_BADGE: 🟢 買い候補 / 🟡 条件付き買い / 🟠 待ち /
+    🔴 見送り / ⚪ 監視のみ
+  - _ACTION_BUCKET: label → bucket 集計 (boost→buy_now,
+    boost_with_caution→conditional, boost_with_avoid+caution→wait,
+    avoid+suppress→avoid, neutral+missing→watch_only)
+  - count_action_buckets / format_action_conclusion (Top N ベース) /
+    format_action_candidate (4 行 = badge+code+name / 判断 / 理由 /
+    買いに変わる条件)
+  - _humanize_flag: F119 内部 key (snake_case) → 自然言語
+    (例 month_of_year → 月の条件 / top_bucket_interpretation_sector_17
+    → 上位rank×業種条件)
+- F062 runner に --action-mode + payload metadata.action_mode 追加
+- dry-run smoke (F286-DATA-R1.6 advisory_preview + staging listings):
+  - chunk[0] length 1,120 → 738 (= F062-R5.6 から 34% 短縮)
+  - 結論: 🟠 今日の結論: 待ち
+  - 今すぐ買い: 0件 / 条件付き買い: 0件 / 待ち: 5件 / 見送り: 0件
+  - Top 5 全件「判断: 待ち / 理由: 月の条件は良いが業種条件に弱さあり /
+    買いに変わる条件: VWAP 上維持 + 出来高増」
+  - F119 内部 key / 統計詳細 (n=, h20=, win=) 出ない
+  - forbidden=0 / safety_footer=True
+- tests: 20 件追加 (template 16 + runner 3 + 注: 1 件は新規 test
+  ファイル分割なしで TestActionFirstAdvisoryUX 内で完結)、回帰 3,331 PASS
+- 安全:
+  - 実 LINE 送信 0 / DB write 0 / token-recipient leak 0
+  - 注文価格 / 数量 / 執行指示 出さない (構造的)
+  - 自動発注 / 楽天操作 / Computer Use なし
+  - 3 DB 全 mtime unchanged
+  - TODO Excel / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py 全て未接触
+- Codex pre-commit: feat / test ともに OK
+- commits:
+  - fire (develop):
+    5e61700 feat(F062-R5): add action-first advisory decision UX
+    2e1461a test(F062-R5): add action-first advisory UX tests
+  - fire-vault (main): 本 milestone log + R5.7 vault doc
+- F062-R5 シリーズ文面 UX 進化:
+  R4 234 → R5 1,892 → R5.2 955 → R5.4 492 → R5.6 1,120 → R5.7 738 ★
+- 次タスク: HQ 判断 (案 Y1: F062-R5.8 として --action-mode 本番送信、
+  案 Y2: F286-PNL-R1 設計)。並走候補: F286-DATA-R1.8 / FIRE-OPS-R0 案 1 /
+  F282 5/18 前に再送
