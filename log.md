@@ -7302,3 +7302,46 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ 判断 (案 Y1: F062-R5.6 として銘柄名付き本番送信、
   案 Y2: F286-PNL-R1 設計)。並走候補: F286-DATA-R1.8 (F111-R4 側で
   name 埋め)、FIRE-OPS-R0 案 1、F282 5/18 前に再送
+
+## [2026-05-11] milestone | F062-R5.6 銘柄名付き buyability card 本番送信成功
+
+- F286-DATA-R1.7 で実装した read-only name enrichment と F062-R5.5
+  buyability mode を組み合わせ、Fujiwara 個人 LINE app へ **銘柄名付き
+  実用判断カード本番 Advisory を 1 通だけ送信成功**。
+- 送信時刻: 2026-05-11T08:02:32 UTC (= 17:02 JST)
+- 送信件数: 1 件のみ (= 重複なし)
+- chunk_length: 1,120 (= F062-R5.5 1,086 から +34 chars、銘柄名追加分)
+- payload pipeline:
+  - DATA-R2 gate: overall=pass / line_send_allowed=True
+  - signals max_base_date=2026-05-09 lag=0 / codes=109
+  - buyability_mode payload + --listings-db data/fire.staging.db で
+    name_enrichment.attempted=30 / enriched=30 / missing=0 (= 全件成功)
+  - Top 5 全件で銘柄コード+銘柄名表示:
+    1. 57290 日本精鉱 / 2. 340A0 ジグザグ / 3. 37980 ＵＬＳグループ /
+    4. 137A0 Ｃｏｃｏｌｉｖｅ / 5. 331A0 メディックス
+- real send 結果:
+  - sent_count=1 / line_api_call_count=1 / partial_delivery=False
+  - dry_run_line_api=False (= 実 push_message 呼出)
+  - send_text_status=ok
+  - payload_freshness_check.lag_calendar_days=0
+  - recipient_hash8=b344b213 (= Fujiwara 個人、F062-R5.4 と同じ)
+- 安全:
+  - TOKEN_LEAK=0 / FULL_RECIPIENT=0
+  - 3 DB 全 mtime unchanged (= staging も R1.5 末尾の 5/11 11:48:57 維持)
+  - 自動発注 / 楽天操作 / Computer Use なし
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - name 既存値の上書きなし (already_has_name=0)
+  - TODO Excel / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py 全て未接触
+- F062-R5 シリーズ文面進化:
+  R4 234 → R5 1,892 → R5.2 955 → R5.4 492 → **R5.6 1,120** (= 銘柄名 +
+  判定 + 理由 + 見る点)
+- Fujiwara LINE app 受信確認 (依頼): 1 通だけ届き、銘柄名 + 判定 +
+  理由 + 見る点 の読みやすさをレビューしてください。
+- 完了報告: /tmp/f062_r5_6_completion_report.txt
+- 02_todo/F062_R5_6_buyability_production_send_with_names.md
+- commits: fire (develop) 変更なし (= F286-DATA-R1.7 で実装済を活用) /
+  fire-vault (main): 本 milestone log + R5.6 vault doc
+- 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
+  Actual PnL Tracking 設計。並走候補: F286-DATA-R1.8 (上流 name 埋め) /
+  FIRE-OPS-R0 案 1 / F282 5/18 前に再送
