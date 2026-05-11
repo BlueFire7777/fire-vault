@@ -2,7 +2,7 @@
 id: FIRE-CODEX-R1-WAVE6-results
 phase: ガバナンス / Codex 並列実装 Wave 6 完了 / R-01-08 整合
 priority: 最優先
-status: 完了 ★ Wave 6 4 lane 完了 (2026-05-11、CRITICAL 1 件即修正、3,637 PASS)
+status: 完了 ★ Wave 6 4 lane 完了 (2026-05-11、CRITICAL 1 件即修正、3,637 PASS、4 split commit)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - FIRE-CODEX-R1 v1.1 / Wave 5 / Wave 4.1-A
@@ -14,7 +14,7 @@ chapter: ガバナンス / R-01-08 / Codex 運用拡張
 
 最終更新: 2026-05-11
 
-## ★ 状態: 完了 (= 4 lane Codex 完了、6 split commit、3,637 PASS)
+## ★ 状態: 完了 (= 4 lane Codex 完了、4 split commit、3,637 PASS)
 
 HQ Wave 6 approve 受領後、Codex 4 lane を順次投入。本線 Integrator が
 全成果物 review、CRITICAL 1 件 (= PaperPnlError per-row skip 不在)
@@ -32,7 +32,7 @@ W4.1-B / cron sub-D3 は引き続き凍結を遵守。実 fetch / 実 write も
 | W6-4   | L5 Docs           | PNL-R3 完了マーカー doc draft | ✓ vault migrate | - |
 | W6-5   | L3 Impl + L2 Test | DATA-R3 sub-D2.2 placeholder 解消 + exit code 集約 | ✓ 36 PASS | 0 |
 
-## fire develop split commit (= 6 件)
+## fire develop split commit (= 4 件)
 
 | commit | 内容 |
 |---|---|
