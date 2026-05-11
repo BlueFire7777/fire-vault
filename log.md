@@ -7442,3 +7442,56 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
   Actual PnL Tracking 設計。並走候補: F286-DATA-R1.8 (上流 name 埋め) /
   FIRE-OPS-R0 案 1 / F282 5/18 前に再送
+
+## [2026-05-11] milestone | F062-R5 First Production Advisory Small Launch Fujiwara 受信確認済み (シリーズ完結)
+
+- F062-R5.8 (= 2026-05-11 18:19 JST 送信、action-first 行動判断カード)
+  を Fujiwara が LINE app で受信確認、F062-R5 シリーズ全体が完結。
+- 受信確認内容:
+  - FIRE 本番Advisory / Data Gate PASS / base_date: 2026-05-09
+  - source: r2f4_baseline_live_v1 / r2g3_recommended_v2
+  - 今日の結論: 待ち
+  - 今すぐ買い: 0件 / 条件付き買い: 0件 / 待ち: 5件 / 見送り: 0件
+  - 注文価格・数量・執行指示なし (構造的禁止が守られた)
+  - Safety footer あり (production marker + 自動発注なし 等 8 行)
+- Fujiwara 評価:
+  - Positive: dry-run/LINE 送信なし表記の解消 / base_date freshness
+    問題の解消 / 本番 Advisory として受信確認
+  - 改善候補: 「待ち」を「まだ買わない / 場中監視候補」に、
+    「VWAP 上維持 + 出来高増」の場中自動監視は F286-INTRA-R2 で対応予定
+- 必須確認項目 (= 全 ✓):
+  - sent_count=1 / line_api_call_count=1 / partial_delivery=False
+  - token leak 0 / recipient_id leak 0
+  - DATA-R2 gate pass / base_date=2026-05-09
+  - source_version=r2f4_baseline_live_v1
+  - 注文価格・数量・執行指示なし / 自動発注なし / 楽天操作なし /
+    Computer Use なし
+  - TODO Excel 未更新 / --no-verify 不使用 / unrelated modified 未接触
+- 本タスクは記録のみ:
+  - 追加 LINE 送信 0 / DB write 0 / コード変更 0
+  - 3 DB 全 mtime unchanged
+- F062-R5 シリーズ送信履歴 (= UX 進化、全 5 通 + test 1 通):
+  22:49 (前日 R4) test           length=234
+  01:50 (R5)      neutral         length=1,892
+  13:01 (R5.2)    compact         length=955
+  14:27 (R5.4)    card            length=492
+  17:02 (R5.6)    buyability+names length=1,120
+  **18:19 (R5.8)  action-first** ★ length=738 ← Fujiwara 受信確認済み
+- 完了報告: /tmp/f062_r5_completion_report.txt
+- vault docs:
+  - 新規 02_todo/F062_R5_receipt_confirmation.md (= シリーズ完結)
+  - 既存 02_todo/F062_R5_8_action_first_production_send.md 更新
+    (= Fujiwara 受信確認 status 追記)
+- commits (fire-vault):
+  - 259f600 docs(F062-R5): record first production advisory receipt
+    confirmation
+  - 本 milestone log entry (= log commit)
+- 完了宣言: FIRE は v3.3 要件書 R-19-08 の「本番 LINE 通知 → 人間
+  発注」Phase 1 (Advisory 配信、注文 draft 未) を実現
+- 次タスク提案 (Fujiwara 提示順):
+  1. F286-PNL-R1 Advisory Decision / Actual PnL Tracking
+  2. F286-DATA-R3 daily refresh cron 化
+  3. F286-INTRA-R2 Intraday Advisory Trigger Engine
+  4. F286-ORDER-R1 Manual Order Draft Generator
+  並走候補: F286-DATA-R1.8 / FIRE-OPS-R0 案 1 / 03_design F282 運用
+  ルール明文化
