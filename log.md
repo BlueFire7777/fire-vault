@@ -7846,3 +7846,83 @@ HQ 受領の新ラベル方針 (= 🟢 積極的買い推奨 / 🟡 条件付き
 
 - 697d0d6 docs(FIRE-CODEX-R1): record Wave 3 audit results + draft FIRE-LABEL-R1
 - (本 log entry の後続 commit)
+
+## [2026-05-11] decision | FIRE-CODEX-R1 v1.1 Wave 4 起票 (= 4 sub-task plan + cron 暫定方針受領)
+
+### HQ 受領 (= Wave 3 audit クリア + cron CRITICAL 暫定方針)
+
+- Wave 3 audit クリア、次フェーズ進行可
+- sub-4E CRITICAL 2 件は sub-D3 cron 本番登録 着手前条件、現時点の
+  PNL-R2 / DATA-R3 skeleton 統合を止めない
+- staging smoke はまだ未承認 (= Wave 4 後 / Wave 4.1 で分離)
+- cron 本番登録は凍結継続
+
+### cron CRITICAL 暫定 HQ 方針
+
+- F282 月曜順序矛盾: **案 A 暫定採用** (= 月曜 daily refresh 07:30
+  JST に後ろ倒し、F282 weekly snapshot 自体の見直しは将来 FIRE-OPS-R0
+  候補)
+- launchd 日付付きログ問題: **固定ログ + rotation 設計優先**
+  (= launchd StandardOutPath に日付変数を期待しない、runner 内部で
+  固定 path にログ + logrotate で日次 rotate)
+
+両方とも sub-D3 で適用、Wave 4 では cron 本番登録なし。
+
+### Wave 4 起票 (= 4 sub-task plan + 1 全体 plan)
+
+| sub | 親タスク | lane | 内容 |
+|---|---|---|---|
+| W4-1 | F286-PNL-R2-runner | L3 Impl | F062 send_smoke に --record-decisions 統合、production-only、staging write しない |
+| W4-2 | F286-PNL-R2-ingest-helper | L3 Impl | 後追い ingest helper、LINE 送信なし、独立 runner、staging write しない |
+| W4-3 | FIRE-LABEL-R1 | L3 Impl + L2 Test | 新ラベル方針 (= 🟢 積極的買い推奨 / 🟡 条件付き買い推奨 / 🟠 場中監視 / ⚠️ 注意つき買い候補 / 🔴 見送り推奨) 即時切替 |
+| W4-4 | F286-DATA-R3-D2 | L1 Design | 実 fetch / 実 write 統合の設計 doc、subprocess 案推奨、Impl は Wave 5+ |
+
+### 並列度 (= 4 lane 同時投入予定)
+
+- W4-1 / W4-2 / W4-3 / W4-4 の allowed_files は全て独立、衝突なし
+- 実時間想定 約 20-30 分 (= 4 lane 同時 Codex 投入)
+- 本線 Integrator review + commit で 約 40-60 分
+
+### staging smoke 完全分離 (= Wave 4.1 候補)
+
+- Wave 4 内では staging DB write しない
+- Wave 4.1 として分離、HQ 「初回 DDL 込み staging write smoke」明示
+  承認要
+- 推奨実施日: 5/12〜5/17 内 (= F282 weekly snapshot 5/18 前)
+- 安全な経路: W4-2 ingest helper (= LINE 送信 0、staging 書き込みのみ)
+  を先に smoke、その後 W4-1 F062 send_smoke 経由 (= LINE 1 通 + snapshot)
+
+### 起票 vault docs
+
+- 02_todo/FIRE_CODEX_R1_WAVE4_plan.md (= 全体 plan)
+- 02_todo/F286_PNL_R2_runner_record_decisions.md (= W4-1)
+- 02_todo/F286_PNL_R2_ingest_helper.md (= W4-2)
+- 02_todo/F286_DATA_R3_D2_real_fetch_write_plan.md (= W4-4)
+- 02_todo/FIRE_LABEL_R1_advisory_label_refresh.md (= 更新、W4-3 着手準備)
+
+### 安全 (= 本 milestone 内、起票のみ)
+
+- コード変更なし (= 設計 + plan のみ)
+- DB write 0 / LINE 送信 0 / staging smoke 0
+- production / develop / staging DB mtime 全 unchanged (= 直前 Wave 3
+  完了時から変化なし)
+- token-secret 参照 0 / workflow 変更 0 / --no-verify 不使用
+- cron / launchd / crontab 未登録
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新
+- Codex 投入なし (= 起票のみ、Wave 4 実装は HQ 別 approve 後)
+
+### commits (fire-vault main)
+
+- 直前: 697d0d6 docs(FIRE-CODEX-R1): Wave 3 audit results
+- 直前: 085bd74 docs(FIRE-CODEX-R1): Wave 3 log milestone
+- 本 entry の commit (= Wave 4 起票 5 ファイル + 本 log)
+
+### HQ 判断待ち項目
+
+1. Wave 4 4 sub-task の Codex 投入 approve (= 4 lane 並列投入で実施可)
+2. Wave 4 完了後の Wave 4.1 staging smoke 着手判断 (= 別 approve 要)
+3. W4-3 FIRE-LABEL-R1 の設計判断 3 件 (= 本線仮承認の HQ 確認):
+   - 新規 ⚠️ bucket: 案 c (= 暫定で boost_with_caution 流用)
+   - mode 切替: 案 Y (= 即時全面切替)
+   - 既存 row 扱い: 案 P (= 既存値保持)
