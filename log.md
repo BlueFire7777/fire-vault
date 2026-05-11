@@ -6742,3 +6742,66 @@ HQ 判断要請 5 項目 (計画書 §9):
   R1 採用なら bak restore → DATA-R2 gate 再確認 → F062-R5.2 再起動。
   並走候補: F286-DATA-R3 cron 化 (= 案 1 と整合) / F242 OpenClaw /
   F022 FIRE Runner / F013 launchd / 03_design/F282 運用ルール明確化
+
+## [2026-05-11] milestone | ★ F286-DATA-R1.4 Staging Restore from Backup / Gate Recheck 完了
+- 状態: ★ **完了**。FIRE-OPS-R0 採用案 R1 を実施、bak ファイルから
+  staging.db を 1 コマンド restore、DATA-R2 gate を再確認して
+  全 5 段 PASS / line_send_allowed=True に復活。
+- 実施手順:
+  1. 3 DB pre 状態記録 (production / develop unchanged、staging
+     mtime=5/11 07:00:05 size=371 MB)
+  2. backup file 確認: data/fire.staging.db.bak.20260511_070004
+     (5/11 01:35 mtime / size=4.8 GB)
+  3. 現 staging を退避: data/fire.staging.db.pre_restore_20260511_112053
+     (size=371 MB の巻き戻り版を保持)
+  4. sidecar 削除: rm -f data/fire.staging.db-{wal,shm}
+     (F282 snapshot script と同じ方針)
+  5. backup → staging: cp data/fire.staging.db.bak.20260511_070004
+     data/fire.staging.db (= size=4.8 GB に復活)
+  6. integrity_check: ok
+- restored staging 状態:
+  market_prices_daily        : max=2026-05-08 / 2,085,284 行 / 4,452 codes
+  research_watchlist_signals : max_base=2026-05-09 / 13,551 行
+  research_derived_indicators: max_base=2026-05-08 / 3,750 行
+  announcements              : max=2026-05-08 / 1,098 行
+- DATA-R2 gate 再実行 (read-only):
+  overall:           pass ✅
+  line_send_allowed: True ✅
+  reasons:           []
+  gate-1-prices    required    pass (max=2026-05-08 lag=1 / codes=4448)
+  gate-2-signals   required    pass (max_base=2026-05-09 lag=0 / codes=109)
+  gate-3-index     recommended pass (max=2026-05-08 lag=1)
+  gate-4-derived   recommended pass (max_base=2026-05-08 lag=1 / codes=42)
+  gate-5-other     soft        pass (financials / announcements /
+                                      listings 鮮度・件数 OK)
+- production / develop 完全 unchanged:
+  fire.db          May  7 16:12:38 / 371 MB / inode 1194717 (unchanged ✅)
+  fire.develop.db  May  7 18:14:26 / 371 MB / inode 139614166 (unchanged ✅)
+  fire.staging.db  May 11 07:00:05 → **May 11 11:20:59** / 371 MB → 4.8 GB
+                   (= restore で更新、本タスク唯一の書込)
+- 安全要件 (= 全遵守):
+  - production / develop DB に触れず ✅
+  - staging DB は restore のみ (= cp 1 回、pre_restore 退避済)
+  - LINE 送信 0 / 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - token / recipient leak: N/A (本タスクで送信なし)
+  - F062-R5.2 本体の送信は **実施せず** (= 本タスクは restore + gate
+    まで、送信は HQ 判断後)
+- 完了報告: /tmp/f286_data_r1_4_completion_report.txt
+- 02_todo/F286_DATA_R1_4_staging_restore_gate_recheck.md 新規 vault
+- ★ F062-R5.2 再開可否: **可能** (= gate 全 5 段 PASS、env 維持、F062-R5.1
+  コード修正は develop branch に含まれる)
+- 注意: F282 weekly snapshot は次回 2026-05-18 (月曜) 07:00 JST に
+  再実行され、現 staging が再び production fire.db で上書きされる。
+  F062-R5.2 を 5/11 〜 5/17 の間に完了させるか、FIRE-OPS-R0 再発防止
+  策案 1 (= 本番運用データを production fire.db に書く運用統一) を
+  並行で実装する必要あり。
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、運用 restore のみ)
+  - fire-vault (main): 本 milestone log + F286-DATA-R1.4 vault doc
+- 次タスク: HQ (Fujiwara) が F062-R5.2 再起動タイミングを判断。
+  並走候補: FIRE-OPS-R0 再発防止策案 1 実装、F286-DATA-R3 cron 化、
+  F282 運用ルール明文化
