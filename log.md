@@ -6680,3 +6680,65 @@ HQ 判断要請 5 項目 (計画書 §9):
     - 本 milestone log + F062-R5.2 vault doc
 - 次タスク: HQ (Fujiwara) が案 A/B/C を選択。F286-DATA-R3 cron 化 が
   本問題の再発防止に直結するため、並行で優先度を上げる候補
+
+## [2026-05-11] milestone | FIRE-OPS-R0 Staging DB Rollback Root Cause Audit 完了 (= F282 週次 snapshot が原因)
+- 状態: ★ **調査完了**。staging.db 巻き戻りの root cause を確定。
+  原因は F282 環境分離の週次 snapshot 設計が設計通り動作した結果。
+- 確定 root cause:
+  - crontab `0 7 * * 1 /Users/bluefire/fire/bin/fire-snapshot-staging.sh`
+  - 2026-05-11 (月曜) 07:00 JST 実行 → staging.db mtime 07:00:05 一致
+  - snapshot_log.txt 末尾: 2026-05-10T22:00:00Z (= UTC, JST 07:00:00)
+  - script は SQLite Online Backup API で production fire.db を
+    staging.db に上書き、先に既存 staging を .bak.<ts> に退避
+- 朗報: bak ファイル `data/fire.staging.db.bak.20260511_070004`
+  (4.8 GB) に snapshot 前データを完全保持:
+  - market_prices_daily: max=2026-05-08 / 2,085,284 行
+  - research_watchlist_signals: max_base_date=2026-05-09 / 13,551 行
+  - research_derived_indicators: max_base_date=2026-05-08 / 3,750 行
+  - announcements: max=2026-05-08 / 1,098 行
+  → 案 R1 で 1 コマンド restore 可能 (cp ベースで mtime / sidecar 整備)
+- 調査結果一覧:
+  - launchd: jp.fire.emergency-1445〜1515 (LINE 緊急アラートのみ) /
+    ai.openclaw.gateway。snapshot に無関係
+  - cron: 上記 1 件 (月曜 07:00) + 月 1 develop init (= F282 設計通り)
+  - shell history: 該当 0 件 (= 別 session / 手動 copy なし)
+  - repo scripts: bin/fire-snapshot-staging.sh / fire-init-develop.sh
+    が F282 設計の公式 script。想定外の DB 操作 script なし
+  - file metadata: 3 DB 同 size 371 MB / inode 別 / staging のみ 5/11
+    07:00 mtime
+  - recent logs: snapshot 関連 0 件 (= LINE log のみ)
+- 深層原因: 過去タスク (F286-DATA-R1.3 / 案 A / R2 系) で「本番運用
+  データを staging に書く」と判断していたが、F282 設計では staging
+  は週次で production snapshot で上書きされる実験用 DB。本番運用
+  データは production fire.db に書くべき。
+- 再発防止案 (要 HQ 判断):
+  案 1 (推奨): 本番運用データを production fire.db に書く運用統一
+    (= fetch_historical / fetch_tdnet_html / signals 生成パイプライン
+    の target を production に)
+  案 2: cron 時刻調整 (月末日曜深夜など)
+  案 3: F282 snapshot 一時停止、staging を本番運用 DB に格上げ (=
+    F282 設計全面見直し)
+  案 4: 不変データレイヤを別 .db に分離 (= 実装大)
+- 復旧案 (要 HQ 判断):
+  案 R1 (即時推奨): bak ファイルから cp 1 コマンドで restore
+    → F062-R5.2 即再開可能
+  案 R2 (本格): production に必要データを書き込み、次の月曜 snapshot
+    で staging 同期 (= 案 1 と整合)
+  案 R3 (延期): 5/12 平日 daily refresh 後に再判断
+- 安全要件 (= 全遵守):
+  - DB write 0 (= 本タスクは read-only 調査のみ、sqlite mode=ro)
+  - staging 再構築 実施せず ✅ (本タスク仕様遵守)
+  - LINE 送信 0 / 自動発注 / 楽天操作 / Computer Use 0
+  - production / develop DB に触れず ✅
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- 完了報告: /tmp/fire_ops_r0_completion_report.txt
+- 02_todo/FIRE_OPS_R0_staging_db_rollback_root_cause_audit.md 新規 vault
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、調査のみ)
+  - fire-vault (main): 本 milestone log + FIRE-OPS-R0 vault doc
+- 次タスク: HQ (Fujiwara) が復旧案 R1/R2/R3 + 再発防止案 1〜4 を選択。
+  R1 採用なら bak restore → DATA-R2 gate 再確認 → F062-R5.2 再起動。
+  並走候補: F286-DATA-R3 cron 化 (= 案 1 と整合) / F242 OpenClaw /
+  F022 FIRE Runner / F013 launchd / 03_design/F282 運用ルール明確化
