@@ -6876,3 +6876,73 @@ HQ 判断要請 5 項目 (計画書 §9):
            / develop 無触 / TODO Excel 未更新
 - 並走候補: FIRE-OPS-R0 再発防止策案 1 設計レビュー / 03_design
   F282 運用ルール明文化 / F286-DATA-R3 cron 化
+
+## [2026-05-11] milestone | ★ F286-DATA-R1.5 Latest Baseline Signal Regeneration 完了
+- 目的: F062-R5.2 が r2f4_baseline_v1 latest 2026-03-01 古さで停止
+  したため、baseline ロジック (QV 0.35 / EG 0.35 / CV 0.30) そのまま
+  で最新 base_date=2026-05-09 / 新 source_version=r2f4_baseline_live_v1
+  として staging に再生成。freshness guard を自然に通せる状態へ。
+- 採用: 既存 runner の組み合わせ (= コード変更 0 件)
+  - run_research_watchlist_signal_persistence (= F286-R2-E、ranker
+    DEFAULT_WEIGHTS をそのまま使用)
+  - FIRE_ENV=staging / --db staging / --write
+  - --base-date 2026-05-09 / --source-version r2f4_baseline_live_v1
+    / --top-n 100
+- 結果:
+  - inserted=109 / replaced=0 / failed=0
+  - staging total_rows: 13,551 → 13,660 (+109)
+  - distinct source_version: 12 → 13 (= r2f4_baseline_live_v1 追加)
+  - 他 source_version 行は無触
+- DATA-R2 gate (post-write):
+  overall=pass / line_send_allowed=True
+  gate-2-signals max_base=2026-05-09 / distinct codes=109→110 / lag=0
+  5 段全 PASS / reasons=[]
+- F062-R5.2 freshness guard 検証:
+  - dry-run path (--send 無し): send_allowed=True / sent=0 / token_read=0
+    / production_callable_built=False / payload_freshness_check=None
+  - simulated send (--send --hq-approved-send --dry-run-line-api):
+    send_allowed=True / sent=1 / line_api_call_count=1 (= LineBotClient
+    (dry_run=True) で _log 1 行追記、実 push_message **未呼出**) /
+    partial_delivery=False / production_callable_built=True /
+    dry_run_line_api=True
+    payload_freshness_check: max_lag_days=10 / payload_base_date=
+    2026-05-09 / gate_signal_max_base_date=2026-05-09 /
+    **lag_calendar_days=0** ★ (= freshness guard 自然 pass)
+  - chunk[0]: "FIRE 本番 Advisory" header / "本番 LINE 通知" footer
+    marker / "dry-run" "LINE 送信なし" 不在 / forbidden_phrase_count=0
+    / safety_footer_present=True / compact length=679 / 結論行
+    "⚪ 結論: 該当候補なし" (= F119 evaluate WIRING ANOMALY のため
+    neutral only)
+- 観察事項:
+  - F119 evaluate cut_summary が r2f4_baseline_live_v1 用に蓄積されて
+    いないため、--evaluate-f119 だと "WIRING ANOMALY: non_neutral=0"
+  - 本タスクでは --evaluate-f119 を外して raw signals advisory を生成
+    (= 全 neutral)。freshness guard は通るが Advisory 文面は "該当
+    候補なし" になる
+  - F119 boost/avoid 判定を出すには別 task (F286-R2-H 等の cut_summary
+    蓄積) が必要
+- 安全要件 (= 全遵守):
+  - LINE 送信なし (= --dry-run-line-api で実 API 呼ばず)
+  - freshness guard を緩めない (= --max-payload-base-date-lag-days
+    default 10 のまま natural pass)
+  - r2d_v1 へ勝手に切り替えない (= 新規 source_version 作成)
+  - production / develop DB write 0 / 3 DB 全 mtime 整合
+    (fire.db 5/7 / fire.develop.db 5/7 / fire.staging.db 5/11 11:48
+    +106 KB)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - token / recipient 平文出力 0 (= artifact / log 全件 grep 0 件)
+- 完了報告: /tmp/f286_data_r1_5_completion_report.txt
+- 02_todo/F286_DATA_R1_5_latest_baseline_signal_regeneration.md
+- ★ F062-R5.2 再開可否: freshness guard 観点で **再開可能**。ただし
+  F119 結合は別 task (案 X1=即時送信 neutral only / X2=F119 cut_summary
+  蓄積後 / X3=延期) を HQ が選択
+- commits:
+  - fire (develop): 変更なし (= 既存 runner 実行のみ)
+  - fire-vault (main): 本 milestone log + F286-DATA-R1.5 vault doc
+- 次タスク: HQ (Fujiwara) が案 X1/X2/X3 を選択。並走候補: FIRE-OPS-R0
+  案 1 / F286-R2-H 再実行 (r2f4_baseline_live_v1 用 cut_summary 蓄積)
+  / F286-DATA-R3 cron 化 / F282 運用ルール明文化
