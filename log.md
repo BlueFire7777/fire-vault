@@ -7554,3 +7554,46 @@ HQ 判断要請 5 項目 (計画書 §9):
   - paper_pnl 計算ソース (simulation/paper_live vs 別 PoC)
 - 次タスク候補: F286-PNL-R2 / F286-PNL-R3 / F286-DATA-R3 /
   F286-INTRA-R2 / F286-ORDER-R1
+
+## [2026-05-11] decision | FIRE-CODEX-R1 Multi-Lane Parallel Development Orchestration 設計確定
+
+- Claude Code 本線 (= PM / Architect / Integrator / Final Reviewer) と
+  Codex 5 レーン (Design / Test / Implementation / Audit / Docs) の
+  運用体制を確定。今回はコード変更なし、fire-vault docs / log のみ。
+- F286-PNL-R1 で Codex CRITICAL 2 件を即修正できた実例から、本設計を
+  「2 つの目」(本線 + Codex) の正規運用化として明文化。
+- 設計本体: 03_design/FIRE_CODEX_R1_multi_lane_parallel_orchestration_2026-05-11.md
+  - 本線 4 役 + 独占判断 6 件 (HQ 報告 / merge / pre-commit / LINE 送信 /
+    CRITICAL / workflow)
+  - Codex 5 レーン定義 + 並列度ルール
+  - Codex 禁止項目 13 件 (= LINE / DB / token / 楽天 / Computer Use /
+    workflow / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py / TODO Excel 等を全て明示)
+  - 1 task = 1 目的 / 1 成果物 / 1 ownership の大原則
+  - file ownership 表 yaml テンプレ
+  - プロンプト雛形 5 種 + 共通フッタ (= 禁止項目毎回貼り付け)
+  - 完了報告テンプレ 12 項目 (= 未記入なら本線差し戻し)
+- 完了マーカー: 02_todo/FIRE_CODEX_R1_orchestration_design.md
+- 次タスク候補比較:
+  - F286-PNL-R2 Advisory Snapshot Auto-Ingest        ★★★ 高 (5 sub)
+  - F286-INTRA-R2 Intraday Advisory Trigger Engine   ★ 低 (1-2 sub)
+  - F286-ORDER-R1 Manual Order Draft Generator       × 不可 (構造禁止と衝突)
+  - F286-DATA-R3 Daily Refresh Cron 化              ★★ 中 (3 sub)
+- 初回投入プラン: F286-PNL-R2 を 5 lane 並列で実行可能 (= 設計 doc §11
+  にコピペ用プロンプト 5 本完備、Design → Architect approve → Impl/Test
+  /Docs 並列 → Audit → Integrator → Final Reviewer → HQ 報告で 50-75 分)
+- 安全:
+  - コード変更なし (= 設計のみ)
+  - DB write 0 / LINE 送信 0 / token-secret 参照 0
+  - workflow 変更なし / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - TODO Excel 未更新
+- R-01-08 整合: 本設計は CI/CD 不採用方針を強化する方向 (= Codex は
+  Mac mini local CLI のみ、GitHub Actions 不使用、workflow 変更も
+  Codex 禁止項目)
+- commits (fire-vault main):
+  - acff29e docs(FIRE-CODEX-R1): add multi-lane parallel orchestration design
+  - (本 log commit 後続)
+- 次タスク: HQ 判断 (= 案 X1: F286-PNL-R2 を 5 lane 並列実行 / 案 X2:
+  F286-DATA-R3 を 3 lane 実行 / 案 X3: F286-INTRA-R2 を本線単独 PoC /
+  案 X4: F286-ORDER-R1 は Codex 不可 = 本線単独実装方針確認)
