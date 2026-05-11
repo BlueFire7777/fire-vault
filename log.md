@@ -8433,3 +8433,77 @@ W8b-fix: +13 件
 
 - 本 entry 後の commit (= Wave 8 plan + results + log)
 - fire develop の 4 commit は別系統 (= 上記)
+
+## [2026-05-12] milestone | FIRE-CODEX-R1 Wave 9 W9-1 staging UPDATE smoke 成功 (schema gap + step2 fix 即対応、pre と final 完全一致)
+
+### HQ Wave 9 W9-1 条件付き承認 + 案 A 承認 受領 (= 2026-05-12)
+
+W9-1 PNL-R3 staging UPDATE smoke 条件付き承認、schema gap (paper_reason
+column 不在) 案 A 承認 (= staging のみ ALTER TABLE)。
+
+### W9-1 実行結果
+
+7 step + Step 1a schema migration + Step 2 fix 全完了:
+
+Step 1a (= schema migration、HQ 9 条件遵守):
+- staging DB のみ ALTER TABLE ADD COLUMN paper_reason TEXT
+- pre/post PRAGMA で column 追加確認
+- 既存 10 row hash 不変 (= db43e8...32)
+- production / develop DB mtime unchanged
+
+Step 2 fix (= NOT NULL 制約 silent skip 即修正):
+- 発見: fujiwara_decision (NOT NULL DEFAULT 'unknown') / actual_trade
+  (NOT NULL DEFAULT 'none') に明示 NULL を渡し INSERT OR IGNORE 失敗
+- 修正: INSERT 列から両 column 除外、DEFAULT 値が適用される pattern
+- 再 step 2 で inserted=5 確認
+
+Step 3-7 (= smoke 続行):
+- compute: candidates=3 / computed=0 / updated=0 (= market_data 不足、想定内)
+- 既存 row hash 一致 (= diff 0 行)
+- rollback delete_count=5
+- final hash db43e8...32 完全一致
+
+### fire develop commit (= 1 件)
+
+- 5193386 feat(F286-PNL-R3): seed runner for W9-1 staging UPDATE smoke
+
+### 安全 (Wave 9 W9-1 全 ✓)
+
+- 実 LINE 送信 0 通
+- production / develop DB write 0 / mtime unchanged
+- staging DB ALTER + INSERT + DELETE で完全 rollback (= pre と final 一致)
+- token / channel_token / secret 参照 0
+- 楽天 / 自動発注 / Computer Use なし
+- workflow / cron / launchd 不変
+- W4.1-B F062 経由 smoke 保留継続
+- external API call 0
+
+### HQ 9 条件遵守
+
+全 9 条件 ✓ (= mtime 記録 / PRAGMA / idempotent / row count / hash 不変 /
+production unchanged / staging のみ変更 / 報告明記)
+
+### tests
+
+W9-1a + W9-1a-fix 累計 +32 (seed runner) / 全 PASS。
+fire develop は 3,751 PASS baseline + W9-1 32 件 = 3,783 PASS 想定 (= 別途
+full pytest で確認可能)。
+
+### 並列効果
+
+W9-1 実時間 約 90-120 分 (= seed runner Codex 2 lane + 本線 7 step 実行 +
+2 件 即修正)。本線単独推定 240-360 分。短縮 60-70%。
+Wave 1-9 通算で 9 wave 連続 60-80% 短縮達成。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 9 W9-1 完了 → 次フェーズ進行可否 (推奨: approve)
+2. F286-PNL-R3-MIG-R1 起票判定 (= production/develop 同 migration、
+   idempotent script + tests + audit)
+3. W9-2 REPORT-R1 weekly/monthly impl 着手判定 (= HQ 承認済、別ターン起票)
+4. W9-3 DATA-R3 sub-D2.3.x 起票判定 (= 4 sub plan、staging write 個別 approve)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 9 plan + results + schema gap + log)
+- fire develop の 1 commit は別系統 (= 上記)
