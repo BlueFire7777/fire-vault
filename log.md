@@ -7165,3 +7165,67 @@ HQ 判断要請 5 項目 (計画書 §9):
   を default 化推奨 (= 文面短く、結論先行、stale 誤表示防止)。
   HQ 判断で F062-R5.4 として card mode 1 chunk 本番送信、または
   F286-PNL-R1 設計に進む。
+
+## [2026-05-11] milestone | ★ F062-R5.4 Compact Production Advisory Send (Card Mode) 完了
+- 状態: ★ **完了**。F062-R5.3 で実装した card mode を使い、Fujiwara
+  個人 LINE app へ **判断カード形式の本番 Advisory 1 chunk 送信成功**。
+- 結果:
+  - exit: 0 / mode: send / dry_run: False / send_allowed: True
+  - sent_count: **1** ★
+  - line_api_call_count: **1** ★
+  - partial_delivery: False
+  - dry_run_line_api: False (= 実 push_message 呼出)
+  - production_callable_built: True / hq_approved_send: True
+  - max_chunks: 1
+  - chunk_length: **492** (= F062-R5.2 の 955 から 48.5% 短縮)
+  - forbidden_phrase_count: 0 / safety_footer_present: True
+  - manual_review_required_count: 5 / auto_order_allowed_true_count: 0
+  - production_outcomes: 1 件 (chunk_index=0 / status=ok /
+    chunk_length=492 / recipient_type=user / recipient_hash8=b344b213)
+  - payload_freshness_check: lag_calendar_days=0 (= natural pass)
+- payload (= F062-R5.3 card mode):
+  source_version=r2f4_baseline_live_v1 / rule_version=r2g3_recommended_v2
+  / base_date=2026-05-09 / message_mode=production / card_mode=True
+  / card_top=5 / selected_label_counts={'boost_with_avoid': 5}
+  冒頭 "FIRE 本番Advisory / Data Gate PASS / 🟢 結論: 買い検討候補
+  あり / 買い検討 30 / 注意 0 / 見送り 0"
+- LINE log (= F236-R1 masked):
+  2026-05-11T05:27:26Z SEND user:prefix=U:len=33:hash8=b344b213
+    "FIRE 本番Advisory\nData Gate PASS\nbase_date: 2026-05-09\n
+     source: r2f4_baseline_live_v1 / r2g3_recommended_v2\n\n
+     🟢 結論: 買い検討候補あり\n買い検討 30 / 注意 0 / 見送り 0\n\n
+     🟠 強弱混在・慎重 57290\n  鉄鋼・非鉄 / 月5..."
+- 安全要件 (= 全 ✅):
+  - 送信は 1 通だけ (= --max-chunks 1)
+  - --card-mode + --card-top 5
+  - --send + --hq-approved-send
+  - DATA-R2 gate pass
+  - token / recipient 平文出力 0 / TOKEN_LEAK / FULL_RECIPIENT artifact
+    全件 grep 0 件
+  - partial_delivery=False (= retry 不要)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - production fire.db / develop fire.develop.db / staging fire.staging.db
+    全 mtime unchanged (= 本タスク内 DB write 0、F286-DATA-R1.5 末尾の
+    staging 状態 5/11 11:48:57 / 4.8 GB を維持)
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- Fujiwara LINE app 受信確認 (依頼):
+  送信時刻 2026-05-11T05:27:26 UTC = 14:27 JST
+  送信件数 1 件 (重複なし)
+  冒頭 "🟢 結論: 買い検討候補あり" / chunk_length=492 (= 判断カード
+  化で 48.5% 短縮) / Safety footer 8 行 (production version)
+- F062-R5 シリーズ送信履歴:
+  2026-05-10 22:49 (F062-R4):   test-message-only         length=234
+  2026-05-11 01:50 (F062-R5):   F119 未 wired neutral     length=1,892
+  2026-05-11 13:01 (F062-R5.2): F119 wired compact        length=955
+  2026-05-11 14:27 (F062-R5.4): F119 wired **card** ★    length=492
+- 完了報告: /tmp/f062_r5_4_completion_report.txt
+- 02_todo/F062_R5_4_compact_production_advisory_send.md
+- commits:
+  - fire (develop): 変更なし (= F062-R5.3 で実装済の card mode 活用)
+  - fire-vault (main): 本 milestone log + F062-R5.4 vault doc
+- 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
+  Actual PnL Tracking 設計。並走候補: FIRE-OPS-R0 再発防止策案 1 /
+  03_design F282 運用ルール明文化 / F286-DATA-R3 cron 化
