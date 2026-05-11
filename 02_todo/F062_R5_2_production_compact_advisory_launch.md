@@ -2,7 +2,7 @@
 id: F062-R5.2
 phase: P5: 通知 / 第 14 章 LINE 通知配信 / 第 19 章 R-19-08
 priority: 最優先
-status: 停止 (staging.db が外部要因で 5/7 snapshot に巻き戻り、DATA-R2 gate refuse、HQ 判断要請中)
+status: 停止 (2 段目: F286-DATA-R1.4 restore 後の再開試行で r2f4_baseline_v1 latest base_date が古く HQ 判断「本タスク停止」)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - F062-R5 (初回本番 Advisory 送信成功 + Fujiwara 受信確認)
@@ -163,3 +163,134 @@ staging が再構築される。当面 F062-R5 系送信は延期。
    - F286-DATA-R3 daily refresh cron 化 (= 本問題の再発防止に直結)
    - F242 OpenClaw / F022 FIRE Runner / F013 launchd (= 自動運用基盤)
    - F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計
+
+---
+
+## 2 段目停止記録 (2026-05-11、F286-DATA-R1.4 restore 後の再開試行)
+
+FIRE-OPS-R0 + F286-DATA-R1.4 で staging を案 A 完了状態 (= 5/8 prices
+/ 5/9 signals / 5/8 announcements / 5/8 derived) に restore 済み、
+DATA-R2 gate 全 5 段 PASS / line_send_allowed=True に復活した状態で
+F062-R5.2 を再開。
+
+### 再開試行時の env / gate ✅
+
+| 項目 | 結果 |
+|---|---|
+| LINE_CHANNEL_TOKEN_SET     | True (length=516 / ASCII / no whitespace) |
+| FIRE_LINE_RECIPIENT_ID_SET | True (prefix='U' / length=33) |
+| DATA-R2 overall            | pass ✅ |
+| line_send_allowed          | True ✅ |
+| gate-2-signals max_base    | 2026-05-09 |
+
+### r2f4_baseline_v1 の latest base_date 確認
+
+| source_version | latest base_date | rows |
+|---|---|---|
+| r2d_v1                       | 2026-05-09 | 109 |
+| r2f3_leaksafe_v1             | 2026-03-16 | 1,130 |
+| r2d2_baseline_v1             | 2026-03-16 | 547 |
+| ★ **r2f4_baseline_v1**       | **2026-03-01** | 109 |
+| r2f4_risk_adjusted_v1        | 2026-03-01 | 3,544 |
+| r2f4_quality_defensive_v1    | 2026-03-01 | 2,429 |
+
+→ r2f4_baseline_v1 の最新 base_date は **2026-03-01**。F062-R5 系で
+本来採用したい本線 source_version だが、研究 task (= F286-R2-F4
+broader historical sampling) で生成された分のみ存在し、本タスク時点
+(= 2026-05-11) からは **69 calendar days 前** のデータ。
+
+### freshness guard 評価 (= F062-R5.1 設計)
+
+| 項目 | 値 |
+|---|---|
+| payload_base_date (r2f4_baseline_v1 max) | 2026-03-01 |
+| gate signal max_base_date (= 全 source 横断) | 2026-05-09 |
+| calendar lag                              | **69 days** |
+| --max-payload-base-date-lag-days default | 10 days |
+
+→ **freshness guard が refuse する** (69 >> 10)。F062-R5.1 設計の
+「historical / smoke base_date payload は production 送信不可」が
+正しく作動する。
+
+### HQ (Fujiwara) 判断: 本タスク停止 ★
+
+提示した 3 案:
+- 案 A: `--max-payload-base-date-lag-days 100` で guard 緩めて r2f4
+        / 2026-03-01 を送信
+- 案 B: `r2d_v1` (latest 2026-05-09) で送信
+- 案 C: 本タスク停止 + r2f4_baseline_v1 を最新 base_date まで再生成
+        する別 task を提案
+
+→ **HQ 選択: 案 C (本タスク停止)**
+
+HQ 理由:
+- r2f4_baseline_v1 の latest_base_date が 2026-03-01 で古く、F062-R5.1
+  freshness guard の設計意図に反する
+- `--max-payload-base-date-lag-days 100` で緩めて送るのは不可
+  (= guard を実質無効化するため、F062-R5.1 設計を否定する)
+- r2d_v1 は最新 base_date だが、F286-R2-F4 で baseline 本線として
+  採用した source_version ではない (= 研究 R2 系列の中間 source)、
+  本番初回 Advisory に使わない
+- 現状で送信可能な production source_version が **存在しない** と
+  判断
+
+### 実施せず
+
+DATA-R2 gate が pass であっても HQ 判断「本タスク停止」を受け、以下
+を **実施していない**:
+
+- F111-R4 advisory rows 生成 (= source_version=r2f4_baseline_v1
+  / base_date=2026-03-01 の生成試行も含めて未実行)
+- F062-R1 line preview --message-mode production --compact での
+  payload 生成
+- 送信前 dry-run / 本番 1 chunk 送信
+- token / recipient leak 検査 (= 送信していないので artifact 不在)
+
+**Fujiwara LINE app に新規通知は届かない**。
+
+### 安全要件遵守 (2 段目停止時点)
+
+| 項目 | 結果 |
+|---|---|
+| 送信は 0 通                                          | ✅ |
+| --max-payload-base-date-lag-days を勝手に緩めない    | ✅ (= HQ 不承認、本タスク内で touched なし) |
+| source_version を勝手に r2d_v1 に変えない             | ✅ |
+| 自動発注                                             | 0 ✅ |
+| 楽天証券操作                                          | 0 ✅ |
+| Computer Use                                         | 0 ✅ |
+| 注文価格 / 数量 / 執行指示                            | 送信していない ✅ |
+| token 平文出力                                       | 0 ✅ |
+| recipient_id 平文出力                                 | 0 ✅ |
+| DB write (本タスク内)                                 | 0 ✅ (= gate runner read-only) |
+| production fire.db / develop fire.develop.db          | mtime unchanged ✅ |
+| staging fire.staging.db                              | F286-DATA-R1.4 restore 時点 (5/11 11:20:59 / 4.8 GB) で本タスク内 touched なし ✅ |
+| TODO Excel                                           | 未更新 ✅ |
+| --no-verify                                          | 不使用 ✅ |
+| scripts/seed_pattern_layer1.py / historical_indicators.py | 未接触 ✅ |
+| unrelated modified を stage / commit                 | しない ✅ |
+
+### 次タスク提案 (HQ 指示)
+
+★ **F286-DATA-R1.5 Latest Baseline Signal Regeneration for Production
+Advisory**
+
+目的: 最新の J-Quants / market_prices_daily / derived indicators
+/ research_watchlist_signals を使って、r2f4_baseline_v1 相当の
+production-ready signal を最新 base_date (= 2026-05-09 or それに
+近い直近日) で生成し、F062-R5.2 の payload freshness guard を
+**自然に通せる** 状態にする。
+
+本タスクで明示された制約:
+- LINE 送信しない
+- `--allow-warning` しない
+- freshness guard を緩めない
+- source_version を勝手に r2d_v1 へ変えない
+- DB write する場合は staging のみ、production / develop 無触
+- TODO Excel 更新しない
+
+並走候補:
+- FIRE-OPS-R0 再発防止策案 1 (= 本番運用データを production fire.db
+  に書く運用統一) の設計レビュー
+- 03_design/F282_environment_isolation_*.md の運用ルール明文化
+  (= staging weekly snapshot との整合)
+- F286-DATA-R3 daily refresh cron 化 (= 案 1 と整合)
