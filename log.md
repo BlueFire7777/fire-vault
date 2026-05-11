@@ -7597,3 +7597,50 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ 判断 (= 案 X1: F286-PNL-R2 を 5 lane 並列実行 / 案 X2:
   F286-DATA-R3 を 3 lane 実行 / 案 X3: F286-INTRA-R2 を本線単独 PoC /
   案 X4: F286-ORDER-R1 は Codex 不可 = 本線単独実装方針確認)
+
+## [2026-05-11] decision | FIRE-CODEX-R1 v1.1 改訂 (Codex を実装部隊化)
+
+- HQ 補足受領: 「Codex を review 専用ではなく、実装レーンとして
+  積極利用する前提で設計してください。Claude Code 本線の開発速度を
+  上げることを目的に、実装・test・scanner・docs 草案も並列で任せる」
+- 設計 doc に §14-19 を追加 (= v1.0 を書き換えず、運用シフトを上乗せ):
+  - §14 v1.1 補足 (動機 + v1.0→v1.1 の運用シフト表)
+  - §15 Codex 実装レーンの標準運用
+    - 1 task の標準形 (yaml、branch 必須、ownership 必須)
+    - 1 task = 1 branch (`codex/<task_id>`、base develop、本線が merge)
+    - 必須項目チェックリスト (= 埋まらなければ投入禁止)
+    - 本線 merge は本線 + HQ のみ (= Codex 直接 push 禁止)
+  - §16 Codex に実装させる初回候補 5 件:
+    - F286-PNL-R2  Advisory Snapshot Auto-Ingest          ★★★ 高
+    - FIRE-AUDIT-R1 Safety Scanner / Forbidden Op Audit   ★★★ 高 (read-only)
+    - F286-DATA-R3 Daily Refresh Cron                     ★★ 中
+    - F286-INTRA-R2 Intraday Advisory Trigger Engine      ★★ 中 (PoC のみ)
+    - F286-ORDER-R1 Manual Order Draft Generator          ★ 条件付き可
+      (= Step 1 placeholder のみ、Step 2-3 は本線単独)
+  - §17 初回投入プラン (= Wave 1-4 構造):
+    - Wave 1: 3 lane 並列 (Audit-A / Audit-B / PNL-R2 Design)
+    - Wave 2: 4 lane 並列 (Impl / Test / Docs / Cron Impl)
+    - Wave 3: 1 lane (Audit)
+    - Wave 4: 本線統合 + HQ 報告
+    - 合計 50-70 分 (本線単独 120-180 分の 30-50% 短縮想定)
+  - §17.2 file ownership 表 (= 8 件分の yaml 正本)
+  - §17.3 本線統合手順 (Integrator + Final Reviewer + PM)
+  - §17.4 投入時刻の log 記録ルール
+  - §18 コピペプロンプト構造 (= §8 雛形 + §9 報告テンプレ + §17 yaml の結合)
+  - §19 Known Limitations + 将来拡張 (テンプレ集 / 自動組立 shell /
+    本線 merge 自動化 / 並列効果計測)
+- 02_todo/FIRE_CODEX_R1_orchestration_design.md にも v1.1 補足を上乗せ
+- F286-ORDER-R1 を v1.0「× 不可」から v1.1「★ 条件付き可」に再評価:
+  - Step 1 placeholder のみ Codex 可 (= 値は dummy、本線が後で実 logic)
+  - Step 2-3 は本線単独 (= 自動発注禁止と整合)
+- FIRE-AUDIT-R1 を初回候補に追加 (= 既存コードを read-only AST 走査、
+  forbidden import / SQL DDL / token hardcode を CRITICAL 予防的検出)
+- 安全:
+  - コード変更なし / DB write 0 / LINE 送信 0
+  - workflow 変更なし / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - TODO Excel 未更新
+- R-01-08 整合維持: workflow 変更禁止は v1.1 でも継続、Codex は
+  Mac mini local CLI のみ
+- 次タスク: HQ 判断 (= 案 X1〜X5、推奨は X1 v1.1 初回投入プラン全実行、
+  FIRE-AUDIT-R1 で先に repo audit を取って後続品質担保)

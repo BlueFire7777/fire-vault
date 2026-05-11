@@ -2,10 +2,10 @@
 type: design_doc
 id: FIRE-CODEX-R1
 title: Multi-Lane Parallel Development Orchestration
-version: v1.0
+version: v1.1
 date: 2026-05-11
 owner: BlueFire7777 (Fujiwara)
-status: 確定 (= 初版、運用開始)
+status: 確定 (= v1.1、Codex を実装部隊化、運用開始)
 chapter: ガバナンス / R-01-08 補強 / Codex レビュー運用拡張
 related:
   - "[[../CLAUDE]] (vault)"
@@ -24,8 +24,13 @@ related:
 **Claude Code 本線を PM / Architect / Integrator / Final Reviewer に
 固定し、Codex を 5 種類の限定レーンとして並列活用する**。
 LINE 本番送信 / production / develop DB write / token 参照は
-Codex に絶対委譲しない。1 Codex task = 1 目的 / 1 成果物 / 1 file
-ownership グループ、で衝突を構造的に防ぐ。
+Codex に絶対委譲しない。1 Codex task = 1 branch / 1 目的 / 1 成果物
+/ 1 file ownership グループ、で衝突を構造的に防ぐ。
+
+**v1.1 改訂**: Codex を **review 専用ではなく実装部隊** として
+積極利用する方向に明確化。3-5 本の独立 task を並列で走らせて本線
+開発速度を底上げする。実装レーン (L3) の標準運用 + safety scanner /
+forbidden operation audit を初回投入候補に追加 (= §15-18)。
 
 ## 1. 背景と動機
 
@@ -648,8 +653,453 @@ forbidden_files:
 | 日付 | 版 | 内容 |
 |---|---|---|
 | 2026-05-11 | v1.0 | 初版 (= F286-PNL-R1 完了直後の HQ 承認で運用開始) |
+| 2026-05-11 | v1.1 | HQ 補足受領: Codex を実装部隊として積極利用する方向に明確化。実装レーン (L3) の標準運用 / 1 branch / 統合手順 / safety scanner を初回候補に追加 / 3-5 本並列タスクの分解と投入プロンプトを §15-18 で詳細化 |
 
-## 14. 関連リンク
+---
+
+## 14. v1.1 補足: Codex を実装部隊化する方針
+
+### 14.1 動機
+
+v1.0 では Codex を 5 レーン (Design / Test / Implementation / Audit /
+Docs) に分けたが、運用初期は **review 中心** の印象が強かった。
+HQ 補足受領 (2026-05-11) で「Codex を実装部隊として積極利用、本線
+開発速度を底上げする」方針に明確化した。
+
+これは v1.0 の **§3 (5 レーン)** と **§4 (委譲可カテゴリ 8 件)** を
+書き換えるのではなく、**実装レーン (L3) を主軸**に位置付け直し、
+他レーンを支援役にする運用シフト。禁止項目 13 件 (§5) は完全維持。
+
+### 14.2 v1.0 → v1.1 の運用シフト
+
+| 観点 | v1.0 | v1.1 |
+|---|---|---|
+| Codex の主用途      | レビュー + 限定実装         | **実装本体 + tests + scanner + docs 並列** |
+| 並列度の上限         | L3 は 1 同時                | **L3 を 3-5 本並列** (= 1 branch / 1 ownership で衝突回避) |
+| 本線の業務比率       | レビュー中心                | **PM + Integrator + Final Reviewer 比率 ↑** |
+| 初回候補            | F286-PNL-R2 単独 5 sub      | **F286-PNL-R2 / F286-DATA-R3 / F286-INTRA-R2 PoC / safety scanner / F286-ORDER-R1 dummy** を並列 |
+| Branch 戦略         | (未定義)                    | **1 Codex task = 1 feature branch** (= 衝突防止 + rollback 容易) |
+
+## 15. Codex 実装レーンの標準運用 (= v1.1 中核)
+
+### 15.1 1 Codex task の標準形
+
+```yaml
+# 全 Codex 実装 task が必ず守る形
+task_id:        <ID>          # 例: F286-PNL-R2-impl
+parent_task:    <親タスク>
+lane:           L3 Implementation
+branch:         codex/<task_id>     # ★ 1 task = 1 branch
+allowed_files:                       # 触ってよいファイル列挙
+  - <file 1>
+  - <file 2>
+forbidden_files:                     # 触らないファイル (= 共通禁止 + 個別)
+  - "*"                              # allowed 以外
+  - data/fire.db
+  - data/fire.develop.db
+  - .github/workflows/*
+  - scripts/seed_pattern_layer1.py
+  - simulation/research_lane/historical_indicators.py
+expected_outputs:                    # ★ 必須
+  - <成果物 1>
+  - <成果物 2>
+test_command:                        # ★ 必須
+  ".venv/bin/pytest <path> -v"
+report_required: true                # ★ §9 テンプレ厳守
+merge_owner: 本線 (Claude Code) Integrator
+db_write_allowed: false              # default、明示許可なければ false
+line_send_allowed: false
+token_read_allowed: false
+```
+
+### 15.2 1 task = 1 branch (= v1.1 で新規追加)
+
+| 項目 | 詳細 |
+|---|---|
+| branch 命名         | `codex/<task_id>` (例: `codex/f286-pnl-r2-impl`) |
+| base 元             | `develop` (= 本線開発ブランチ) |
+| 並列時の衝突回避     | 同じ allowed_files を持つ branch を作らない (= ownership 表で防ぐ) |
+| 完了後の merge       | Codex は **直接 develop に merge しない**。本線 Integrator が cherry-pick or PR merge |
+| pre-commit hook     | Codex の commit でも fire リポの pre-commit が走る (= Codex 自身が `codex exec` review を通す) |
+| 失敗時の rollback    | branch ごと破棄で済む (= develop 汚染なし) |
+
+### 15.3 必須必要項目チェックリスト (= 本線が起票時に埋める)
+
+- [ ] task_id / parent_task 命名済
+- [ ] lane 明示 (L1-L5)
+- [ ] branch 名決定 (= `codex/<id>`)
+- [ ] allowed_files 列挙 (= 最小限)
+- [ ] forbidden_files に共通禁止リスト + 個別 file が入っている
+- [ ] expected_outputs 列挙
+- [ ] test_command 指定 (= 動作確認の単一行)
+- [ ] 完了報告テンプレ (§9) を Codex プロンプトに添付済
+- [ ] db_write_allowed / line_send_allowed / token_read_allowed が
+      `false` (= 明示許可された task のみ true)
+- [ ] 共通フッタ (§8.1) を Codex プロンプトに貼付済
+
+埋まっていなければ **Codex 投入禁止**。
+
+### 15.4 本線 merge は本線 / HQ のみ
+
+Codex が完成しても、最終的に develop に取り込むのは **本線 Integrator
++ HQ 判断**:
+
+1. 本線 Integrator が Codex branch を取得
+2. `.venv/bin/pytest` 全件 PASS を確認
+3. 既存 develop との衝突確認 (= file ownership 表で予防済のはず)
+4. HQ (Fujiwara) に「merge 可否」の 1 block 報告
+5. HQ approve → 本線が develop に merge
+6. log.md に merge 履歴を記録
+
+Codex 自身が develop に push することは **構造的に禁止**。
+
+## 16. Codex に実装させる初回候補 (= v1.1 で再評価)
+
+### 16.1 候補一覧 (= 5 件)
+
+| 候補 | 概要 | Codex 実装適性 | sub-task 数 | branch |
+|---|---|---|---|---|
+| **F286-PNL-R2** Advisory Snapshot Auto-Ingest | F062 payload → advisory_decisions 自動 ingest | **★★★ 高** | 5 | `codex/f286-pnl-r2-*` |
+| **F286-INTRA-R2** Intraday Advisory Trigger Engine | 「待ち」候補の場中 VWAP / 出来高監視 | **★★ 中** (= PoC 部分のみ) | 2-3 | `codex/f286-intra-r2-*` |
+| **F286-ORDER-R1** Manual Order Draft Generator | 注文 draft (価格/数量/OCO) を LINE 通知 (= **dummy / placeholder のみ**) | **★ 条件付き可** | 2 | `codex/f286-order-r1-*` |
+| **F286-DATA-R3** Daily Refresh Cron 化 | staging データの日次更新 cron | **★★ 中** | 3 | `codex/f286-data-r3-*` |
+| **FIRE-AUDIT-R1** Safety Scanner / Forbidden Op Audit | repo 横断で forbidden import / SQL DDL / token hardcode を AST 走査 | **★★★ 高** (= read-only) | 2-3 | `codex/fire-audit-r1-*` |
+
+### 16.2 F286-ORDER-R1 を「条件付き可」に再分類した根拠
+
+v1.0 では「× 不可」だったが、v1.1 で **dummy / placeholder のみ実装**
+ならば Codex 委譲可と再評価:
+
+| 段階 | Codex 可否 | 内容 |
+|---|---|---|
+| Step 1: draft 表示の **骨組みのみ** (= placeholder 関数 + 文字列 template) | **★ 可**  | 値は dummy / 0、計算ロジック未実装、本線が後で実 logic を埋める前提 |
+| Step 2: 実 draft 価格 / 数量 / OCO の **生成 logic 本体** | × 不可 | 「注文価格・数量・執行指示の生成 helper」と直接衝突、本線単独実装 |
+| Step 3: LINE 統合 + 本番送信                          | × 不可 | LINE 本番送信は本線のみ |
+
+つまり F286-ORDER-R1 は Step 1 だけ Codex に出し、Step 2-3 は本線
+担当。これで「Codex を実装部隊化」と「自動発注禁止」の両立を実現。
+
+### 16.3 FIRE-AUDIT-R1 (= safety scanner) を初回候補に追加した根拠
+
+- repo 横断の **read-only AST 走査** であり、副作用ゼロ
+- 既存コードの forbidden import / SQL DDL / token hardcode を
+  **早期発見** して F286-PNL-R1 のような CRITICAL を予防
+- Codex の典型強み (= 大量パターン認識) を活かせる
+- 並列度: 観点別に 2-3 lane で同時走査可能
+
+## 17. v1.1 初回投入プラン (= 3-5 本並列、20-40 分短縮想定)
+
+### 17.1 全体構造
+
+```
+本線 PM
+  └─ file ownership 表 5 件起票 (= 1 task / 1 branch)
+       │
+       ├─ Codex-Design (sub-1)    F286-PNL-R2 設計
+       ├─ Codex-Audit (sub-A)     FIRE-AUDIT-R1 forbidden import scan
+       └─ Codex-Audit (sub-B)     FIRE-AUDIT-R1 SQL/token hardcode scan
+                            (3 lane 並列、約 15 分)
+              ↓
+       本線 Architect (sub-1 approve)
+              ↓
+       ├─ Codex-Impl (sub-2)      F286-PNL-R2 pnl/snapshot.py
+       ├─ Codex-Test (sub-3)      F286-PNL-R2 tests/pnl/test_snapshot.py
+       ├─ Codex-Impl (sub-D1)     F286-DATA-R3 cron runner (= staging write 明示許可)
+       └─ Codex-Docs (sub-5)      F286-PNL-R2 vault draft
+                            (4 lane 並列、約 15-20 分)
+              ↓
+       Codex-Audit (sub-4)        F286-PNL-R2 audit report
+              ↓
+       本線 Integrator が 5 branch を統合
+              ↓
+       本線 Final Reviewer (pre-commit + 回帰)
+              ↓
+       本線 HQ 報告 (= 1 block)
+```
+
+合計: 約 50-70 分 (= 本線単独 120-180 分のタスクを **30-50% 短縮**)。
+
+### 17.2 file ownership 表 (= 初回投入 5 件分の正本)
+
+```yaml
+# ========================================
+# 投入順: A → B → 1 (並列)、続いて 2 → 3 → D1 → 5 (並列)、最後に 4
+# ========================================
+
+- task_id: FIRE-AUDIT-R1-sub-A
+  parent_task: FIRE-AUDIT-R1
+  lane: L4 Audit
+  branch: codex/fire-audit-r1-imports
+  allowed_files:
+    - /tmp/fire_audit_r1_forbidden_imports_report.md
+  forbidden_files: ["*"]   # report 以外 全て read-only
+  expected_outputs:
+    - Markdown レポート (linebot / playwright / selenium / requests.post
+      の import を repo 横断で走査、見つかった場所を列挙)
+  test_command: "(N/A、read-only audit)"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: FIRE-AUDIT-R1-sub-B
+  parent_task: FIRE-AUDIT-R1
+  lane: L4 Audit
+  branch: codex/fire-audit-r1-sql-token
+  allowed_files:
+    - /tmp/fire_audit_r1_sql_token_hardcode_report.md
+  forbidden_files: ["*"]
+  expected_outputs:
+    - Markdown レポート (SQL DDL/DML literal の漏洩 + token / channel_token
+      / FIRE_LINE_RECIPIENT_ID / secret 系の hardcode を AST + grep で走査)
+  test_command: "(N/A、read-only audit)"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-PNL-R2-sub-1
+  parent_task: F286-PNL-R2
+  lane: L1 Design
+  branch: codex/f286-pnl-r2-design
+  allowed_files:
+    - /tmp/f286_pnl_r2_design_draft.md
+  forbidden_files: ["*"]   # 設計のみ、コード触らない
+  expected_outputs:
+    - Snapshot schema CREATE TABLE 案
+    - F062 payload → snapshot mapping 表
+    - 三段ガード適用方針
+  test_command: "(N/A、設計のみ)"
+  report_required: true
+  merge_owner: 本線 Architect
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-PNL-R2-sub-2
+  parent_task: F286-PNL-R2
+  lane: L3 Implementation
+  branch: codex/f286-pnl-r2-snapshot-module
+  allowed_files:
+    - pnl/snapshot.py    # 新規 1 ファイル
+  forbidden_files:
+    - pnl/storage.py
+    - pnl/schema.py
+    - pnl/models.py
+    - "*"                # 上記 allowed 以外
+  expected_outputs:
+    - pnl/snapshot.py (= isolated module、F286-PNL-R1 三段ガード再利用)
+    - default dry-run、--write は本線側 runner で渡す前提
+  test_command: ".venv/bin/python -c 'import pnl.snapshot; print(\"ok\")'"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-PNL-R2-sub-3
+  parent_task: F286-PNL-R2
+  lane: L2 Test
+  branch: codex/f286-pnl-r2-snapshot-tests
+  allowed_files:
+    - tests/pnl/test_snapshot.py    # 新規 1 ファイル
+  forbidden_files:
+    - pnl/snapshot.py               # 実装は sub-2 担当
+    - "*"
+  expected_outputs:
+    - parametrize 値域 / 三段ガード違反 refuse / round-trip 含む test
+    - ast-based forbidden import 検査
+  test_command: ".venv/bin/pytest tests/pnl/test_snapshot.py -v"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-DATA-R3-sub-D1
+  parent_task: F286-DATA-R3
+  lane: L3 Implementation
+  branch: codex/f286-data-r3-cron-runner
+  allowed_files:
+    - scripts/jobs/run_f286_data_r3_daily_refresh.py    # 新規 runner
+  forbidden_files:
+    - scripts/jobs/run_f111_*                            # 既存 wiring
+    - scripts/jobs/run_data_freshness_gate.py            # 既存 gate
+    - "*"
+  expected_outputs:
+    - daily refresh 用 runner (= default dry-run、--write でのみ staging
+      に書き込み)
+    - F286-PNL-R1 と同じ三段ガード (db_label='staging' + basename)
+  test_command: ".venv/bin/pytest tests/scripts/jobs/test_run_f286_data_r3_daily_refresh.py -v"
+                # (test も同じ branch で書く、または別 sub-task で分割)
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: true   # ★ 例外: staging のみ、basename ガード越し
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-PNL-R2-sub-5
+  parent_task: F286-PNL-R2
+  lane: L5 Docs
+  branch: codex/f286-pnl-r2-docs
+  allowed_files:
+    - 02_todo/F286_PNL_R2_advisory_snapshot_auto_ingest.md  # vault のみ
+  forbidden_files:
+    - log.md
+    - CLAUDE.md
+    - 03_design/*       # 設計は sub-1 担当
+    - "*"
+  expected_outputs:
+    - 02_todo タスク完了マーカー雛形 (本線が最終 review してマージ)
+  test_command: "(N/A、docs)"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+
+- task_id: F286-PNL-R2-sub-4
+  parent_task: F286-PNL-R2
+  lane: L4 Audit
+  branch: codex/f286-pnl-r2-audit
+  allowed_files:
+    - /tmp/f286_pnl_r2_audit_report.md
+  forbidden_files: ["*"]   # read-only audit
+  expected_outputs:
+    - Markdown レポート (forbidden import / SQL DDL/DML literal /
+      三段ガード抜け穴 / F286-PNL-R1 advisory_decisions PK 衝突
+      / 注文価格・数量・執行指示生成 helper 有無)
+  test_command: "(N/A、read-only audit)"
+  report_required: true
+  merge_owner: 本線 Integrator
+  db_write_allowed: false
+  line_send_allowed: false
+  token_read_allowed: false
+```
+
+### 17.3 本線統合手順 (= Integrator + Final Reviewer の手順)
+
+```
+[本線 Integrator]
+1. 全 Codex branch (= codex/*) を確認
+2. allowed_files 違反がないか git diff で確認 (= 範囲外ファイル変更検査)
+3. 安全項目チェック:
+   - LineBotClient / linebot / playwright 不 import 確認
+   - SQL DDL/DML literal (INSERT/UPDATE/DELETE/DROP/CREATE) 漏洩確認
+   - token / channel_token / FIRE_LINE_RECIPIENT_ID hardcode 確認
+   - 三段ガード (= staging-only + basename) 適用確認
+4. 各 branch を develop に rebase + cherry-pick (= 1 commit / 1 branch)
+   または PR merge で 1 task 1 commit
+5. 衝突発生時は **そのまま手 resolve**、--no-verify は使わない
+
+[本線 Final Reviewer]
+6. .venv/bin/pytest 全件 PASS 確認 (= 回帰 0 件)
+7. Codex pre-commit が走った formal commit ログを確認
+8. 本線が Codex CRITICAL 指摘を最終判断 (= 即修正 or 差し戻し)
+
+[本線 PM]
+9. HQ 報告 1 block を作成、Fujiwara へ報告
+   - 完了 sub-task の task_id 一覧
+   - 各 sub の commit hash
+   - 統合後の pytest 回帰結果
+   - DB write 結果 (staging 件数、production/develop unchanged)
+   - LINE send 0
+   - token-recipient leak 0
+   - HQ 判断が必要な論点 (CRITICAL 残や設計判断)
+```
+
+### 17.4 投入時刻と運用ログ
+
+各 Codex 投入時に log.md に 1 行記録:
+
+```
+## [YYYY-MM-DD] codex | <task_id> lane=<L#> branch=<codex/...> 投入
+```
+
+完了時にも 1 行:
+
+```
+## [YYYY-MM-DD] codex | <task_id> 完了 commits=<hash> tests=<PASS/FAIL>
+```
+
+これで並列化の効果測定 (= 想定時間 vs 実時間) + どの lane が詰まり
+やすいか の運用データを蓄積。
+
+## 18. Codex 投入用コピペプロンプト (= v1.1 で 3-5 本一括版)
+
+§8 のプロンプト雛形を、§17.2 file ownership 表と組合せて初回投入する
+コピペ用プロンプトを準備。本線はこれを **そのままコピペ** で Codex に
+投入できる。
+
+### 18.1 投入順序 (= 詳細)
+
+**Wave 1 (= 並列 3 lane、約 15 分)**:
+- FIRE-AUDIT-R1-sub-A (= forbidden import scan)
+- FIRE-AUDIT-R1-sub-B (= SQL / token hardcode scan)
+- F286-PNL-R2-sub-1 (= Design)
+
+**Wave 2 (= 本線 Architect の design approve 後、並列 4 lane、約 15-20 分)**:
+- F286-PNL-R2-sub-2 (= Impl)
+- F286-PNL-R2-sub-3 (= Test)
+- F286-DATA-R3-sub-D1 (= cron runner Impl + Test)
+- F286-PNL-R2-sub-5 (= Docs draft)
+
+**Wave 3 (= Impl 完了後、1 lane、約 5-10 分)**:
+- F286-PNL-R2-sub-4 (= Audit)
+
+**Wave 4 (= 本線統合 + HQ 報告、約 15-20 分)**:
+- Integrator → Final Reviewer → PM 報告
+
+### 18.2 各 sub のコピペプロンプト (= §8 雛形 + §17.2 ownership 表を結合)
+
+各プロンプトは以下の構造で本線が組み立てる:
+
+```
+<§8 該当レーン雛形 (Design / Impl / Test / Audit / Docs)>
+
+=== file ownership (= §17.2 から該当ブロックを貼り付け) ===
+<task_id 等の yaml ブロック>
+
+=== 完了報告フォーマット (= §9 を貼り付け) ===
+<完了報告テンプレ>
+
+=== 必ず守ること (= §8.1 共通フッタ) ===
+<13 禁止項目>
+```
+
+3-5 個分のプロンプトは長くなるが、毎回テンプレが同じなので **本線が
+1 度作って保存** すれば再利用できる (= 将来 `~/fire-vault/08_reference/
+codex_prompts/` にテンプレ集を置く案を §19 で言及)。
+
+## 19. Known Limitations / 将来拡張
+
+### 19.1 既知の制約 (= v1.1 時点)
+
+1. **Codex の自律完走可否は task サイズ依存** — 200 行超 の module 実装は
+   分割推奨 (= sub-task をさらに細分化)。
+2. **本線 Integrator が衝突を手 resolve** — file ownership 表が
+   完璧に守られれば衝突ゼロ、運用初期は手動チェック必要。
+3. **Codex の merge 直接 push は禁止** — 本線が必ず最終 commit。
+   現状この強制は運用ルールベース (= 技術的強制は別タスク)。
+4. **F286-ORDER-R1 の Step 2-3** — 注文 draft 本体は本線単独実装
+   (= Codex Step 1 placeholder のみ)。
+5. **dump 系の API key / channel token** — 完了報告でも値を出さない
+   (= `*_SET: True / length=N` 形式のみ、§9 に追記候補)。
+
+### 19.2 将来拡張案
+
+1. **`08_reference/codex_prompts/` テンプレ集** — 5 レーン × 共通フッタ
+   をディレクトリ化、初回 Codex 起票が `cat <template>` で済む。
+2. **`scripts/codex/start_lane.sh`** — file ownership 表 yaml を
+   読み込んで Codex プロンプトを自動組立する shell (= Phase 2)。
+3. **本線 merge 自動化** — `gh pr` で Codex branch を PR 化、本線が
+   approve → merge する web 経由運用 (= R-01-08 と整合する範囲で検討)。
+4. **並列効果の計測** — log.md の codex entry から「想定時間 vs 実時間」
+   を集計、週次レビューで並列度を最適化。
+
+## 20. 関連リンク
 
 - [[../CLAUDE]] vault
 - [[../タスク運用ルール]]
