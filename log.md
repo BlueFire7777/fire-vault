@@ -8085,3 +8085,79 @@ Codex pre-commit hook: 全 OK 通過 (= CRITICAL 即修正後)。
 - 本 log entry の後続 commit
 - 02_todo/FIRE_CODEX_R1_WAVE4_1A_staging_smoke.md 新規追加
 - fire (develop): 変更なし (= W4.1-A はコード変更なし)
+
+## [2026-05-11] codex | FIRE-CODEX-R1 v1.1 Wave 5 完了 (DATA-R3 sub-D2 dry-run + PNL-R3 設計)
+
+### HQ Wave 5 approve 受領 (= 同日)
+
+- DATA-R3 sub-D2 dry-run / tests / audit の並列開発進行可
+- PNL-R3 Paper PnL Simulator Hook 設計起票進行可
+- W4.1-B (F062 経由 staging smoke) は保留継続
+- cron / launchd / crontab 本番登録は凍結継続
+
+### Wave 5 投入結果 (= 3 lane 順次)
+
+| sub | task | 状態 |
+|---|---|---|
+| W5-1+2 | DATA-R3 sub-D2 dry-run plan subprocess routing (L3+L2) | 27 PASS |
+| W5-3 | DATA-R3 sub-D2 audit (L4) | CRITICAL 0、軽微指摘 2 件は申送り |
+| W5-4 | PNL-R3 Paper PnL Hook 設計 (L1) | 416 行 design draft |
+
+Codex pre-commit hook: 全 OK 通過 (= Wave 4 と異なり CRITICAL 検出なし)。
+
+### W5-1+2 安全制約 (= 構造的に実装)
+
+- subprocess args に `--write` を絶対に渡さない (= dry_run_args literal で
+  `--dry-run` のみ)
+- subprocess env に token / channel_token / secret を含めない (= 最小 env、
+  PYTHONUNBUFFERED=1 のみ)
+- subprocess timeout 必須 (default 300 秒)
+- subprocess shell=False (= shell injection 防止)
+
+### W5-4 PNL-R3 設計推奨案 (= 本線 Architect 仮承認、HQ approve 待ち)
+
+- 仮想エントリ価格: 案 a (= 翌営業日寄付、deterministic)
+- 仮想エグジット価格: 案 x (= h20 後の終値、F119 model 整合)
+- 仮想数量: 案 1 (= F130 許容損失で逆算)
+- paper_pnl 計算対象: 🟢/🟡/⚠️ のみ (= 🟠 場中監視 / 🔴 見送り推奨 /
+  ⚪ 監視のみ は None)
+
+### fire develop split commit (= 3 件)
+
+- 46cabe1 feat(F286-DATA-R3-D2): integrate dry-run plan subprocess routing (W5-1+2)
+- d9b3c2f docs(F286-PNL-R3): paper PnL simulator hook design draft (W5-4) [vault]
+- e18cb4a docs(FIRE-CODEX-R1): add Wave 5 sub-task completion table entries
+
+### 安全 (Wave 5 全 ✓)
+
+- 実 LINE 送信 0 通 / DB write 0
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0
+- workflow 変更 0 / --no-verify 不使用
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / cron / launchd / crontab 未登録
+- Codex 直接 commit 0
+- subprocess --write 渡し 0 / subprocess env に secret 0
+
+### 並列効果
+
+- Wave 5 実時間 約 30-35 分 (= 3 lane 順次 + Integrator review)
+- 本線単独推定 150-180 分
+- 速度向上 **約 80% 短縮**
+- Wave 1/2/3/4/5 通算で 65-80% 短縮を 5 wave 連続達成
+
+### 回帰
+
+3,579 PASS (= 3,568 baseline + 11 新規)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 5 完了 → 次フェーズ進行可否 (推奨: approve)
+2. F286-DATA-R3 sub-D2.2 着手判断 (= 実 fetch / 実 write 統合)
+3. F286-PNL-R3 sub-Impl 起票判断 (= Wave 6)
+4. W4.1-B / cron sub-D3 凍結継続確認
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 5 results + log)
+- fire develop の 3 commit は別系統 (= 上記)
