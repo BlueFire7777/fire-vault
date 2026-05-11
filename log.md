@@ -6624,3 +6624,59 @@ HQ 判断要請 5 項目 (計画書 §9):
   F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計、並走で
   F286-DATA-R3 cron 化 / F242 OpenClaw / F022 FIRE Runner / F013
   launchd
+
+## [2026-05-11] milestone | F062-R5.2 production + compact 再送信 停止 (staging.db 巻き戻り / gate refuse)
+- 状態: **停止**。env preflight は全 pass、F062-R5.1 コード修正は
+  3,249 PASS で完了済み。最新 staging で再生成した DATA-R2 gate が
+  **overall=refuse / line_send_allowed=False** で停止条件 hit。
+- 観察された staging.db 巻き戻り (本タスクシーケンス外で発生):
+  - staging.db mtime: 5/11 01:35 → **5/11 07:00 (= 本タスク外で書込)**
+  - 3 DB が完全に同 size 371,064,832 bytes (= snapshot copy で上書き)
+  - market_prices_daily: max=5/8 / 2,085,284 行 → **max=5/1 /
+    526,764 行**
+  - research_watchlist_signals: 109 codes / max=5/9 → **テーブル不在**
+  - research_derived_indicators: 42 codes / max=5/8 → **テーブル不在**
+  - announcements: 1,098 行 (案 A で +1,091) → **7 行 / max=5/1**
+- DATA-R2 gate 詳細:
+  gate-1-prices    required    refuse (max=5/1 lag=6 > 1)
+  gate-2-signals   required    refuse (research_watchlist_signals 不在)
+  gate-3-index     recommended warning (max=5/1 lag=6 > 1)
+  gate-4-derived   recommended warning (テーブル空/不在)
+  gate-5-other     soft        warning (market_financials_v2 不在 /
+                                          announcements 鮮度低)
+- 推定原因: Mac mini 上で本タスクシーケンス **外** に走った何らかの
+  定期処理が staging.db を production / develop snapshot で上書き
+  (= 同 size、同 base 推定)。candidate: cron / launchd daily DB sync
+  / 別 session / F242 OpenClaw 前段スクリプト。本タスクシーケンス内
+  では staging.db への書込なし (= gate runner は read-only)。
+- 実施せず:
+  - F062-R5.2 用 production + compact payload 生成
+  - payload freshness guard 確認 (signals 不在で base_date 取得不可)
+  - 送信前 dry-run / 本番 1 chunk 送信
+  - token / recipient leak 検査 (送信していないため artifact 不在)
+- 安全要件 (= 全遵守):
+  - 送信 0 通 (= LineBotClient.send_text 未呼出)
+  - token / recipient 平文出力 0
+  - DB write 0 (本タスク内、gate runner は read-only)
+  - production fire.db / develop fire.develop.db mtime unchanged ✅
+  - staging.db は本タスク外要因で巻き戻り (= 本シーケンスで触らず)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- 復旧案 (要 HQ 判断):
+  案 A (推奨): staging 再構築 = fetch_historical で 5/2-5/8 prices
+    + fetch_tdnet_html で 5/7-5/8 announcements + signals/derived
+    生成パイプライン再実行 → gate pass 確認 → F062-R5.2 再起動
+  案 B (調査): launchd / cron 一覧 + 直近 7 時間に staging を touch
+    した process 特定。daily DB sync が staging を上書きする仕様なら
+    F242 OpenClaw 運用基盤の設計を見直し
+  案 C (延期): 5/12 平日 daily refresh 後に F062-R5 系を再開
+- 完了報告: /tmp/f062_r5_2_completion_report.txt
+- 02_todo/F062_R5_2_production_compact_advisory_launch.md 新規 vault
+- commits:
+  - fire (develop): 変更なし (= コード変更なし、gate runner 実行のみ)
+  - fire-vault (main):
+    - 本 milestone log + F062-R5.2 vault doc
+- 次タスク: HQ (Fujiwara) が案 A/B/C を選択。F286-DATA-R3 cron 化 が
+  本問題の再発防止に直結するため、並行で優先度を上げる候補
