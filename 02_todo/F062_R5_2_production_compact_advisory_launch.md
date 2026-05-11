@@ -2,7 +2,7 @@
 id: F062-R5.2
 phase: P5: 通知 / 第 14 章 LINE 通知配信 / 第 19 章 R-19-08
 priority: 最優先
-status: 停止 (2 段目: F286-DATA-R1.4 restore 後の再開試行で r2f4_baseline_v1 latest base_date が古く HQ 判断「本タスク停止」)
+status: ★ 完了 (2026-05-11、3 段目試行: F119 wired live 本番 Advisory 1 chunk 送信成功、Fujiwara LINE app 受信確認待ち)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - F062-R5 (初回本番 Advisory 送信成功 + Fujiwara 受信確認)
@@ -294,3 +294,196 @@ production-ready signal を最新 base_date (= 2026-05-09 or それに
 - 03_design/F282_environment_isolation_*.md の運用ルール明文化
   (= staging weekly snapshot との整合)
 - F286-DATA-R3 daily refresh cron 化 (= 案 1 と整合)
+
+---
+
+## 3 段目: F062-R5.2 本番送信成功 (2026-05-11、F286-DATA-R1.5/R1.6 完了後)
+
+F286-DATA-R1.5 で `r2f4_baseline_live_v1 / 2026-05-09 / 109 行` を
+staging に書き込み、F286-DATA-R1.6 で F119 historical artifacts を
+適用して non_neutral=30 / boost flag=30 / advisory_label=
+"boost_with_caution / boost_with_avoid" の payload を生成。本タスク
+3 段目で **実 LINE API へ 1 chunk 送信完了**。
+
+### env / gate / payload 確認 ✅
+
+| 項目 | 結果 |
+|---|---|
+| LINE_CHANNEL_TOKEN_SET     | True (length=516 / ASCII / no whitespace) |
+| FIRE_LINE_RECIPIENT_ID_SET | True (prefix='U' / length=33) |
+| DATA-R2 overall            | pass ✅ |
+| line_send_allowed          | True ✅ |
+| gate-2-signals max_base_date | 2026-05-09 |
+| payload metadata.message_mode | production |
+| payload metadata.compact   | True |
+| payload metadata.source_version | r2f4_baseline_live_v1 |
+| payload metadata.rule_version | r2g3_recommended_v2 |
+| payload metadata.payload_base_date | 2026-05-09 |
+| payload chunks count       | 1 |
+| payload selected_count     | 8 |
+| payload selected_label_counts | boost_with_avoid: 4, boost_with_caution: 4 |
+| payload forbidden_phrase_count | 0 |
+| payload safety_footer_present | True |
+
+### Step 4: dry-run (--send 無し) ✅
+
+| field | value |
+|---|---|
+| mode                       | dry_run |
+| send_allowed               | True |
+| sent_count                 | 0 |
+| line_api_call_count        | 0 |
+| token_read_count           | 0 |
+| forbidden_phrase_count     | 0 |
+| safety_footer_present      | True |
+| manual_review_required_count | 8 |
+| auto_order_allowed_true_count | 0 |
+
+### Step 5: real send 結果 ★
+
+実行コマンド (= token / recipient は env から):
+```
+run_f062_line_production_send_smoke
+  --payload-json /tmp/f286_data_r1_6_line_payload.json
+  --gate-json    /tmp/f286_data_r1_5_gate.json
+  --send --hq-approved-send
+  --recipient-id "$FIRE_LINE_RECIPIENT_ID"
+  --max-chunks 1
+  --output-json       /tmp/f062_r5_2_first_production_advisory_send.json
+  --completion-report /tmp/f062_r5_2_first_production_advisory_send_report.txt
+```
+
+結果:
+
+| field | value |
+|---|---|
+| exit                       | 0 |
+| mode                       | send |
+| dry_run                    | False (= Codex CRITICAL #5 厳密反映) |
+| send_allowed               | True |
+| **sent_count**             | **1** ★ |
+| **line_api_call_count**    | **1** ★ |
+| stub_invocations           | 0 |
+| partial_delivery           | **False** ★ |
+| token_read_count           | 1 |
+| production_callable_built  | True |
+| hq_approved_send           | True |
+| max_chunks                 | 1 |
+| **dry_run_line_api**       | **False** (= 実 push_message 呼出) |
+| forbidden_phrase_count     | 0 ✅ |
+| safety_footer_present      | True ✅ |
+| manual_review_required_count | 8 ✅ |
+| auto_order_allowed_true_count | 0 ✅ |
+| production_outcomes        | 1 件 (chunk_index=0 / **status=ok** / dry_run_line_api=False / chunk_length=955 / recipient_type=user / recipient_hash8=b344b213) |
+| **payload_freshness_check** | max_lag_days=10 / payload_base_date=2026-05-09 / gate_signal_max_base_date=2026-05-09 / **lag_calendar_days=0** ✅ |
+
+### Step 6: token / recipient leak 検査
+
+artifact 対象:
+- `/tmp/f062_r5_2_*.{json,txt}`
+- `/tmp/f286_data_r1_6_*.{json,txt}` (= payload 元)
+- `logs/notifications/notifications_line.log`
+
+結果:
+- **TOKEN_LEAK: 0** ✅
+- **FULL_RECIPIENT: 0** ✅
+
+LINE log tail (= recipient masked):
+```
+2026-05-11T04:01:22.903753+00:00  SEND  user:prefix=U:len=33:hash8=b344b213
+   FIRE 本番 Advisory\n本番 LINE 通知 / 自動発注なし / 手動レビュー必須
+   \nsource: r2f4_baseline_live_v1 / r2g3_recommended_v2\nbase_dates: 2026-05-09
+   \nselected_candidates: 8\n\n🟢 結論: 買い検討候補あり
+   \n候補は手動レビュー前提。自動発注なし。\n\nSummary\...
+```
+
+### DB 不変確認
+
+| DB | mtime / size | 不変 |
+|---|---|---|
+| data/fire.db          | May  7 16:12:38 2026 / 371 MB     | ✅ |
+| data/fire.develop.db  | May  7 18:14:26 2026 / 371 MB     | ✅ |
+| data/fire.staging.db  | May 11 11:48:57 2026 / 4.8 GB     | ✅ (= F286-DATA-R1.5 末尾状態維持) |
+
+本タスク内で staging 含む 3 DB すべて mtime unchanged
+(= F062-R3 sender / runner 共に DB 不接続)。
+
+### 安全要件遵守 (= 全 ✅)
+
+| 項目 | 結果 |
+|---|---|
+| 送信は 1 通だけ                                           | ✅ |
+| --send + --hq-approved-send                              | ✅ |
+| --max-chunks 1                                           | ✅ |
+| token 平文出力                                            | 0 ✅ |
+| recipient_id 平文出力                                     | 0 ✅ |
+| partial_delivery=True 時 retry なし                       | False (retry 不要) ✅ |
+| 自動発注 / 楽天操作 / Computer Use                         | 0 ✅ |
+| 注文価格 / 数量 / 執行指示                                 | 送信していない ✅ |
+| TODO Excel                                               | 未更新 ✅ |
+| --no-verify                                              | 不使用 ✅ |
+| scripts/seed_pattern_layer1.py / historical_indicators.py | 未接触 ✅ |
+| unrelated modified を stage / commit                      | しない ✅ |
+| Codex pre-commit (docs commit のみ)                       | 対象外 ✅ |
+
+### Fujiwara LINE app 受信確認 (依頼)
+
+- 送信時刻: **2026-05-11T04:01:22 UTC** (= 2026-05-11 13:01 JST)
+- 送信件数: **1 件のみ** (= 重複なし)
+- chunk 内容: production + compact、length=955
+
+冒頭 (= LINE log preview):
+```
+FIRE 本番 Advisory
+本番 LINE 通知 / 自動発注なし / 手動レビュー必須
+source: r2f4_baseline_live_v1 / r2g3_recommended_v2
+base_dates: 2026-05-09
+selected_candidates: 8
+
+🟢 結論: 買い検討候補あり
+候補は手動レビュー前提。自動発注なし。
+
+Summary
+candidates: 30
+boost: 30 / avoid: 6 / caution: 24
+non-neutral: 30
+auto_order_allowed_true: 0
+manual_review_required: 30/30
+...
+- 本番 LINE 通知 (production send)
+- 自動発注なし
+- 楽天操作なし
+- Computer Use なし
+- 注文価格・数量・執行指示は生成しない
+- F119 の優位は 20d 寄り (daytrade 即時判断には使わない)
+- Fujiwara manual review required
+```
+
+Fujiwara の LINE app に **1 通だけ** 届いていることを確認後、内容
+レビュー + 重複なし確認をご報告ください。
+
+### 試行履歴 (= F062-R5.2 series)
+
+| 段階 | 日時 | 状態 | 主因 |
+|---|---|---|---|
+| 1 段目 | 2026-05-11 07:30 JST | 停止 | staging.db 巻き戻り (= F282 weekly snapshot) |
+| (案 A) | 2026-05-11 11:00 JST | restore | F286-DATA-R1.4 で snapshot 前 bak から復元 |
+| 2 段目 | 2026-05-11 11:25 JST | 停止 | r2f4_baseline_v1 latest=2026-03-01 が古く freshness guard refuse、HQ 判断「本タスク停止」 |
+| (再生成) | 2026-05-11 11:48 JST | live signal | F286-DATA-R1.5 で r2f4_baseline_live_v1 / 2026-05-09 staging 書込 |
+| (F119 wiring) | 2026-05-11 12:34 JST | F119 wired | F286-DATA-R1.6 で F119 historical artifact 適用、non_neutral=30 |
+| **3 段目** | **2026-05-11 13:01 JST** | **★ 成功** | **F119 wired 本番 Advisory 1 chunk 送信成功** |
+
+### 次タスク
+
+1. ★ F062-R5.2 完了 (= 本書 3 段目記録、Fujiwara 受信確認待ち)
+2. **Fujiwara が LINE app で 1 通受信確認** → 内容レビュー
+3. 受信成功確認後:
+   - F286-PNL-R1 Advisory Decision / Actual PnL Tracking 設計
+4. 並走候補 (= 本格運用に向け):
+   - FIRE-OPS-R0 再発防止策案 1 (= 本番運用データを production fire.db
+     に書く運用統一) の設計レビュー
+   - 03_design/F282_environment_isolation_*.md の運用ルール明文化
+   - F286-DATA-R3 daily refresh cron 化 (= 案 1 と整合)
+   - F062 系の運用反復 (= 次回以降は本パイプラインを再利用、必要に
+     応じて max_chunks を増やす、ただし F282 next snapshot 5/18 07:00
+     JST までに R1.5/R1.6 再実行が必要)
