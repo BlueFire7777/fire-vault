@@ -8003,3 +8003,85 @@ Codex pre-commit hook: 全 OK 通過 (= CRITICAL 即修正後)。
 - adcf660 docs(FIRE-CODEX-R1): log Wave 4 起票 milestone
 - 1a4d8cd docs(F286-DATA-R3-D2): real fetch / write integration design (W4-4)
 - (本 log entry の後続 commit)
+
+## [2026-05-11] milestone | FIRE-CODEX-R1 Wave 4.1-A staging smoke 成功
+
+### HQ W4.1-A 条件付き approve 受領 (= 同日)
+
+- 対象: W4-2 ingest helper 単独 staging smoke
+- 初回 DDL 込み staging write 承認
+- LINE 送信なし / token 不参照
+- W4.1-B F062 経由 smoke は未承認 (= 別判断)
+- cron 凍結継続
+
+### 実施結果 (= 11 必須条件 全 ✓)
+
+- payload: /tmp/f062_r5_8_line_payload.json (= F062-R5.8 production
+  send 正本、Top 5 銘柄、boost_with_avoid)
+- advisory_id: `production-advisory-2026-05-09-520d6429e10e0b2a`
+  (= deterministic、send_id 同一)
+- dry-run → schema 確認 → 初回 staging write → idempotent rerun の
+  4 段階で実証
+- 初回 write:
+  - advisory_snapshots 0 → 1 (= 初回 DDL 込みで table 作成)
+  - advisory_snapshot_rows 0 → 5
+  - advisory_decisions 5 → 10 (= 既存 5 + W4.1-A 新規 5)
+- idempotent rerun:
+  - inserted=0 / updated=5 / row count 維持
+  - 既存 F286-PNL-R1 advisory_decisions 5 件は touched なし (= HQ #6)
+- FIRE-LABEL-R1 動作確認: `boost_with_avoid` → 「場中監視」(= 新ラベル)
+  が advisory_decisions / advisory_snapshot_rows.decision_label に
+  正しく保存
+- 六段ガード機能 (W4-2 で確立、24 件 PASS) は runtime でも有効
+
+### 安全 (全 ✓)
+
+- 実 LINE 送信 0 通 (= SEND 件数 4 のまま、R5.6 / R5.8 のみ)
+- production DB mtime: May 7 16:12 / 371 MB unchanged
+- develop DB mtime: May 7 18:14 / 371 MB unchanged
+- staging DB mtime: May 11 21:25 / 4.8 GB (= 21:25 へ更新、書き込み完了)
+- TOKEN_LEAK / FULL_RECIPIENT in W4.1-A artifacts: 0
+- forbidden files mtime unchanged
+  - scripts/seed_pattern_layer1.py: May 7 17:39
+  - simulation/research_lane/historical_indicators.py: May 9 21:10
+- workflow 変更 0 / --no-verify 不使用 / cron / launchd / crontab
+  本番登録 0
+- TODO Excel 未更新
+- fire repo source 変更 0 (= W4.1-A はコード変更なし、smoke のみ)
+
+### 検証された設計事項
+
+- F286-PNL-R2 module (= snapshot + storage + 三段ガード) は実 staging
+  で動作実証
+- F286-PNL-R1 既存 advisory_decisions (= 旧 advisory_id) との共存:
+  PK 衝突なし、既存 row 完全保護
+- FIRE-LABEL-R1 新ラベル文字列 が DB 保存層まで一気通貫で適用
+- 六段ガード (= read_only / db_label / basename / output path /
+  symlink+resolve / hardlink-inode) はテスト + runtime 両方で機能
+
+### F282 weekly snapshot による消失リスク
+
+- 2026-05-18 月曜 07:00 JST に F282 weekly staging snapshot 走行
+- 今回作成した snapshot tables + 5 件 seed は再消失予定
+- FIRE-OPS-R0 案 1 (= production write 統一) が恒久対策
+
+### artifacts / vault
+
+- /tmp/w4_1_a_dry_run.json / w4_1_a_dry_run_report.txt
+- /tmp/w4_1_a_write1.json / w4_1_a_write1_report.txt
+- /tmp/w4_1_a_write2.json / w4_1_a_write2_report.txt
+- 02_todo/FIRE_CODEX_R1_WAVE4_1A_staging_smoke.md
+
+### HQ 判断論点 (= 3 件)
+
+1. W4.1-A 完了 → 進行可否 (推奨: approve)
+2. W4.1-B F062 経由 staging smoke 着手 (= LINE 1 通実送信 + token
+   実使用、Fujiwara 二重通知許容確認)
+3. F286-PNL-R2 系の本格運用着手判断 (= 毎回 Advisory 送信 + snapshot
+   自動保存)
+
+### commits (fire-vault main)
+
+- 本 log entry の後続 commit
+- 02_todo/FIRE_CODEX_R1_WAVE4_1A_staging_smoke.md 新規追加
+- fire (develop): 変更なし (= W4.1-A はコード変更なし)
