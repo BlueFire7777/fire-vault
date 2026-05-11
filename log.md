@@ -6946,3 +6946,77 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ (Fujiwara) が案 X1/X2/X3 を選択。並走候補: FIRE-OPS-R0
   案 1 / F286-R2-H 再実行 (r2f4_baseline_live_v1 用 cut_summary 蓄積)
   / F286-DATA-R3 cron 化 / F282 運用ルール明文化
+
+## [2026-05-11] milestone | ★ F286-DATA-R1.6 Live F119 Classification Wiring 完了
+- 目的: F286-DATA-R1.5 で生成した r2f4_baseline_live_v1 / 2026-05-09
+  candidates に F119 historical cut_summaries / insights を適用し、
+  F062 advisory 文面で boost/avoid/caution が出る状態にする。
+- 採用 (= コード変更 0 件、既存 runner の `--f119-*` 引数活用):
+  F111-R4 に F119 historical artifacts を引数で渡す:
+    --f119-summary-json /tmp/f119_eval_summary.json
+    --f119-insights-json /tmp/f119_eval_insights.json
+    --f119-strong-csv /tmp/f119_eval_strong_candidates.csv
+    --f119-avoid-csv /tmp/f119_eval_avoid_candidates.csv
+    --f119-caution-csv /tmp/f119_eval_caution_candidates.csv
+  → r2f4_baseline_v1 / r2g3_recommended_v2 / 22 historical base_dates
+    (2024-06 〜 2026-03) の検証結果を live 2026-05-09 candidates に
+    group_key 照合で適用
+- F111-R4 結果 (= WIRING ANOMALY 解消):
+  f119_artifact_status: json
+  candidate_count=30 / **non_neutral=30** ★
+  boost flag=30 / avoid flag=6 / caution flag=24
+  expected_h20=0 / expected_h5=0 (= live future return 未計算、設計通り)
+  auto_order_allowed_true=0 / manual_review_required=30
+  advisory_label 分布:
+    boost_with_caution: 24
+    boost_with_avoid:    6
+    boost: 0 / caution: 0 / avoid: 0 / neutral: 0
+- F062-R1 production + compact payload:
+  message_mode=production / compact=True / dry_run=False
+  chunks=1 / chunk[0] length=955 / forbidden_phrase_count=0 /
+  safety_footer_present=True / selected_count=8
+  selected_label_counts: boost_with_avoid: 4, boost_with_caution: 4
+  metadata.payload_base_date=2026-05-09 /
+  metadata.source_version=r2f4_baseline_live_v1
+  chunk 冒頭: "🟢 結論: 買い検討候補あり" ★ /
+              "本番 LINE 通知 / 自動発注なし / 手動レビュー必須"
+  "dry-run" / "LINE 送信なし (dry-run / template only)" 不在 ✅
+- F062-R5.2 freshness guard 検証:
+  dry-run:        send_allowed=True / sent=0 / api=0 / token_read=0
+  simulated send: send_allowed=True / sent=1 / api=1 / partial=False /
+                  dry_run_line_api=True (= 実 push_message 未呼出) /
+                  production_callable_built=True /
+                  payload_freshness_check: max_lag_days=10 /
+                                            payload_base_date=2026-05-09 /
+                                            gate_signal_max_base_date=2026-05-09 /
+                                            **lag_calendar_days=0** ✅
+- 安全要件 (= 全遵守):
+  - LINE 送信なし (= --dry-run-line-api で実 API 呼ばず、本タスク内
+    で LineBotClient.push_message 未呼出)
+  - live base_date 未来 return 評価なし (= h20/h5 metric_present=0)
+  - F119 historical を live に適用 (= 過去 22 base_dates 蓄積結果の
+    group_key 照合のみ)
+  - freshness guard 緩めない (default 10 で natural pass)
+  - r2d_v1 へ勝手に切り替えない (= r2f4_baseline_live_v1 維持)
+  - production / develop / staging DB write 0 (= 全 read-only / dry-run)
+  - 3 DB 全 mtime unchanged (本タスク内、F286-DATA-R1.5 末尾の状態維持)
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+  - token / recipient 平文出力 0
+- tests: 本タスクはコード変更 0 件、既存ベースライン 3,249 PASS 維持
+- Codex pre-commit: docs commit のみ、対象外
+- 完了報告: /tmp/f286_data_r1_6_completion_report.txt
+- 02_todo/F286_DATA_R1_6_live_f119_classification_wiring.md
+- commits:
+  - fire (develop): 変更なし (= 既存 runner + 既存 artifact 活用)
+  - fire-vault (main): 本 milestone log + F286-DATA-R1.6 vault doc
+- ★ F062-R5.2 再開可否: **再開可能** (gate pass / freshness lag=0 /
+  F119 wiring 復活 / "🟢 結論: 買い検討候補あり" 表示 / leak 0)。
+  HQ (Fujiwara) 判断で 1 chunk 実 LINE 送信へ。
+- 注意: F282 weekly snapshot で次回月曜 (5/18 07:00 JST) に
+  r2f4_baseline_live_v1 / 2026-05-09 の 109 行は再び消失予定。
+  F062-R5.2 本起動は 5/11 〜 5/17 内に、または FIRE-OPS-R0 再発防止策
+  案 1 (= 本番運用データを production に書く運用統一) を並行設計
