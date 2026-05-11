@@ -7495,3 +7495,62 @@ HQ 判断要請 5 項目 (計画書 §9):
   4. F286-ORDER-R1 Manual Order Draft Generator
   並走候補: F286-DATA-R1.8 / FIRE-OPS-R0 案 1 / 03_design F282 運用
   ルール明文化
+
+## [2026-05-11] milestone | F286-PNL-R1 Advisory Decision / Actual PnL Tracking 実装完了
+
+- FIRE 本番 Advisory で提示された候補について、Fujiwara の採用/見送り
+  判断 + 実取引 + PnL を staging DB に記録する評価基盤を新規実装。
+  R-19-08 Phase 2 (Advisory → 判断 → 実約定 → PnL ループ) の基礎完成。
+- 新規 module: pnl/
+  - models.py: AdvisoryDecision dataclass + FUJIWARA_DECISION_VALUES
+    (adopted/watched/skipped/rejected/unknown) + ACTUAL_TRADE_VALUES
+    (none/buy/sell/partial)、__post_init__ validate
+  - schema.py: CREATE TABLE IF NOT EXISTS + CHECK 制約、ensure_schema
+    は三段ガード (db_label 必須 + basename 必須 + parent 経由)
+  - storage.py: DecisionStore 三段ガード (read_only + db_label +
+    basename)、atomic upsert idempotent
+  - pnl_calc.py: realized / unrealized 純関数 (side='buy' 限定)
+  - ingestion.py: JSON / CSV ローダ、row index 付きエラー伝搬
+- runner: scripts/jobs/run_f286_pnl_r1_record_decision.py
+  - default dry-run、--write 時のみ staging 書き込み
+  - argparse から --send / --token / --auto-order / --broker /
+    --rakuten / --computer-use / --playwright 全排除
+  - 注文価格 / 数量 / 執行指示の生成 helper 不在 (構造的禁止)
+- Codex CRITICAL 2 件即修正:
+  - #1: ensure_schema が db_label 無しで public な write path だった
+    → db_label='staging' 必須キーワード化、pnl/__init__.py から export 削除
+  - #2: db_label だけで偽装可能 → db_path basename も 'fire.staging.db'
+    必須化 (parse_args + DecisionStore + ensure_schema の三段で検査)
+- smoke 結果:
+  - dry-run: DB ファイル未作成、3 DB mtime unchanged
+  - staging write (= R5.8 受信 5 件): inserted=5 / row count=5
+  - idempotent rerun: inserted=0 / updated=5 / row count=5 維持
+  - 偽装 case (--db-path data/fire.db --db-label staging --write) →
+    refused exit 2、production DB touched なし
+- tests: 118 件追加 (models 15 + pnl_calc 12 + schema 15 + storage 20 +
+  ingestion 16 + runner 16 + ast-based safety 検査含む)
+- 回帰: 3,449 PASS (= 3,331 baseline + 118 新規)
+- 安全:
+  - production / develop DB mtime unchanged
+  - LINE 本番送信 0 / token 読み込み 0
+  - 自動発注 / 楽天操作 / Computer Use / Playwright なし
+  - workflow 変更なし / TODO Excel 未更新
+  - seed_pattern_layer1.py / historical_indicators.py 未接触
+  - --no-verify 不使用
+- Codex pre-commit: feat / test ともに OK (CRITICAL 2 件修正後)
+- commits (fire develop):
+  - a98d598 feat(F286-PNL-R1): add advisory decision + actual PnL tracking
+  - (test commit hash 後続)
+  - (docs commit hash 後続)
+- 02_todo/F286_PNL_R1_advisory_decision_pnl_tracking.md
+- Known limitations:
+  - 入力は手動 JSON / CSV のみ (F062 payload 自動 ingest は F286-PNL-R2)
+  - PnL は side='buy' 限定 (空売りは将来別タスク)
+  - paper_pnl は手入力 (F286-PNL-R3 で simulation 連携)
+  - 手数料 / 税金 非計上 (gross PnL のみ)
+- HQ 判断論点:
+  - advisory_id 正本管理 (F062 payload と R1 入力の UUID 統一)
+  - scope-A 値域 (5 値固定 vs 拡張)
+  - paper_pnl 計算ソース (simulation/paper_live vs 別 PoC)
+- 次タスク候補: F286-PNL-R2 / F286-PNL-R3 / F286-DATA-R3 /
+  F286-INTRA-R2 / F286-ORDER-R1
