@@ -7769,3 +7769,80 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク候補: Wave 3 (= sub-4 Audit) または 本線 Integrator が
   develop へ feat / test / docs commit (= HQ approve 後) または
   FIRE-LABEL-R1 起票
+
+## [2026-05-11] codex | FIRE-CODEX-R1 v1.1 Wave 3 完了 + 本線統合 commit + FIRE-LABEL-R1 起票
+
+### fire develop split commit (= 本線 Integrator)
+
+- cb17a7f feat(F286-PNL-R2): snapshot+schema+tests (50 PASS)
+- e9c41c3 feat(F286-DATA-R3): daily refresh skeleton+tests (16 PASS)
+- b4d4022 docs(F286-PNL-R2,F286-DATA-R3): CLAUDE.md 完了テーブル
+- 全 pytest 3,515 PASS / Codex pre-commit OK / DB mtime 全 unchanged /
+  LINE SEND 4 のまま / forbidden files 未接触 / workflow 変更なし
+
+### Wave 3 audit 5 件 (= Codex L4 lane × 5 順次)
+
+| sub | 監査対象 | CRITICAL | report path |
+|---|---|---|---|
+| sub-4A | F286-PNL-R2 adversarial | なし | /tmp/f286_pnl_r2_sub4A_audit_report.md |
+| sub-4B | F062 runner integration | なし | /tmp/f286_pnl_r2_sub4B_audit_report.md |
+| sub-4C | staging smoke plan | なし | /tmp/f286_pnl_r2_sub4C_smoke_plan_report.md |
+| sub-4D | DATA-R3 safety | なし | /tmp/f286_data_r3_sub4D_safety_audit_report.md |
+| sub-4E | cron checklist | **2 件** | /tmp/fire_cron_r1_sub4E_checklist_report.md |
+
+sub-4E CRITICAL (= sub-D3 cron 登録 着手前条件):
+1. F282 weekly snapshot (月曜 07:00 JST) と F286-DATA-R3 daily refresh
+   (月曜 06:00 JST) の実行順序矛盾 → 月曜 daily refresh の成果が F282
+   snapshot で上書きされて消える。sub-D3 着手前に案 A/B/C 決定要
+2. logs/cron/<date>.log は launchd StandardOutPath だけでは実現困難、
+   sub-D3 前に設計決定要
+
+両 CRITICAL は sub-D3 (= 将来の cron 本番登録) 前条件。Wave 3 内では
+cron 登録を実施していないため即時実害なし。
+
+### 安全 (Wave 3 全 ✓)
+
+- 実 LINE 送信 0 / DB write 0 / staging smoke 0
+- production / develop / staging DB mtime 全 unchanged
+- token-secret 参照 0 / workflow 変更 0 / --no-verify 不使用
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- cron / launchd / crontab 未登録
+- TODO Excel 未更新
+- Audit 全件 read-only、Codex は source 0 行変更
+
+### 並列効果 (= Wave 1/2/3 通算)
+
+- Wave 1: 25-30 分 (3 lane Audit×2 + Design)
+- Wave 2: 25-30 分 (4 lane Impl + Test + DATA + Docs)
+- Wave 3: 30-40 分 (5 lane Audit×5)
+- 本線単独推定総時間: 約 360-450 分 (Wave 1-3 合計)
+- 実時間: 約 80-100 分 (= 3 wave)
+- **速度向上 約 70-80% 短縮を 3 wave 連続で達成** (= Codex 実装部隊化
+  の効果を実証)
+
+### FIRE-LABEL-R1 起票
+
+HQ 受領の新ラベル方針 (= 🟢 積極的買い推奨 / 🟡 条件付き買い推奨 /
+🟠 場中監視 / ⚠️ 注意つき買い候補 / 🔴 見送り推奨) 対応の分離タスク
+として起票:
+- 02_todo/FIRE_LABEL_R1_advisory_label_refresh.md
+- 影響範囲: notifications/templates/research_advisory.py +
+  pnl/snapshot.py + 関連 tests
+- 設計判断ポイント 3 件 (= 新規 bucket / mode 切替 / 既存 row 扱い)
+- 6 sub-task 分割案 (Design / Impl x2 / Test / Audit / Docs)
+- 状態: 起票のみ、未着手 (= Wave 4 候補)
+
+### HQ 判断論点 (= Wave 4 前提)
+
+1. Wave 3 audit クリア → 次フェーズ進行可否 (推奨: approve)
+2. staging smoke (sub-4C plan ベース) の実施判断、推奨日 5/12〜5/17
+3. F286-PNL-R2 sub-runner (= F062 --record-decisions 統合) を Wave 4 に
+4. 後追い ingest helper の sub-task 分離
+5. F286-DATA-R3 sub-D2 (= 実 fetch/write) 優先度
+6. sub-D3 は 2 CRITICAL 解決後のみ進める方針確認
+7. FIRE-LABEL-R1 着手タイミング
+
+### commits (fire-vault main)
+
+- 697d0d6 docs(FIRE-CODEX-R1): record Wave 3 audit results + draft FIRE-LABEL-R1
+- (本 log entry の後続 commit)
