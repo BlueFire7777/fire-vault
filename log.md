@@ -7926,3 +7926,80 @@ HQ 受領の新ラベル方針 (= 🟢 積極的買い推奨 / 🟡 条件付き
    - 新規 ⚠️ bucket: 案 c (= 暫定で boost_with_caution 流用)
    - mode 切替: 案 Y (= 即時全面切替)
    - 既存 row 扱い: 案 P (= 既存値保持)
+
+## [2026-05-11] codex | FIRE-CODEX-R1 v1.1 Wave 4 完了 + 4 lane Impl/Test/Design 統合
+
+### HQ Wave 4 approve 受領 (= 同日)
+
+Wave 4 4 sub-task の Codex 投入 approve。staging smoke 未承認 / cron 凍結継続。
+
+### Wave 4 投入結果 (= 4 lane 順次)
+
+| sub | task | 状態 | Codex CRITICAL |
+|---|---|---|---|
+| W4-1 | F286-PNL-R2-runner (F062 send_smoke 統合) | 完了 33 PASS | 1 件即修正 (= exit code 設計、LINE 二重送信防止) |
+| W4-2 | F286-PNL-R2-ingest-helper | 完了 40 PASS | 4 件即修正 (= output path / symlink / hardlink / output symlink+hardlink) |
+| W4-3 | FIRE-LABEL-R1 新 5 ラベル即時切替 | 完了 29 件 modified | 0 |
+| W4-4 | F286-DATA-R3-D2 設計 doc | 完了 18KB design draft | 0 |
+
+W4-2 は **六段ガード** (= read_only / db_label / basename / output path
+DB-system / db_path symlink+resolve / inode-based hardlink) を確立、
+将来の同種実装の reference 化。
+
+### Codex CRITICAL 即修正 5 件 (= 詳細は WAVE4_results doc)
+
+- W4-1 #1: snapshot 失敗時の exit code 1 → 0 維持 (LINE 二重送信防止)
+- W4-2 #1: --output-json/--completion-report に DB/WAL/SHM/sqlite path refuse
+- W4-2 #2: --db-path symlink refuse + resolve 後 basename 一致
+- W4-2 #3: hardlink で fire.staging.db と production DB 同一 inode を refuse
+- W4-2 #4: output path も symlink/hardlink 攻撃を refuse
+
+### fire develop split commit (= 6 件)
+
+- 860d867 feat(F286-PNL-R2): integrate --record-decisions in F062 send smoke (W4-1)
+- 5e06423 feat(F286-PNL-R2): add ingest helper runner (W4-2)
+- 66e5c19 feat(FIRE-LABEL-R1): refresh advisory label vocabulary (W4-3)
+- 1a4d8cd docs(F286-DATA-R3-D2): real fetch / write integration design (W4-4、vault)
+- 4853986 docs(FIRE-CODEX-R1): add Wave 4 sub-task completion table entries
+- e4f1aea test(F286-PNL-R2-ingest-helper): whitelist W4-2 in db_path consistency test
+
+Codex pre-commit hook: 全 OK 通過 (= CRITICAL 即修正後)。
+
+### 安全 (Wave 4 全 ✓)
+
+- 実 LINE 送信 (Wave 4 中) 0 通 (= SEND 件数 4 のまま、R5.6/R5.8)
+- DB write 0 / production/develop/staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0
+- workflow 変更 0 / --no-verify 不使用
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新
+- cron / launchd / crontab 未登録
+- Codex 直接 commit 0 (= 本線 Integrator が全 commit)
+
+### 並列効果 (Wave 1/2/3/4 通算)
+
+- Wave 1: 25-30 分 (本線単独推定 90-120 分、短縮 70-75%)
+- Wave 2: 25-30 分 (推定 120-150 分、短縮 75-80%)
+- Wave 3: 30-40 分 (推定 150-180 分、短縮 70-80%)
+- Wave 4: 50-60 分 (CRITICAL 5 件即修正含、推定 180-240 分、短縮 65-75%)
+
+**4 wave 連続で 65-80% 短縮を達成**。Codex pre-commit "2 つの目"
+が CRITICAL を確実に捕捉して即修正サイクルが正規化。
+
+### 回帰
+
+3,568 PASS (= 3,515 baseline + 53 新規)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 4 完了 → 次フェーズ進行可否 (推奨: approve)
+2. Wave 4.1 staging smoke 着手判断 (= HQ 別 approve 要)
+3. F286-DATA-R3 sub-D2 Impl 起票
+4. sub-D3 cron 本番登録は凍結継続確認
+
+### commits (fire-vault main)
+
+- 23cfd29 docs(FIRE-CODEX-R1): draft Wave 4 plan + 4 sub-task docs (= 起票時)
+- adcf660 docs(FIRE-CODEX-R1): log Wave 4 起票 milestone
+- 1a4d8cd docs(F286-DATA-R3-D2): real fetch / write integration design (W4-4)
+- (本 log entry の後続 commit)
