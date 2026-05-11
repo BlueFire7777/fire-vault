@@ -7393,3 +7393,52 @@ HQ 判断要請 5 項目 (計画書 §9):
 - 次タスク: HQ 判断 (案 Y1: F062-R5.8 として --action-mode 本番送信、
   案 Y2: F286-PNL-R1 設計)。並走候補: F286-DATA-R1.8 / FIRE-OPS-R0 案 1 /
   F282 5/18 前に再送
+
+## [2026-05-11] milestone | F062-R5.8 行動判断カード本番送信成功
+
+- F062-R5.7 で実装した action-mode (行動判断カード) を Fujiwara 個人
+  LINE app へ **1 通だけ本番送信成功**。
+- 送信時刻: 2026-05-11T09:19:53 UTC (= 18:19 JST)
+- 送信件数: 1 件のみ (= 重複なし)
+- chunk_length: 738 (= F062-R5.6 1,120 から 34% 短縮)
+- payload pipeline:
+  - DATA-R2 gate: overall=pass / line_send_allowed=True
+  - signals max_base_date=2026-05-09 lag=0 / codes=109
+  - action_mode + --listings-db で
+    name_enrichment.attempted=30 / enriched=30 / missing=0
+  - 結論: 🟠 今日の結論: 待ち (Top N 整合)
+  - 件数: 今すぐ買い 0 / 条件付き買い 0 / 待ち 5 / 見送り 0
+  - Top 5 全件: 銘柄コード + 銘柄名 + 判断 + 理由 + 買いに変わる条件
+    1. 57290 日本精鉱 / 2. 340A0 ジグザグ / 3. 37980 ＵＬＳグループ /
+    4. 137A0 Ｃｏｃｏｌｉｖｅ / 5. 331A0 メディックス
+  - 全候補で「判断: 待ち / 買いに変わる条件: VWAP 上維持 + 出来高増」
+- real send 結果:
+  - sent_count=1 / line_api_call_count=1 / partial_delivery=False
+  - dry_run_line_api=False (= 実 push_message 呼出)
+  - send_text_status=ok
+  - payload_freshness_check.lag_calendar_days=0
+  - recipient_hash8=b344b213 (= Fujiwara 個人、R5.6 と同じ)
+- 安全:
+  - TOKEN_LEAK=0 / FULL_RECIPIENT=0
+  - 3 DB 全 mtime unchanged (= staging も R1.5 末尾の 5/11 11:48:57 維持)
+  - 自動発注 / 楽天操作 / Computer Use なし
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - F119 内部 key (snake_case) / 統計詳細 (n=, h20=, win=) の漏洩 0
+  - TODO Excel / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py 全て未接触
+- F062-R5 シリーズ文面進化:
+  R4 234 → R5 1,892 → R5.2 955 → R5.4 492 → R5.6 1,120 → **R5.8 738** ★
+- F062-R5.6 → R5.8 の進化 (本送信での Fujiwara 視点):
+  - 結論行と Top 5 表示が完全整合 (= 乖離問題解消)
+  - 「今日の結論: 待ち」+「待ち: 5件」で何を見ているか即理解
+  - F119 内部 key を自然言語化 (= 「月の条件は良いが業種条件に弱さあり」)
+  - 「買いに変わる条件: VWAP 上維持 + 出来高増」で次のアクション明示
+- Fujiwara LINE app 受信確認 (依頼): 1 通だけ届き、行動判断のしやすさ
+  をレビューしてください。
+- 完了報告: /tmp/f062_r5_8_completion_report.txt
+- 02_todo/F062_R5_8_action_first_production_send.md
+- commits: fire (develop) 変更なし (= F062-R5.7 + F286-DATA-R1.7 活用) /
+  fire-vault (main): 本 milestone log + R5.8 vault doc
+- 次タスク: Fujiwara LINE 受信確認 → F286-PNL-R1 Advisory Decision /
+  Actual PnL Tracking 設計。並走候補: F286-DATA-R1.8 (上流 name 埋め) /
+  FIRE-OPS-R0 案 1 / F282 5/18 前に再送
