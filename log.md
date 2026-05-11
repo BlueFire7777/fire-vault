@@ -7700,3 +7700,72 @@ HQ 判断要請 5 項目 (計画書 §9):
   - (本 log entry の後続 commit)
 - 次タスク: HQ approve 後 Wave 2 並列投入 (= sub-2 Impl + sub-3 Test +
   sub-D1 cron + sub-5 Docs draft の 4 lane)。CRITICAL があれば差し戻し
+
+## [2026-05-11] codex | FIRE-CODEX-R1 v1.1 Wave 2 完了 (Impl + Test + DATA-R3 skeleton + Docs)
+
+- 本線 Claude Code が PM / Architect / Integrator として Codex 4 lane
+  (sub-2 Impl + sub-3 Test + sub-D1 DATA-R3 skeleton + sub-5 Docs) を
+  順次投入、全成果物を review。
+- 投入時刻 (UTC): 10:40 (sub-2) / 10:46 (sub-3) / 10:50 (sub-D1) / 10:54 (sub-5)
+- 成果物 (= Codex 直接生成、本線 Integrator review 済、fire リポへの
+  commit は HQ approve 後):
+  - pnl/snapshot.py (772 行) - AdvisorySnapshot + Store + payload_to_snapshot
+  - pnl/schema.py (+105 行) - snapshot DDL 2 table + INDEX + ensure_schema 拡張
+  - tests/pnl/test_snapshot.py (50 tests PASS) - 全網羅
+  - scripts/jobs/run_f286_data_r3_daily_refresh.py (14KB skeleton)
+  - tests/scripts/jobs/test_run_f286_data_r3_daily_refresh.py (16 tests PASS)
+  - /tmp/codex_wave2_hq_report_draft.md (Codex 作成、本線 review 済)
+  - 02_todo/F286_PNL_R2_advisory_snapshot_auto_ingest.md (本線が vault doc 作成)
+- 本線 Integrator 動作確認:
+  - advisory_id = send_id 同一 (HQ #1)
+  - hash input に generated_at_utc 含めて idempotent + 再送区別 (HQ #2)
+  - action_mode=True で bwa → '待ち' decision_label 派生
+  - 三段ガード (production refuse / develop refuse / staging+production-basename
+    refuse / staging+staging-basename OK) 全件機能
+  - 全 pytest 3,515 PASS (= 3,449 baseline + 50 snapshot + 16 R3 = 66 新規)
+- allowed_files 違反: 0 件
+  - Codex が触ったのは指定 5 ファイルのみ (= pnl/snapshot.py +
+    pnl/schema.py + tests/pnl/test_snapshot.py +
+    scripts/jobs/run_f286_data_r3_daily_refresh.py +
+    tests/scripts/jobs/test_run_f286_data_r3_daily_refresh.py)
+  - scripts/seed_pattern_layer1.py / historical_indicators.py の
+    mtime は Wave 2 開始前のまま (= 未接触確認)
+- Codex sandbox 制約:
+  - sub-5 Docs lane で /Users/bluefire/fire-vault/ への書き込みが
+    sandbox writable root 外で operation not permitted
+  - 設計通り (= Codex は fire リポのみ writable、fire-vault は本線
+    Claude Code が直接管理) を実証
+  - HQ 報告 draft は Codex が /tmp/ に作成、vault doc は本線が代替作成
+- 並列効果計測:
+  - Wave 2 実時間: 約 25-30 分 (= 4 lane 順次)
+  - 本線単独推定: 120-150 分 (= 実装 60 + tests 30 + DATA 30 + docs 15)
+  - 速度向上: 約 75-80% 短縮
+- HQ 追加方針 (= Wave 2 終盤受領): FIRE Advisory / LINE UX 表示ラベル
+  方針変更 (5 新 label):
+  - 🟢 積極的買い推奨 / 🟡 条件付き買い推奨 / 🟠 場中監視 /
+    ⚠️ 注意つき買い候補 / 🔴 見送り推奨
+  - 「Wave 2 scope を無理に拡張しない」HQ 方針に従い、Wave 2 内では
+    Codex 出力の旧ラベルを保持
+  - 新ラベル切替は FIRE-LABEL-R1 として分離タスク化
+- 安全:
+  - 実 LINE 送信 0 / DB write 0 (production / develop / staging 全 mtime
+    unchanged) / token-secret 参照 0
+  - .github/workflows/ 変更 0 / --no-verify 不使用
+  - cron / launchd / crontab 本番登録 0
+  - TODO Excel 未更新
+  - Codex 直接 commit なし (= 本線が最終 commit する想定)
+- commits (fire-vault main):
+  - 7c7ff72 docs(F286-PNL-R2): record Wave 2 results + HQ label policy note
+  - (本 log entry の後続 commit)
+- HQ 判断論点 (= Wave 2 報告):
+  1. snapshot 実装 / DATA-R3 skeleton を develop へ統合
+  2. 単一 commit vs 別 commit (= 推奨: 別 commit)
+  3. F062 runner --record-decisions 統合タイミング
+  4. staging smoke 許可タイミング
+  5. 後追い ingest helper 統合
+  6. DATA-R3 実 fetch / 実 write の sub-D2 起票
+  7. cron 登録は sub-D3 まで凍結
+  8. FIRE-LABEL-R1 起票 ★ (= 新ラベル方針)
+- 次タスク候補: Wave 3 (= sub-4 Audit) または 本線 Integrator が
+  develop へ feat / test / docs commit (= HQ approve 後) または
+  FIRE-LABEL-R1 起票
