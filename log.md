@@ -7267,3 +7267,38 @@ HQ 判断要請 5 項目 (計画書 §9):
   案 Y2: F286-PNL-R1 設計)。並走候補: 銘柄名 (name 列) 埋め / FIRE-OPS-R0
   再発防止策案 1 / F282 weekly snapshot 次回 (5/18 07:00 JST) 前に再送
 - 02_todo/F062_R5_5_practical_buyability_card_ux.md
+
+## [2026-05-11] milestone | F286-DATA-R1.7 Advisory Candidate Name Enrichment 実装完了
+
+- F062-R5.5 buyability mode の文面に銘柄名が出ない問題を解決:
+  advisory_preview JSON の name 列が F286-DATA-R1.6 wiring 段階で
+  空のまま渡されていたため、buyability template は code のみ表示。
+- 新規 module: notifications/listing_name_lookup.py
+  - ListingNameLookup(db_path) - read-only SQLite lookup helper
+  - mode=ro + immutable=1 + PRAGMA query_only=ON の 3 段防御
+  - DB 無し / 破損 / table 無し時は no-op (= 全例外握り潰し)
+  - 既存 row['name'] は上書きしない (= already_has_name に計上)
+- F062 runner に --listings-db PATH を optional 追加、payload
+  metadata.name_enrichment に stats 記録
+- dry-run smoke (F286-DATA-R1.6 advisory_preview + staging
+  market_listings、--card-top 5):
+  - attempted=30 / enriched=30 / missing=0 ★ (= 全件成功)
+  - chunk[0] length 1,086 → 1,120 (+34 chars、銘柄名 5 件追加)
+  - 文面例: "🟠 強弱混在・慎重 1. 57290 日本精鉱" 等で銘柄名表示
+  - forbidden_phrase_count=0 / safety_footer_present=True
+- tests: 23 件追加 (unit 18 + integration 5)、回帰 3,311 PASS
+- 安全:
+  - 実 LINE 送信 0 / DB write 0 / 3 DB mtime 全 unchanged
+  - token-recipient leak 0 / Computer Use なし
+  - 既存 name 上書きしない
+  - TODO Excel / --no-verify / seed_pattern_layer1.py /
+    historical_indicators.py 全て未接触
+- Codex pre-commit: fix / test ともに OK
+- commits:
+  - fire (develop):
+    f30833f fix(F286-DATA-R1.7): enrich advisory candidates with listing names
+    662f798 test(F286-DATA-R1.7): add advisory name enrichment tests
+  - fire-vault (main): 本 milestone log + 02_todo/F286_DATA_R1_7_*.md
+- 次タスク: HQ 判断 (案 Y1: F062-R5.6 として銘柄名付き本番送信、
+  案 Y2: F286-PNL-R1 設計)。並走候補: F286-DATA-R1.8 (F111-R4 側で
+  name 埋め)、FIRE-OPS-R0 案 1、F282 5/18 前に再送
