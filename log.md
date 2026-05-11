@@ -7087,3 +7087,81 @@ HQ 判断要請 5 項目 (計画書 §9):
   運用ルール明文化 / F286-DATA-R3 cron 化 / F062 系の運用反復
   (= 次回以降は本パイプライン再利用、F282 next snapshot 5/18 07:00
   JST までに R1.5/R1.6 再実行が必要)
+
+## [2026-05-11] milestone | ★ F062-R5.3 Compact Production Advisory UX (Card Mode) 完了
+- 目的: F062-R5.2 で本番送信した文面 (chunk_length=955) が長く機械
+  的で本業中の即時判断が難しかったため、LINE 本文を「レポート」
+  から「判断カード」へ短縮。冒頭 3 秒で結論を確認できる UX に。
+- 実装 (= notifications/templates/research_advisory.py +
+  scripts/jobs/run_f062_research_advisory_line_preview.py):
+  - CARD_DEFAULT_TOP = 5 / CARD_LABEL_BADGE (= 短縮絵文字: 🟢 買い
+    検討 / 🟡 買い検討・注意あり / 🟠 強弱混在・慎重 / ⚠️ 注意 /
+    🔴 見送り)
+  - format_card_header(source/rule/base_dates/data_gate_ok):
+    短縮 header (FIRE 本番Advisory / Data Gate PASS|REFUSED|<省略>
+    / base_date / source)
+  - format_card_overview(label_counts): 結論 1 行 + 1 行 Summary
+    (= 「🟢/🔴/⚪ 結論: ...」+「買い検討 X / 注意 Y / 見送り Z」)
+  - format_card_candidate(row): 2 行 (= badge+code+name / sector+月)
+  - select_card_top(rows, card_top): LABEL_PRIORITY 順 Top N 抽出
+  - build_advisory_line_preview に card_mode / card_top /
+    data_gate_ok 引数追加
+  - runner --card-mode / --card-top / --gate-json 追加 (gate JSON
+    から overall_status を読み data_gate_ok 決定)
+- Codex CRITICAL 2 件と修正:
+  #1: data_gate_ok=True ハードコード → stale 表示誤誘導リスク
+      → Optional[bool] 化、True/False/None で表示制御、runner が
+        --gate-json から実 gate 結果を渡す。gate JSON 未指定なら
+        Gate 行を構造的に出さない
+  #2: 結論行が selected (= Top N) のみで判定 → boost 24+avoid 6
+      入力で card_top=5 / selected avoid 5 件のとき「新規買い検討
+      候補なし」誤通知リスク → input_counts を全入力 rows_list
+      から別途集計、format_card_overview に渡す。表示 (= card
+      candidates) は LABEL_PRIORITY 順、結論判定は入力全体ベース。
+- 文字数比較 (F286-DATA-R1.6 と同 advisory_preview 入力):
+  compact (F062-R5.1): chunk_length=955 / selected=8
+  card    (F062-R5.3): chunk_length=491 / selected=5
+  → **48.6% 短縮** ★
+- 文面例 (card mode、gate.overall_status=pass):
+  FIRE 本番Advisory
+  Data Gate PASS                              ← gate 結果反映
+  base_date: 2026-05-09
+  source: r2f4_baseline_live_v1 / r2g3_recommended_v2
+  (空行)
+  🟢 結論: 買い検討候補あり                    ★
+  買い検討 30 / 注意 0 / 見送り 0
+  🟠 強弱混在・慎重 57290
+    鉄鋼・非鉄 / 月5
+  ... (Top 5)
+  Safety
+  - 本番 LINE 通知 (production send)
+  - 自動発注なし / 楽天操作なし / Computer Use なし
+  - 注文価格・数量・執行指示は生成しない
+  - F119 の優位は 20d 寄り
+  - Fujiwara manual review required
+- tests: 19 件追加
+  - TestCardModeLineUX (= 14 件、template 単体)
+  - TestCardModeInputCountsRegression (= 3 件、CRITICAL #2 回帰)
+  - TestF062R53RunnerCardMode (= 5 件、runner --card-mode /
+    --gate-json 各 path)
+  - 既存 198 件は無影響
+- full pytest: 3,270 PASS (= 3,249 baseline + 19 新規)、回帰 0 件
+- Codex pre-commit: feat / test 両 commit 通過、CRITICAL 2 件即修正
+- 安全要件 (= 全遵守):
+  - 実 LINE 送信なし (本タスク内、runner / send_text 未呼出)
+  - DB write 0 / 3 DB 全 mtime unchanged
+  - token / recipient 平文出力 0
+  - 自動発注 / 楽天操作 / Computer Use 0
+  - 注文価格 / 数量 / 執行指示 送信していない
+  - TODO Excel 未更新 / --no-verify 不使用
+  - scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+  - unrelated modified を stage / commit しない
+- commits:
+  - fire (develop):
+    - 1aea9aa feat(F062-R5): add compact production advisory UX (card mode with input-based conclusion)
+    - 8a10515 test(F062-R5): add compact advisory UX tests (card mode + CRITICAL regressions)
+  - fire-vault (main): 本 milestone log
+- 次タスク: F062 系次回送信は --card-mode --card-top 5 --gate-json
+  を default 化推奨 (= 文面短く、結論先行、stale 誤表示防止)。
+  HQ 判断で F062-R5.4 として card mode 1 chunk 本番送信、または
+  F286-PNL-R1 設計に進む。
