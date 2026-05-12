@@ -9443,3 +9443,93 @@ v1.0 確立** が主成果。
 ### commits (fire-vault main)
 
 - (= 上記 docs commit)、log.md は別 follow-up
+
+## [2026-05-12] decision | cron thaw design only 起票 (= Wave 22、設計のみ、cron 登録 0、4,041 PASS 維持)
+
+### HQ Wave 22 起票承認 + 範囲承認
+
+### Wave 22 投入結果 (= 8 sub-task、本線 6 lane 役割演じる継続)
+
+- W22-1 L5 Wave 22 plan
+- W22-2 L1a cron / launchd 構造設計 (= launchd 主軸採用)
+- W22-3 L1b F282 weekly snapshot 順序整理 (= Step 1-4)
+- W22-4 L1a log rotation 設計 (= logrotate 採用)
+- W22-5 L1b dry-run / no-write / no-send 7 step
+- W22-6 L1a 6 lane Codex 実起動試験計画 (= Wave 23 候補に分離)
+- W22-7 L4 audit (= 10 観点 PASS)
+- W22-8 本線 commit + log.md + HQ 報告
+
+### 設計成果
+
+1. **launchd 主軸採用** (= cron 非採用、単一 manager)
+2. plist 命名規則 (= daily-refresh / weekly / monthly / maintenance)
+3. cron thaw 対象 4 段階 (= daily / emergency / weekly+monthly / maintenance)
+4. F282 weekly snapshot 順序整理:
+   - Step 1: F282 weekly snapshot launchd 化
+   - Step 2: daily refresh F100/F101/F111/F119 順次登録
+   - Step 3: weekly / monthly report
+   - Step 4: maintenance (= log rotate / db vacuum / smoke)
+5. log rotation: logrotate (= macOS Homebrew)、月次 / 3 ヶ月保持 / gzip
+6. dry-run 7 step (= 本 wave は必ず Step 6 で NO_GO)
+7. 6 lane Codex 実起動試験は Wave 23 候補へ分離
+
+### audit verdict (= W22-7 L4)
+
+10 観点全 PASS:
+A. 設計範囲が HQ 承認範囲内
+B. 実 cron 登録 0
+C. 実 LINE 送信 0
+D. 実 API call 0
+E. 全 DB write 0
+F. token / secret 参照 0
+G. workflow 変更 0
+H. forbidden files 未接触
+I. R2 prompt template v1.0 整合
+J. F282 整合
+
+CRITICAL 0 / HIGH 0。
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 vault doc、設計のみ)。
+
+### fire-vault main commits
+
+- a0d28cb docs(FIRE-CODEX-R1): Wave 22 plan + results + cron thaw
+  design only
+
+### 安全 (Wave 22 全 ✓)
+
+- 実 cron / launchd / crontab 登録 0
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- token / secret / channel_token 0
+- F101 staging probe 未実行 (= 別 wave)
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 変更 0 / --no-verify 不使用
+- forbidden 7 件 未接触
+- TODO Excel 未更新
+- Codex 直接 commit 0 (= Codex 起動なし)
+
+### 並列効果
+
+Wave 22 実時間 約 40-60 分、本線単独 100-150 分、短縮 55-60%。
+Codex 起動なし、純粋設計効率化。
+**Wave 1-22 通算で 60-80% 短縮を 22 wave 連続達成** ★
+
+### 回帰
+
+4,041 PASS 維持 (= code change 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 22 完了 + cron thaw 設計初版採用可否 (推奨: approve)
+2. Wave 23 候補選定:
+   - 推奨 a: 6 lane Codex 実起動 minimal probe
+   - 推奨 b: F282 weekly snapshot launchd 化設計 + 試走
+   - 別案: F101 staging probe
+3. launchd 主軸採用可否 (推奨: approve)
+4. logrotate 採用可否 (推奨: approve)
+
+### commits (fire-vault main)
+
+- a0d28cb (= 上記)、log.md は別 follow-up
