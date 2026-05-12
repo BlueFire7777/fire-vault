@@ -2,7 +2,7 @@
 id: FIRE-CODEX-R2-10-lane-scaling-design
 phase: ガバナンス / R-01-08 / FIRE-CODEX-R2 設計
 priority: 高
-status: 設計初版 (= Wave 20 W20-1)、コード変更なし、HQ 評価待ち
+status: v1.1 (= Wave 24 で改訂、Phase exit 条件難度補正 + 既存 modified 検知 + P3 初回 LINE/token 除外)
 owner: BlueFire7777 (Fujiwara)
 date: 2026-05-12
 depends_on:
@@ -159,7 +159,7 @@ file 衝突疑い検知
 本線 Integrator が各 wave 開始時に作成:
 
 ```
-| file | owner_lane | sub_task | status |
+| file | owner_lane | sub_task | 状態 |
 |---|---|---|---|
 | scripts/jobs/fetch_X.py | L3a | W20-3 | active |
 | tests/scripts/jobs/test_X.py | L2a | W20-3 | active |
@@ -167,6 +167,46 @@ file 衝突疑い検知
 ```
 
 衝突発見時は **wave 中断 → 本線が再分配 → HQ 報告** (= overhead 5-10 分)。
+
+### 既存 modified file 検知 (= R2 v1.1 追加、Wave 24 W24-3 L1b 由来)
+
+**wave 開始時に必ず `git status -s` を実行** し、既存 modified file を
+file lock 表に明記する。状態列に `NEW / MOD / forbidden / untracked /
+ignored` を記録。
+
+既存 modified file は、作業開始前から存在する user / 他 lane / 生成物の
+可能性があるため、owner_lane_id を明示できるまで編集対象に含めない。
+
+file lock 表 (= R2 v1.1 拡張) には最低限以下を記録:
+
+```
+| file | 初期状態 | owner_lane | merge_owner | allowed / forbidden | 備考 |
+|---|---|---|---|---|---|
+| path/to/file.py | M | L3a | 本線 | allowed | wave 開始前から modified |
+| path/to/new.md | ?? | L5 | 本線 | allowed | NEW |
+| path/to/forbidden.py | M | none | 本線 | forbidden | 既存 modified、本 wave 範囲外 |
+```
+
+既存 modified が **allowed_files に含まれる場合** でも、lane は差分を確認し、
+自分の task に必要な最小変更だけを重ねる。既存差分の revert / 整形 / 移動は
+merge_owner 明示指示なしに行わない。
+
+既存 modified が **forbidden_files に該当する場合**、その lane は即時停止し、
+stdout に `HQ abort candidate: pre-existing forbidden modified file` を報告する。
+実 file 書込み、patch 適用、commit は行わない。
+
+merge_owner は wave 終了時に `git diff --name-only` と file lock 表を突合し、
+allowed_files 外の差分が 0 であることを確認してから統合判断する。
+
+### wave 開始時チェックリスト (= R2 v1.1 追加)
+
+1. `git status -s` を fire / fire-vault 双方で実行
+2. M / ?? の付いた file を抽出
+3. forbidden 7 件 (= scripts/seed* / historical_indicators.py 等) と
+   照合、該当する file は **forbidden 状態として明記**
+4. 残余 modified が allowed_files に含まれる場合は owner_lane を割当て、
+   含まれない場合は本 wave 範囲外として除外
+5. file lock 表を Wave plan の冒頭に明示
 
 ---
 
@@ -387,8 +427,30 @@ HQ 判断が必要な論点 (= n 件)
 
 ### 候補 d (= Step 3 = 10 lane 投入、最低 2 wave PASS 後)
 
-**Wave 24+ 候補**: F286-REPORT-R1 LINE 実送信 token integration (=
-複数 module 横断、6 段ガード継承、HQ 明示承認後)。
+**P3 初回 (= R2 v1.1 改訂後、Wave 24 W24-2 L3 由来)**: **production
+非接触の横断実装に限定**。LINE / token / production DB / cron integration
+は P3 安定運用後の **別 wave** とする。
+
+P3 初回候補例:
+
+- test cleanup / 統一 (= 既存 test 構造の整理、PASS 数不変)
+- docs 統一 / cross-link 整理
+- import / type hint 統一
+- 共通 helper の重複削減 (= 同 file 編集は L3a/b/c に担当分割)
+
+P3 初回 10 lane 試験では、以下を **明示的に除外**:
+
+- LINE 実送信
+- token / secret / `.env` / 認証情報の変更
+- production DB / `data/fire.db` への接触
+- launchd / cron の本番稼働設定変更
+- 外部 API 実通信を伴う integration
+
+P3 初回の目的は **10 lane 並列そのものの運用検証** であり、外部副作用を
+伴う機能検証ではない。
+
+LINE / token integration は、P3 で 10 lane を最低 2 wave 連続 PASS し、
+衝突 0、過負荷 0、L4 HIGH 0 を満たした後、**専用 wave** として扱う。
 
 10 lane: L1a + L1b + L2a + L2b + L3a + L3b + L3c + L4 + L5 + L6。
 
@@ -430,12 +492,38 @@ HQ 判断が必要な論点 (= n 件)
 
 ### Phase 移行表
 
-| Phase | 期間 | lane 数 | 主目的 | exit 条件 |
+| Phase | 期間 | lane 数 | 主目的 | exit 条件 (= R2 v1.1) |
 |---|---|---|---|---|
 | **P0** | 現状 | 5 | R1 v1.1 安定運用 | (= 現状継続) |
-| **P1** | 2026-05-12 〜 | 6 | R2 初導入、L1b or L3b 追加 | 2 wave 連続 PASS |
-| **P2** | P1 完了後 | 8 | L2b / L6 追加 | 2 wave 連続 PASS |
-| **P3** | P2 完了後 | 10 | L1b/L2b/L3c/L6 全活性 | 安定運用継続 |
+| **P1** | 2026-05-12 〜 | 6 | R2 初導入、L1b or L3b 追加 | 2 wave 連続 PASS + 実装あり 1 回 + 衝突 0 + 過負荷 0 + L4 HIGH 0 |
+| **P2** | P1 完了後 | 8 | L2b / L6 追加 | 2 wave 連続 PASS + 実装あり 1 回 + 衝突 0 + 過負荷 0 + L4 HIGH 0 |
+| **P3** | P2 完了後 | 10 | L1b/L2b/L3c/L6 全活性 | 安定運用継続 + 実装あり 1 回 + 衝突 0 + 過負荷 0 + L4 HIGH 0 |
+
+### Phase exit 条件 4 項目 (= R2 v1.1 追加、Wave 24 W24-2 L1a 由来)
+
+各 Phase の exit 判定では、単なる dry-run / doc-only PASS だけでは
+昇格不可。次の **4 項目をすべて満たした場合のみ** 次 Phase へ進む。
+
+1. **実装あり wave 最低 1 回**
+   - Phase 内で少なくとも 1 wave は code / test / config の実変更を含む
+   - doc-only / stdout-only / review-only wave は実装実績として数えない
+
+2. **file ownership 衝突 0**
+   - allowed_files 外の差分 0
+   - 同一 file に対する複数 lane の未調整編集 0
+   - merge_owner が手動解消した conflict がある場合、その wave は exit 実績に
+     数えない
+
+3. **本線過負荷 0**
+   - merge_owner がレビュー不能、統合不能、差分把握不能と判断した wave は不合格
+   - lane 数増加により L4 / merge_owner の確認粒度が落ちた場合は Phase 維持
+
+4. **L4 HIGH 0**
+   - Codex audit で HIGH 以上の未解消指摘 0
+   - HIGH が出た wave は、修正後 PASS しても exit 用の連続 PASS には含めない
+
+Phase 昇格は **merge_owner (= Claude Code 本線) が明示承認**。lane 側の
+自己判定のみで Phase を進めない。HQ 最終承認後に Phase 移行。
 
 ### Phase 別 lane 構成案
 
@@ -538,6 +626,25 @@ P2 → P3: HQ 明示承認 (= P2 で 2 wave 連続 PASS 後)
 | file ownership 表 | 暗黙 | **wave 開始時に明示作成** |
 | 過負荷検出 | 手動 | **明示シグナル + Step 後退ルート** |
 | HQ 報告 | 1 ブロック | 1 ブロック + lane 別効率 |
+
+---
+
+## 13.1 R2 v1.1 改訂履歴 (= Wave 24 で反映)
+
+| 改訂 | 内容 | 由来 | section |
+|---|---|---|---|
+| 1 | Phase exit 条件難度補正 (= 実装あり 1 回 + 衝突 0 + 過負荷 0 + L4 HIGH 0) | Wave 23 W23-6 L4 HIGH #1 | § 11 Phase 移行表 |
+| 2 | file lock / 既存 modified 検知 | Wave 23 W23-6 L4 HIGH #2 | § 3 file ownership |
+| 3 | P3 初回 LINE/token integration 除外 | Wave 23 W23-6 L4 HIGH #3 | § 9 試験投入候補 |
+
+これら 3 改訂は Wave 24 で **Codex 7 lane 並列で設計案を生成**、本線が
+merge して R2 doc に反映。Wave 24 L4 audit (= 8 観点) で
+**CRITICAL 0 / HIGH 0 / PASS with CONCERN** を確認。
+
+R2 v1.2 候補 (= 未反映):
+- P1 → P2 条件の実績照合表テンプレ (= Wave 24 W24-7 L4 CONCERN #F)
+- 8 lane 実運用時の changed_files 証跡 (= Wave 24 W24-7 L4 CONCERN #D)
+- Phase 後退時の lane 構成変更手順詳細化
 
 ---
 
