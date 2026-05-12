@@ -2,7 +2,7 @@
 id: FIRE-CODEX-R2-10-lane-scaling-design
 phase: ガバナンス / R-01-08 / FIRE-CODEX-R2 設計
 priority: 高
-status: v1.1 (= Wave 24 で改訂、Phase exit 条件難度補正 + 既存 modified 検知 + P3 初回 LINE/token 除外)
+status: v1.2 (= Wave 27 で改訂、KPI 駆動 lane 選択 + 6 KPI 必須 + lane 数は task 量と KPI で適応)
 owner: BlueFire7777 (Fujiwara)
 date: 2026-05-12
 depends_on:
@@ -381,16 +381,64 @@ HQ 判断が必要な論点 (= n 件)
 
 ### R2 追加要素
 
-- **Codex 投入 lane 数 (= 何 lane / 10)** を結果サマリに明示
+- **Codex 投入 lane 数 (= 何 lane / 12+)** を結果サマリに明示
 - **lane 別効率レポート** (= 各 lane の出力時間 / 修正行数)
 - **file ownership 衝突件数** (= 0 が目標)
 - **過負荷検出有無** (= Step 進行判断材料)
 
+### R2 v1.2 追加: 6 KPI 必須 table (= Wave 27 W27-2 反映、HQ 補足方針 2026-05-12)
+
+各 wave の HQ 1 ブロック報告に **必ず以下の 6 KPI table** を含める:
+
+```
+6 KPI table
+
+| KPI                    | 値                                | 目標 / 判定 |
+|------------------------|-----------------------------------|-------------|
+| Codex 稼働率           | {並列起動 lane 数} / 12+          | task 量に応じ可変 |
+| 本線短縮率             | ({単独推定} - {実時間}) / {単独推定} = N% | 50% 以上目標 |
+| 成果物採用率           | {採用された Codex 出力数} / {全}  | 100% 目標 |
+| 差し戻し率             | {破棄された Codex 出力数} / {全}  | 0% 目標 |
+| Integrator 負荷        | {本線実時間} / 150 分 = N%        | < 60 分 (= 40%) 目標 |
+| **安全事故 0**         | {未承認 LINE/DB/token/cron 発生数} | **絶対条件、0 必須** |
+```
+
+**安全事故 0** だけは「KPI トレードオフ」の対象外 (= 絶対条件)。残り 5 KPI
+は wave の性質と task 量に応じて目標値を超過することがある (= 例えば
+設計 wave では「本線短縮率」が高く「成果物採用率」が 100%)。
+
 ---
 
-## 9. 10 lane 初回試験投入候補
+## 9. 試験投入候補 / lane 選択方針 (= R2 v1.2 で KPI 駆動化)
+
+### R2 v1.2 lane 選択方針 (= Wave 27 W27-3 反映、HQ 補足方針 2026-05-12)
+
+**lane 数そのものは目標ではない**。余っている Codex リソースを活用して
+**開発速度向上** + **本線短縮** が真の目標。
+
+lane 数選択基準:
+1. **task 量と性質** (= sub-task 数、設計 / impl / test / audit の比率)
+2. **6 KPI 駆動** (= 上記 § 8 R2 v1.2 追加 table 参照)
+3. **本線 Integrator 容量** (= sub-task 上限 12 / 150 分 / commit 6)
+
+参考 lane 数 (= 固定ではない):
+
+| task 量 | 推奨 lane 数 | 例 |
+|---|---|---|
+| 小 (sub <= 4) | 4-5 | 起票のみ、設計 doc 単体 |
+| 中 (sub 5-7) | 6-7 | dry-run probe + 設計 |
+| 大 (sub 8-10) | 8-10 | impl wave (= 本線+Codex 4-6) |
+| 超大 (sub 11-12) | **10-12+** | 多 module 横断 / 大規模 refactor |
+| 12 超 | wave 分割 | (= W{N}a / W{N}b で必ず分割) |
+
+10 / 12+ レーンは task 量と KPI に応じて **必要な時のみ** 使用。
+「12 lane を毎回」ではない。
+
+### Wave 21 候補 (= 旧 6 lane 例、参考保存)
 
 ### 候補 a (= 推奨、Step 1 = 6 lane 投入)
+
+(以下、Wave 20 時点 v1.0 の参考記録。R2 v1.2 以降は上記 lane 選択方針を採用。)
 
 **Wave 21 候補**: F101 API behavior investigation **実装** (= W19-1 推奨対応)
 
@@ -629,7 +677,9 @@ P2 → P3: HQ 明示承認 (= P2 で 2 wave 連続 PASS 後)
 
 ---
 
-## 13.1 R2 v1.1 改訂履歴 (= Wave 24 で反映)
+## 13.1 R2 改訂履歴
+
+### R2 v1.1 改訂 (= Wave 24 で反映)
 
 | 改訂 | 内容 | 由来 | section |
 |---|---|---|---|
@@ -641,9 +691,48 @@ P2 → P3: HQ 明示承認 (= P2 で 2 wave 連続 PASS 後)
 merge して R2 doc に反映。Wave 24 L4 audit (= 8 観点) で
 **CRITICAL 0 / HIGH 0 / PASS with CONCERN** を確認。
 
-R2 v1.2 候補 (= 未反映):
-- P1 → P2 条件の実績照合表テンプレ (= Wave 24 W24-7 L4 CONCERN #F)
-- 8 lane 実運用時の changed_files 証跡 (= Wave 24 W24-7 L4 CONCERN #D)
+### R2 v1.2 改訂 (= Wave 27 で反映、HQ 補足方針 2026-05-12)
+
+| 改訂 | 内容 | 由来 | section |
+|---|---|---|---|
+| 1 | 6 KPI 必須 table (= Codex 稼働率 / 本線短縮率 / 成果物採用率 / 差し戻し率 / Integrator 負荷 / 安全事故 0) を HQ 1 ブロック報告テンプレに追加 | HQ 補足方針 2026-05-12 | § 8 完了報告テンプレ |
+| 2 | lane 数選択は KPI 駆動 + task 量適応 (= 4/5/6/7/8/10/12+ 適応選択、「数自体は目標ではない」) | HQ 補足方針 2026-05-12 | § 9 試験投入候補 |
+| 3 | 安全事故 0 を絶対条件として明記 (= KPI トレードオフ対象外) | HQ 補足方針 2026-05-12 | § 8 / § 9 |
+
+これら 3 改訂は **Wave 27 で本線が直接 R2 doc 編集** で反映 (= Codex
+4 lane は dry-run probe 関連の設計 / audit / regression 並走)。
+
+### R2 v1.3+ 候補 (= 未反映、累積 L4 CONCERN)
+
+#### Wave 24 L4 CONCERN (= 3 件)
+
+- D: 8 lane 実運用時の changed_files 証跡明示化
+- F: P1 → P2 条件の実績照合表テンプレ
+- H: Wave 25+ P2 = 8 lane 継続条件 (= 「8 lane を毎回」ではなく「衝突 0 /
+  過負荷 0 が維持できる wave に限る」)
+
+#### Wave 25 L4 CONCERN (= 5 件、F282 launchd 設計関連)
+
+- B: logrotate olddir 月別 directory 構造 (= F282 設計 doc で反映済)
+- C: dry-run output summary に write_count=0 含める (= F282 設計 / impl で反映済)
+- D: rollback は production 不変原則 (= F282 設計で反映済)
+- E: script safety guard を R1/R2 統合 (= F282 設計 / impl で反映済)
+- G: design doc にも実 plist 配置禁止文 (= F282 設計で反映済)
+- H: F282 plist で LINE_* / JQUANTS_* を EnvironmentVariables から除外
+  (= F282 設計 / impl で反映済)
+
+→ Wave 25 L4 CONCERN は F282 個別設計に反映済、R2 設計 doc への追加なし。
+
+#### Wave 26 L4 CONCERN (= 2 件)
+
+- B: safety guard vs R1/R2 統合 (= F282 impl で 7 検査として反映済)
+- D: write path NotImplementedError (= F282 impl で raise として反映済)
+
+→ Wave 26 L4 CONCERN は F282 impl に反映済、R2 設計 doc への追加なし。
+
+#### R2 v1.3+ で追加検討 (= 累積残り)
+
+- Wave 24 CONCERN 3 件 (= D / F / H、運用面補強)
 - Phase 後退時の lane 構成変更手順詳細化
 
 ---
