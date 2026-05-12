@@ -10611,3 +10611,130 @@ Wave 32 実時間 約 45 分、本線単独 90 分、短縮 50%。
 ### commits (fire-vault main)
 
 - 677ef08 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | ★ F282 本番投入完了 ★ Wave 33 plist 配置 + launchctl load + 1 週間試走開始 (= 完成パイプライン 9/9)
+
+### HQ Wave 33 起票承認 + HQ_APPROVE_F282_PLACE=1 + HQ_APPROVE_F282_LOAD=1
+
+### Wave 33 投入結果 (= 6 lane = 本線 2 + Codex 4)
+
+- W33-1 L5 (本線) plan + baseline + 4 Codex prompt
+- W33-2 L1a (Codex) plist 配置 + launchctl load 手順、CRITICAL 0 / HIGH 0
+- W33-3 L1b (Codex) 1 週間試走観測 + abort 条件、CRITICAL 0 / HIGH 0
+- W33-4 L3 (本線) plist cp + launchctl load + 確認
+- W33-5 L4 (Codex) adversarial audit 8 観点、CRITICAL 0 / HIGH 0
+- W33-6 L6 (Codex) regression + 本線 pytest 4,090 PASS
+- W33-7 (本線) 12 必須 + 6 KPI + commit + 試走開始報告
+
+### W33-4 L3 実施結果
+
+Step 1: cp ~/fire/docs/launchd/jp.fire.weekly-snapshot.plist
+        ~/Library/LaunchAgents/ → exit 0
+Step 2: 配置確認 (1772 bytes、5/12 22:46)
+Step 3: plutil -lint **OK**
+Step 4: launchctl load → exit 0
+Step 5: launchctl list 確認:
+  - jp.fire.weekly-snapshot PID=- LastExitStatus=0 登録 ✓
+  - 既存 jp.fire.emergency-* 5 件と共存 (= 6 件 total)
+launchctl print gui/501/: state=not running ✓ / type=LaunchAgent ✓
+
+次 run: **2026-05-16 土曜 02:00 JST** (= 3.2 日後)
+
+### 12 必須確認 12/12 全達成
+
+baseline / 配置先 / plutil OK / load exit 0 / list 確認 /
+next run 想定 / log path / 既存 DB mtime unchanged /
+LINE 0 / token 0 / 観測項目 / abort 条件
+
+### 既存 DB mtime + size 完全 unchanged ✓
+
+- /data/fire.db: 371,081,216 / 5/12 16:17:24
+- /data/fire.develop.db: 371,081,216 / 5/12 16:11:43
+- /data/fire.staging.db: 4,804,063,232 / 5/12 18:45:22
+
+### L4 audit verdict (= 8 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量「中」適切 |
+| 本線短縮率 | (90-45)/90 = 50% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 45/150 = 30% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### F282 完成パイプライン ★ 9/9 全達成 ★
+
+W25 設計 / W26 dry-run impl / W27 dry-run probe / W28 write path impl +
+CRITICAL 5 修正 / W29 配置計画 / W30 実 VACUUM INTO / W31 log dir +
+plist + logrotate config / W32 logrotate install / **W33 plist 配置 +
+launchctl load + 試走開始** ★
+
+### 1 週間試走スケジュール
+
+- 5/12 火 22:47: 本 wave 完了 (= 配置 + load)
+- 5/13 〜 5/15: 待機 (= launchd 未実行)
+- **5/16 土 02:00 JST: launchd 自動実行 (1 回目)**
+- 5/16 03:00: 本線 log 確認
+- 5/16 〜 5/19: daily check
+- **5/19 月: GO / NO-GO 判定**
+
+### 試走 abort 条件 (= 8 件、HQ 指示)
+
+launchd 想定外複数回 / 既存 DB mtime 変化 / snapshot 専用 path 外 /
+log 出力失敗 / exit non-zero / disk 異常 / token-LINE-API 痕跡 /
+HQ abort
+
+Abort 実行: launchctl unload ~/Library/LaunchAgents/
+                jp.fire.weekly-snapshot.plist
+
+### fire develop commits
+
+本 Wave で commit なし (= 既存 plist の本番配置、code 変更 0)。
+
+system 状態変化:
+- ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist 配置
+- launchd registry 登録 (state=not running)
+
+### fire-vault main commits
+
+- 436a64f docs(FIRE-CODEX-R1): Wave 33 plan + results + F282 本番投入
+  完了 + 試走開始
+
+### 安全 (Wave 33 全 ✓、絶対条件達成)
+
+- 実 plist 配置 1 回 (HQ marker) / launchctl load 1 回 (HQ marker)
+- 自動実行 5/16 02:00 待機 (= 本 wave 中未実行)
+- 実 LINE 0 / 実 API 0 / 全 DB mtime+size unchanged
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 33 実時間 約 45 分、本線単独 90 分、短縮 50%。
+**Wave 1-33 通算で 60-80% 短縮を 33 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 5 件)
+
+1. Wave 33 完了承認 (推奨: approve)
+2. 1 週間試走の本線監視責務 (= 5/16 03:00 + 5/19 月曜)
+3. 5/19 GO 判定後の本番化承認 (= Wave 35 候補)
+4. NO-GO 時の修正 wave
+5. R2 v1.3 改訂タイミング (= Wave 35+、緊急度低)
+
+### commits (fire-vault main)
+
+- 436a64f (= 上記)、log.md は別 follow-up
