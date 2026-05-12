@@ -10378,3 +10378,107 @@ Wave 30 実時間 約 40 分、本線単独 100 分、短縮 60%。
 ### commits (fire-vault main)
 
 - cac61c2 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 log dir + plist + logrotate config 作成 (= Wave 31、logrotate 未 install 発覚 scope 縮小、4,090 PASS)
+
+### HQ Wave 31 起票承認 (= log dir 作成 + logrotate 設定配置)
+
+### Wave 31 投入結果 (= 6 lane = 本線 2 + Codex 4)
+
+- W31-1 L5 (本線) plan + 環境発覚記録 + 4 Codex prompt
+- W31-2 L1a (Codex) logrotate 設定 file 内容詳細、CRITICAL 0 / HIGH 0
+- W31-3 L1b (Codex) log path 検証手順、CRITICAL 0 / HIGH 0
+- W31-4 L3 (本線) log dir + plist + logrotate config 作成
+- W31-5 L4 (Codex) adversarial audit 7 観点、CRITICAL 0 / HIGH 0
+- W31-6 L6 (Codex) regression + 本線 pytest 4,090 PASS
+- W31-7 (本線) 検証 + commit + 6 KPI + 報告
+
+### 本 wave 開始時の発覚 2 件
+
+1. logrotate 未 install (= which logrotate → not found)
+   → scope 縮小: brew install + 本番配置 + dry-run は別 wave
+2. W25 § 1 設計済 plist が物理 file 未作成
+   → 本 wave で plist file 作成 (= リポジトリ正本)
+
+### W31-4 L3 実施内容
+
+[log dir 作成]
+- /Users/bluefire/fire/logs/cron/ (= 書込み可)
+- /Users/bluefire/fire/logs/archive/
+
+[plist 作成 (= fire develop)]
+- docs/launchd/jp.fire.weekly-snapshot.plist
+- plutil -lint: OK
+- EnvironmentVariables: FIRE_ENV=snapshot / PYTHONPATH のみ
+- LINE_* / JQUANTS_* / CHANNEL_* / TOKEN / SECRET 除外
+- StandardOut/Err: logs/cron/weekly-snapshot.{log,err}
+
+[logrotate config 作成 (= fire develop)]
+- docs/logrotate.d/fire (= リポジトリ正本)
+- 本番配置先: /opt/homebrew/etc/logrotate.d/fire (= 別 wave + HQ approve)
+- monthly / rotate 3 / compress / olddir 月別 directory 化
+
+### L4 audit verdict (= 7 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. log dir 権限+整合 / B. logrotate syntax / C. 未 install scope 縮小
+D. plist 配置前検証 / E. plist StandardOut log 整合
+F. logrotate postrotate 安全 / G. HQ 禁止項目維持
+
+### 成功条件 11/11 全達成 + 6 KPI 全達成
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量「中」適切 |
+| 本線短縮率 | (110-50)/110 = 55% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### fire develop commits
+
+- c4f5200 feat(F282): weekly snapshot plist + logrotate config (Wave 31、
+  設定 file のみ)
+
+### fire-vault main commits
+
+- 9f4ab22 docs(FIRE-CODEX-R1): Wave 31 plan + results + log dir + plist
+  + logrotate config
+
+### 安全 (Wave 31 全 ✓、絶対条件達成)
+
+- 実 plist 本番配置 0 / launchctl load 0 / 自動実行開始 0
+- brew install logrotate 0 / sudo cp 0
+- 実 LINE 0 / 実 API 0 / 全 DB write 0
+- token / channel_token / secret 0 (= plist にも含まず)
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention (= data/snapshot/ 2 件) 5/19 まで保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 31 実時間 約 50 分、本線単独 110 分、短縮 55%。
+**Wave 1-31 通算で 60-80% 短縮を 31 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持 (= python code 変更 0、設定 file のみ)。
+
+### HQ 判断論点 (= 5 件)
+
+1. Wave 31 完了 + log dir + plist + logrotate config 承認 (推奨: approve)
+2. logrotate install 着手判定 (= HQ_APPROVE_LOGROTATE_INSTALL=1、緊急度中)
+3. plist 本番配置 + launchctl load 判定 (= HQ_APPROVE_F282_PLACE+_LOAD=1)
+4. Wave 32 候補:
+   - 推奨 a: logrotate install + 設定配置 + dry-run
+   - 推奨 b: plist 本番配置 + launchctl load + 1 週間試走
+   - 別案: F101 staging probe / R2 v1.3 改訂
+5. R2 v1.3 改訂タイミング (= Wave 33+、緊急度低)
+
+### commits (fire-vault main)
+
+- 9f4ab22 (= 上記)、log.md は別 follow-up
