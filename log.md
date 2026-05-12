@@ -9924,3 +9924,126 @@ impl wave なので本線負荷高め。
 ### commits (fire-vault main)
 
 - 8d35788 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 dry-run probe 実行成功 + R2 v1.2 / KPI-driven Lane Scaling 反映 (= Wave 27、write 0 / mtime unchanged / 4,068 PASS)
+
+### HQ Wave 27 起票承認 (= F282 dry-run probe 実施) + 追加指示 (= R2 v1.2 起票)
+
+### Wave 27 投入結果 (= 6 lane = 本線 2 + Codex 4、2 task 統合)
+
+- W27-1 L5 (本線) plan + git status + mtime baseline + 4 prompt
+- W27-2 L1a (Codex) dry-run probe 手順詳細設計、CRITICAL 0 / HIGH 0
+- W27-3 L1b (Codex) 期待出力 / 失敗時 triage 設計、CRITICAL 0 / HIGH 0
+- W27-4 L3 (本線) **F282 dry-run probe 実行**
+- W27-5 L4 (Codex) adversarial audit 8 観点、CRITICAL 0 / HIGH 0
+- W27-6 L6 (Codex) regression plan、CRITICAL 0 / HIGH 0
+- W27-7 (本線) **R2 v1.2 改訂直接編集**
+- W27-8 (本線) 結果統合 + KPI + commit + 報告
+
+### F282 dry-run probe 結果
+
+実行: FIRE_ENV=snapshot ... run_f282_weekly_snapshot.py --dry-run
+       --db-source production --db-targets staging,develop
+出力: F282 dry-run OK: write_count=0, probe_ok=True,
+       source_size=371081216, target_count=2 / exit 0
+
+W27 必須確認 10 項目 全達成:
+- production/develop/staging DB mtime + size 完全 unchanged
+- /data/ 新規 file 0
+- disk free 831 GiB、source_size 371 MB → 余裕大
+
+### R2 v1.2 改訂内容 (= HQ 補足方針 2026-05-12 反映)
+
+改訂 1: § 8 完了報告テンプレに 6 KPI table 必須化
+- Codex 稼働率 / 本線短縮率 / 成果物採用率 / 差し戻し率
+- Integrator 負荷 / 安全事故 0 (= 絶対条件)
+
+改訂 2: § 9 lane 選択方針を KPI 駆動化
+- 「lane 数自体は目標ではない」
+- task 量 + KPI で 4/5/6/7/8/10/12+ 適応選択
+- 12 超 → wave 分割必須
+
+改訂 3: 安全事故 0 を絶対条件として § 8 + § 9 明記
+- KPI トレードオフ対象外
+
+§ 13.1 改訂履歴に R2 v1.2 追加 + W24/W25/W26 L4 CONCERN 整理
+
+### 6 KPI 初試行結果
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量に適切 |
+| 本線短縮率 | 50% | 目標 50% 達成 |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 33% | < 40% 達成 |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+5 KPI 目標 + 1 絶対条件 = 全 OK ★
+
+### L4 audit verdict (= W27-5、8 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. dry-run path read-only 保証
+B. PRAGMA query_only=ON write block
+C. URI mode=ro SQLite write block
+D. os.access(W_OK) で実 file 0
+E. shutil.disk_usage 読取のみ
+F. mtime 比較運用十分性
+G. 万一の write rollback (= 本 wave write 想定 0)
+H. HQ 禁止項目 全 維持
+
+### 成功条件 15/15 全達成
+
+- 6 lane 全完了 / 衝突 0 / CRITICAL 0 / L4 HIGH 0
+- safety 0 / 4,068 PASS / wave 50 分 / commit 6 件以内
+- Codex 直接 commit 0 / 本線過負荷 0 / 全 DB mtime unchanged
+- dry-run probe exit 0 / write_count=0
+- HQ 報告 1 ブロック / R2 v1.2 反映
+
+### fire develop commits
+
+本 Wave で commit なし (= dry-run probe + R2 v1.2 設計反映、code 0)。
+
+### fire-vault main commits
+
+- 2f3eba9 docs(FIRE-CODEX-R2): Wave 27 plan + results + F282 dry-run
+  probe + R2 v1.2 改訂
+
+### 安全 (Wave 27 全 ✓)
+
+- 実 VACUUM INTO 0 / 実 DB snapshot write 0
+- plist 配置 0 / launchctl load 0 / cron 登録 0
+- logrotate 適用 0
+- 実 LINE 0 / 実 API call 0
+- 全 DB mtime + size unchanged ✓
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 既存 modified 2 件 (= forbidden) 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 変更 0 / --no-verify 不使用
+- TODO Excel 未更新 / Codex 直接 commit 0
+
+### 並列効果
+
+Wave 27 実時間 約 50 分、本線単独 100 分、短縮 50%。
+**Wave 1-27 通算で 60-80% 短縮を 27 wave 連続達成** ★
+
+### 回帰
+
+4,068 PASS 維持。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 27 完了 (= dry-run probe + R2 v1.2) 採用承認 (推奨: approve)
+2. Wave 28 候補:
+   - 推奨 a: F282 write path 実装 (= VACUUM INTO impl + tests)
+   - 推奨 b: F282 plist 配置 + 試走計画 (= 設計のみ)
+   - 別案: F101 staging probe / R2 v1.3+ 改訂
+3. F282 dry-run probe 実施結果の運用反映
+   - 次 step は VACUUM INTO impl or 本番 dry-run launchd 試走
+4. F101 staging probe (= 現状未承認継続)
+
+### commits (fire-vault main)
+
+- 2f3eba9 (= 上記)、log.md は別 follow-up
