@@ -10153,3 +10153,113 @@ CRITICAL 5 修正で本線負荷増 (= 通常 impl wave より +20-30 分)。
 ### commits (fire-vault main)
 
 - dccfb9f (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 plist 配置 + 1 週間試走計画詳細確定 (= Wave 29、4,090 PASS 維持、6 KPI 全達成)
+
+### HQ Wave 29 起票承認 (= 設計のみ)
+
+### Wave 29 投入結果 (= 6 lane = 本線 1 + Codex 5)
+
+- W29-1 L5 (本線) plan + git status + 5 Codex prompt
+- W29-2 L1a (Codex) plist 配置手順詳細、CRITICAL 0 / HIGH 0
+- W29-3 L1b (Codex) 1 週間試走 観察項目 + abort、CRITICAL 0 / HIGH 0
+- W29-4 L1c (Codex) logrotate 設定適用 + log dir 事前作成、CRITICAL 0 / HIGH 0
+- W29-5 L4 (Codex) adversarial audit 7 観点、CRITICAL 0 / HIGH 0
+- W29-6 L6 (Codex) regression plan + 本線 pytest 4,090 PASS
+- W29-7 (本線) F282 設計 doc 更新 + commit + 報告
+
+### F282 設計 doc 追加内容
+
+§ 7.1 plist 配置手順詳細
+- 配置元 ~/fire/docs/launchd/ / 配置先 ~/Library/LaunchAgents/
+- 配置前 check 4 件 / 配置 + load コマンド
+- HQ approve marker (HQ_APPROVE_F282_PLACE=1 + _LOAD=1 独立承認)
+
+§ 7.2 1 週間試走計画
+- 試走期間 1 週間 = 1 回の土曜実行
+- 観察項目 7 件 / 異常検知 6 件 / Abort 3 件
+- GO / NO-GO 判定 + 試走後 next step
+
+§ 7.3 logrotate 設定適用手順
+- log dir 事前作成 (= mkdir、本 wave 0)
+- logrotate 設定配置 (= HQ_APPROVE_LOGROTATE=1)
+- 月初 launchd 登録 (= W22 cron thaw Step 4)
+- 想定 disk 容量 (150KB / 1.8 MB)
+
+### L4 audit verdict (= 7 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. plist 配置 vs W25 + F236 / B. 配置前後 check 保証
+C. 試走 production unchanged 検出 / D. abort 即時停止
+E. logrotate 月次 / F. HQ approve 独立 / G. 実 plist 配置 0 一貫性
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 5/12+ = 42% | task 量「中」適切 |
+| 本線短縮率 | (90-35)/90 = 61% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 35/150 = 23% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+W28 (= 53%) と比較し、本 wave は設計のみで負荷 23%。**6 KPI 全達成**
+
+### F282 完成パイプライン状態
+
+- W25: launchd 設計 ✓
+- W26: dry-run path impl ✓
+- W27: dry-run probe 実行成功 ✓
+- W28: write path impl + CRITICAL 5 修正 ✓
+- W29: 配置 + 試走計画詳細 ✓ (= 本 wave)
+- W30+: 実 plist 配置 / 実 VACUUM INTO (= 別 HQ approve)
+
+設計 + impl は完成、残るは本番投入の HQ approve + 試走実行。
+
+### 成功条件 11/11 全達成
+
+### fire develop commits
+
+本 Wave で commit なし (= 設計のみ、code 変更 0)。
+
+### fire-vault main commits
+
+- 3e36c9b docs(FIRE-CODEX-R1): Wave 29 plan + results + F282 plist 配置
+  + 試走計画詳細
+
+### 安全 (Wave 29 全 ✓)
+
+- 実 plist 配置 0 / launchctl load 0 / 実 VACUUM INTO 0
+- 実 DB snapshot 作成 0 / 全 DB write 0
+- cron 0 / logrotate 適用 0 / mkdir 0
+- 実 LINE 0 / 実 API call 0 / token 0
+- F101 staging probe 未実行
+- 既存 modified 2 件 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 29 実時間 約 35 分、本線単独 90 分、短縮 61%。
+**Wave 1-29 通算で 60-80% 短縮を 29 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持 (= code 変更 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 29 完了 + F282 配置 + 試走計画詳細設計 承認 (推奨: approve)
+2. Wave 30 候補:
+   - 推奨 a: F282 staging 実 VACUUM INTO 試行 (= write path 検証)
+   - 推奨 b: 実 plist 配置 + launchctl load + 1 週間試走 (= 自動実行入口)
+   - 推奨 c: log dir 事前作成 (= W30 a or b と同時)
+   - 別案: F101 staging probe / R2 v1.3 改訂
+3. F282 本番投入順序 (= write 試行先行 or 配置先行)
+4. R2 v1.3 改訂タイミング (= Wave 32+ 想定、緊急度低)
+
+### commits (fire-vault main)
+
+- 3e36c9b (= 上記)、log.md は別 follow-up
