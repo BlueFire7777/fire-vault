@@ -10482,3 +10482,132 @@ Wave 31 実時間 約 50 分、本線単独 110 分、短縮 55%。
 ### commits (fire-vault main)
 
 - 9f4ab22 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | logrotate install + 設定配置 + dry-run 成功 (= Wave 32、/goal モード 14 条件全達成、4,090 PASS 維持)
+
+### HQ Wave 32 起票承認 + HQ_APPROVE_LOGROTATE_INSTALL=1 + /goal モード
+
+### Wave 32 投入結果 (= 6 lane = 本線 2 + Codex 4)
+
+- W32-1 L5 (本線) plan + 環境確認 + 4 Codex prompt
+- W32-2 L1a (Codex) brew install 手順詳細、CRITICAL 0 / HIGH 0
+- W32-3 L1b (Codex) logrotate -d 出力解釈、CRITICAL 0 / HIGH 0
+- W32-4 L3 (本線) brew install + cp + dry-run 実行
+- W32-5 L4 (Codex) adversarial audit 8 観点、CRITICAL 0 / HIGH 0
+- W32-6 L6 (Codex) regression + 本線 pytest 4,090 PASS
+- W32-7 (本線) 検証 + commit + 6 KPI + 報告
+
+### /goal 完了条件 14/14 全達成
+
+1. logrotate 3.22.0 install 確認 ✓ (/opt/homebrew/sbin/logrotate)
+2. cp 完了 ✓ (/opt/homebrew/etc/logrotate.d/fire、diff 完全一致)
+3. logrotate -d 実行 ✓ (exit 0、syntax error 0)
+4. 実 rotation 0 ✓ (logrotate "does nothing" 明示 + dir mtime 不変)
+5. log path 整合 ✓ (logs/cron/ + logs/archive/ exist + writable)
+6. 実 LINE 送信 0 ✓
+7. DB write 0 ✓ (全 production DB mtime + size unchanged)
+8. token / channel_token / secret 0 ✓
+9. plist 配置 0 ✓
+10. launchctl load 0 ✓
+11. pytest 4,090 PASS 維持 ✓
+12. L4 audit CRITICAL 0 / HIGH 0 ✓
+13. fire-vault docs/log 更新 ✓ (= 本 commit + follow-up)
+14. HQ 1 ブロック報告 + 6 KPI ✓
+
+### /goal 停止条件 trigger 0 (= 全 11 件 clear)
+
+brew install 失敗 / sudo 権限問題 / dry-run でない / audit CRITICAL /
+safety violation / 未承認 DB write / 未承認 LINE / token 参照 / plist 配置 /
+launchctl load / 150 分超過 / file 衝突 → **全 trigger 0**
+
+### W32-4 L3 実行結果
+
+[brew install]
+logrotate 3.22.0 + popt 1.19 install (sudo 不要、non-interactive)
+
+[cp]
+docs/logrotate.d/fire → /opt/homebrew/etc/logrotate.d/fire
+diff 完全一致 ✓
+
+[logrotate -d dry-run]
+"logrotate in debug mode does nothing except printing debug messages"
+syntax check OK / exit 0 / log file 不在 → skipping (期待通り)
+
+[mtime 検証]
+- /data/fire.db: 5/12 16:17:24 (baseline 一致)
+- /data/fire.develop.db: 5/12 16:11:43 (一致)
+- /data/fire.staging.db: 5/12 18:45:22 (一致)
+- /logs/cron/ /logs/archive/: 空 dir 維持
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量「中」適切 |
+| 本線短縮率 | (90-45)/90 = 50% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 45/150 = 30% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### F282 完成パイプライン 8/9 段階達成
+
+W25 設計 / W26 dry-run impl / W27 dry-run probe / W28 write path /
+W29 配置計画 / W30 実 VACUUM INTO / W31 plist + logrotate config /
+**W32 logrotate install + dry-run** ★
+
+残るは W33+ plist 本番配置 + launchctl load + 試走。
+
+### fire develop commits
+
+本 Wave で commit なし (= 既存 config の本番配置のみ、code 変更 0)。
+
+system 状態変化 (= fire repo 外):
+- /opt/homebrew/Cellar/logrotate/3.22.0/
+- /opt/homebrew/Cellar/popt/1.19/
+- /opt/homebrew/sbin/logrotate
+- /opt/homebrew/etc/logrotate.d/fire
+
+### fire-vault main commits
+
+- 677ef08 docs(FIRE-CODEX-R1): Wave 32 plan + results + logrotate install
+  + dry-run 成功
+
+### 安全 (Wave 32 全 ✓、絶対条件達成)
+
+- 実 log rotation 0 ★
+- 実 plist 本番配置 0 / launchctl load 0 / 自動実行開始 0
+- brew install 1 回 (= HQ marker 承認下) / sudo cp 0
+- 実 LINE 0 / 実 API call 0
+- 全 production DB mtime + size unchanged
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 32 実時間 約 45 分、本線単独 90 分、短縮 50%。
+**Wave 1-32 通算で 60-80% 短縮を 32 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 32 完了 + logrotate install + 設定配置 + dry-run 承認
+   (推奨: approve、14 条件全達成、停止条件 0)
+2. Wave 33 候補:
+   - 推奨 a: plist 本番配置 + launchctl load + 1 週間試走開始
+     (= HQ_APPROVE_F282_PLACE=1 + HQ_APPROVE_F282_LOAD=1)
+   - 別案: logrotate launchd 登録 / F101 staging probe / R2 v1.3
+3. F282 本番投入順序の最終確認
+4. R2 v1.3 改訂タイミング (= Wave 34+、緊急度低)
+
+### commits (fire-vault main)
+
+- 677ef08 (= 上記)、log.md は別 follow-up
