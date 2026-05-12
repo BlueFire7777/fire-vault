@@ -9629,3 +9629,111 @@ Wave 23 実時間 約 30 分、本線単独推定 90-120 分、短縮 65-75%。
 ### commits (fire-vault main)
 
 - 8473aee (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | FIRE-CODEX-R2 v1.1 反映 + Phase P2 = 8 lane initial probe 完了 (= Wave 24、4,041 PASS 維持)
+
+### HQ Wave 24 起票承認 + Phase P2 条件付き承認 + R2 v1.1 必須改訂指示
+
+### Wave 24 投入結果 (= 8 lane = 本線 L5 + Codex 7)
+
+- W24-1 L5 (本線) Wave 24 plan + 7 prompt + R2 v1.1 改訂草案
+- W24-2 L1a (Codex) Phase exit 条件難度補正 設計、CRITICAL 0 / HIGH 0
+- W24-3 L1b (Codex) file lock / 既存 modified 検知 設計、CRITICAL 0 / HIGH 0
+- W24-4 L2a (Codex) dummy test 1、CRITICAL 0 / HIGH 0
+- W24-5 L2b (Codex) dummy test 2 (= 別 file)、CRITICAL 0 / HIGH 0
+- W24-6 L3 (Codex) R2 v1.1 doc diff 案、CRITICAL 0 / HIGH 0
+- W24-7 L4 (Codex) audit 8 観点、CRITICAL 0 / HIGH 0 / CONCERN 3
+- W24-8 L6 (Codex) regression plan + 本線 pytest 4,041 PASS
+- W24-9 (本線) R2 v1.1 doc 確定 + commit + 報告
+
+### R2 v1.1 反映内容
+
+改訂 1: § 11 Phase exit 条件 (= 2 wave 連続 PASS + 実装あり 1 回 +
+        衝突 0 + 過負荷 0 + L4 HIGH 0)
+改訂 2: § 3 file lock / 既存 modified 検知 (= git status -s 必須化 +
+        状態列追加 + 既存 forbidden 拒否運用)
+改訂 3: § 9 P3 初回 LINE/token integration 除外 (= production 非接触
+        の横断実装に限定)
+追加: § 13.1 R2 v1.1 改訂履歴 section
+
+### Codex 7 lane 並列起動
+
+並列実行 wall-clock 最大 ~5 分、本線処理含む wave 全体 ~35 分。
+
+### 成功条件 9/9 全達成 (= HQ 指示)
+
+- 8 lane 全完了 ✓
+- file ownership 衝突 0 ✓
+- CRITICAL 0 ✓
+- L4 HIGH 0 ✓ (= CONCERN 3 は HIGH ではない)
+- safety violation 0 ✓
+- 全 pytest PASS ✓ (= 4,041)
+- wave 実時間 < 150 分 ✓ (= 35 分)
+- commit 6 件以内 ✓ (= 2 件)
+- Codex 直接 commit 0 ✓
+- HQ 報告 1 ブロック ✓
+
+### L4 audit verdict (= 8 観点)
+
+PASS with CONCERN: CRITICAL 0 / HIGH 0 / CONCERN 3 / PASS 5。
+CONCERN 3 (= R2 v1.2 候補):
+- D: 8 lane 衝突 0 を運用上どう保証 (= changed_files 0 確認明示化)
+- F: P1 → P2 移行判断の実績照合表テンプレ
+- H: P2 = 8 lane 継続条件 (= 「8 lane を毎回」ではなく「衝突 0 / 過負荷 0
+     が維持できる wave に限る」)
+
+### P1 → P2 移行 R2 v1.1 4 条件 全充足
+
+| 条件 | Wave 21 | Wave 22 | Wave 23 | Wave 24 |
+|---|---|---|---|---|
+| PASS | ✓ | ✓ | ✓ | ✓ (4 連続) |
+| 実装あり 1 回 | ✓ (F101) | ✗ | ✗ | ✗ (= 1 回 OK) |
+| 衝突 0 | ✓ | ✓ | ✓ | ✓ |
+| 過負荷 0 | ✓ | ✓ | ✓ | ✓ |
+| L4 HIGH 0 | ✓ | ✓ | HIGH 3 | **✓** (= 本 wave) |
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 Codex sandbox=read-only、fire 側 write 0)。
+
+### fire-vault main commits
+
+- 66afe72 docs(FIRE-CODEX-R2): Wave 24 plan + results + R2 v1.1 反映
+  + 8 lane initial probe
+
+### 安全 (Wave 24 全 ✓)
+
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- 実 cron / launchd / crontab 登録 0 / plist 配置 0 / launchctl load 0
+- logrotate 適用 0
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- 既存 modified 2 件 (= forbidden) **未接触** ✓ (= R2 v1.1 改訂 2 初運用)
+- workflow 変更 0 / --no-verify 不使用
+- TODO Excel 未更新
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 24 実時間 約 35 分、本線単独 120-150 分、短縮 70-75%。
+Wave 23 (= 6 lane、30 分) から +2 lane 拡張で wave 時間 +5 分のみ。
+**Wave 1-24 通算で 60-80% 短縮を 24 wave 連続達成** ★
+
+### 回帰
+
+4,041 PASS 維持 (= sandbox=read-only / code 変更 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 24 完了 + R2 v1.1 反映承認 (推奨: approve)
+2. Phase P2 (= 8 lane) 正式運用承認 (= R2 v1.1 4 条件全充足、推奨: approve)
+3. R2 v1.2 候補 (= L4 CONCERN 3) 対応 (推奨: Wave 26 以降に積む、緊急度低)
+4. Wave 25 候補:
+   - 推奨 a: F282 weekly snapshot launchd 化 + 試走
+   - 推奨 b: F101 staging probe (= 別 HQ approve、token 使用)
+   - 別案: R2 v1.2 改訂、または P3 = 10 lane 試験
+
+### commits (fire-vault main)
+
+- 66afe72 (= 上記)、log.md は別 follow-up
