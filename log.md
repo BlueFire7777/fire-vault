@@ -8814,3 +8814,92 @@ Wave 12 実時間 約 30-40 分。本線単独推定 150-200 分。短縮 75-80%
 - 本 entry 後の commit (= Wave 12 results + SCHEMA-R1 起票 + W11-1 plan
   期待値修正 + audit incident + log)
 - fire develop の 2 commit は別系統 (= 上記)
+
+## [2026-05-12] codex | FIRE-CODEX-R1 v1.1 Wave 13 完了 (SCHEMA-R1 impl + audit + apply plans、CRITICAL 1 + HIGH 1 即修正、3,980 PASS)
+
+### HQ Wave 13 approve (= 2026-05-12、案 a schema 統合派)
+
+W12-2 で発見した「production/develop に advisory_decisions table 不在」
+問題を SCHEMA-R1 で構造解消。paper_reason を schema に含む 22 列の
+完全定義。
+
+### Wave 13 投入結果 (= 6 sub-task)
+
+- W13-1 SCHEMA-R1 impl + tests (= Codex L3+L2): 20 件 / 22 PASS
+- W13-1b SCHEMA-R1 audit (= Codex L4): CRITICAL 0 / HIGH 1 / MEDIUM 2
+- W13-1c-fix HIGH 1 + MEDIUM 2 解消 (= Codex L3+L2): +8 件 / 28 PASS
+- W13-1c-fix-2 Codex pre-commit CRITICAL 即修正 (= 本線): +3 件 / 31 PASS
+- W13-2 develop apply plan (= 本線 vault doc)
+- W13-3 production apply plan + backup plan (= 本線 vault doc)
+
+### W13-1b audit HIGH #1 解消
+
+schema mismatch 検査が列名のみ → PK / indexes / CHECK / DEFAULT / NOT NULL
+全検査に強化、戻り値 tuple[bool, list[str]] で reasons 返却。
+
+### W13-1c-fix-2 Codex pre-commit CRITICAL 即修正
+
+指摘: schema_mismatch_warning_skipped が production/develop で exit 0、
+silent success リスク。
+修正: production/develop の mismatch は exit 2、staging のみ exit 0。
+test 3 件追加。
+
+### fire develop split commits (= 2 件)
+
+- e134638 feat(F286-PNL-SCHEMA-R1): full schema migration
+- a79db34 docs(FIRE-CODEX-R1): Wave 13 W13-1 SCHEMA-R1 完了 table
+
+### W13-1 主要成果
+
+- scripts/setup/migrate_advisory_decisions_full.py:
+  - CREATE TABLE IF NOT EXISTS + 2 indexes IF NOT EXISTS
+  - 22 列 + paper_reason、PK (advisory_id, code)、CHECK、DEFAULT、NOT NULL
+  - HQ marker F286_SCHEMA_R1_HQ_APPROVE 必須
+  - W10-1a-fix pattern (symlink refuse + resolved basename) 継承
+- 31 tests / 31 PASS
+
+action 戻り値:
+- table 不在 + dry-run = dry_run_would_create
+- table 不在 + write = created
+- table 既存 + schema 一致 = skip_already_exists
+- table 既存 + schema 不一致 = schema_mismatch_warning_skipped
+  (production/develop = exit 2、staging = exit 0)
+
+### 安全 (Wave 13 全 ✓)
+
+- 実 LINE 送信 0 通 / 実 DB write 0
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0
+- 楽天 / 自動発注 / Computer Use / Playwright なし
+- workflow / cron / launchd / crontab 不変
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+
+### ガバナンス成果
+
+二段階 audit (= Codex L4 audit + pre-commit Codex review) が機能:
+- L4 audit で HIGH 1 検出 → fix
+- pre-commit で更に CRITICAL 1 検出 → 即修正
+- 本番 apply 前に schema 不整合 silent success リスク回避
+
+### 並列効果
+
+Wave 13 実時間 約 60-80 分。本線単独推定 240-300 分。短縮 70-75%。
+**Wave 1-13 通算で 60-80% 短縮を 13 wave 連続達成** ★
+
+### 回帰
+
+3,980 PASS (= W12 baseline 3,952 + W13 +28)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 13 完了 → 次フェーズ進行可否 (推奨: approve)
+2. W14-1 SCHEMA-R1 dry-run 3 環境 実行判定 (= 簡単、5 分)
+3. W14-2 SCHEMA-R1 develop apply 実行判定 (= HQ 明示承認必須)
+4. W14-3 SCHEMA-R1 production apply 実行判定 (= W14-2 後、backup 必須)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 13 results + 2 apply plans + audit incident
+  + log)
+- fire develop の 2 commit は別系統 (= 上記)
