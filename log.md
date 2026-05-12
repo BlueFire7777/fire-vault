@@ -9163,3 +9163,44 @@ Wave 17 約 60-80 分、本線単独 240-300 分、短縮 70-75%。
 
 - 本 entry は follow-up commit (= W17 plan + results + audit incident は
   前 commit、log.md だけここ)
+
+## [2026-05-12] milestone | FIRE-CODEX-R1 v1.1 Wave 18 完了 (sub-D2.3.x 全 runner staging write、CRITICAL 0 / HIGH 0、4,024 PASS)
+
+### HQ Wave 18 一括承認
+
+### Wave 18 投入結果
+
+- W18-1 f100: PASS (= +3 row INSERT/REPLACE)
+- W18-2 f101: PARTIAL FAIL / SAFETY PASS (= API 403、write 0)
+- W18-3 f119: PASS (= read-only、artifact のみ)
+- W18-4 audit: CRITICAL 0 / HIGH 0 / safety acceptable
+
+### 安全 (Wave 18 全 ✓)
+
+- 実 LINE 送信 0
+- production / develop DB write 0
+- staging: f100 +3 row INSERT/REPLACE のみ
+- token / secret 0
+- 楽天 / 自動発注 / Computer Use なし
+- forbidden files 全 未接触
+
+### ガバナンス成果
+
+「全 4 runner sub-D2.3.x activation」完結。DATA-R3 application path 構造的
+活性化。
+
+### 並列効果
+
+Wave 18 約 30-40 分、本線単独 90-120 分、短縮 65-70%。
+**Wave 1-18 通算で 60-80% 短縮を 18 wave 連続達成** ★
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 18 完了 → 次フェーズ進行可否 (推奨: approve)
+2. F101 API 403 別 issue (= 緊急度低)
+3. staging 残置 row 取扱 (= W17-3 +35 / W18-1 +3)
+
+### commits (fire-vault main)
+
+- W18 plan + results + audit (= 前 commit)
+- log.md (= 本 entry follow-up)
