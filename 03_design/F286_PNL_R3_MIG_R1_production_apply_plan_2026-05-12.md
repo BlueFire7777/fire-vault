@@ -16,7 +16,15 @@ chapter: F286-PNL-R3 / R-01-08
 
 最終更新: 2026-05-12
 
-## ★ 状態: 中断 → F286-PNL-SCHEMA-R1 待ち (2026-05-12 W12-2 中断後)
+## ★ 状態: superseded / completed (= 2026-05-12 W14-3 で SCHEMA-R1 案 a 統合派完了、paper_reason は schema に含まれるため本 plan は不要、履歴として保持)
+
+W14-3 SCHEMA-R1 production apply で advisory_decisions table が 22 列 +
+paper_reason 含む完全 schema で CREATE 済 (= backup 取得済)。本 paper_reason
+単体 ALTER plan は **不要化**、SCHEMA-R1 統合派で代替完了。
+
+---
+
+## (旧) 状態: 中断 → F286-PNL-SCHEMA-R1 待ち (2026-05-12 W12-2 中断後)
 
 W12-2 develop apply で発見: **production DB にも `advisory_decisions` table
 自体が存在しない**。本 plan の paper_reason column ALTER は **table 不在の

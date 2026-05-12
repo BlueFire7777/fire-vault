@@ -8903,3 +8903,71 @@ Wave 13 実時間 約 60-80 分。本線単独推定 240-300 分。短縮 70-75%
 - 本 entry 後の commit (= Wave 13 results + 2 apply plans + audit incident
   + log)
 - fire develop の 2 commit は別系統 (= 上記)
+
+## [2026-05-12] milestone | FIRE-CODEX-R1 v1.1 Wave 14 完了 (SCHEMA-R1 全 環境同期、production DB write 初実行成功、backup 永続化)
+
+### HQ 段階承認 (= W14-1 / W14-2 / W14-3、2026-05-12)
+
+Wave 14 は実 DB 適用フェーズ。各 step で HQ 明示承認、安全装置全 動作。
+
+### Wave 14 投入結果 (= 3 sub-task)
+
+W14-1 SCHEMA-R1 dry-run 3 環境: 全 期待値一致、DB write 0
+W14-2 SCHEMA-R1 develop apply: HQ 12 条件 ✓、22 列 + paper_reason 作成
+W14-3 SCHEMA-R1 production apply: HQ 14 条件 ✓、backup 永続化、
+  production DB write 初実行成功
+
+### backup 永続化
+
+- 元: /tmp/w14_3/fire.db.pre_schema_r1_20260512_161611
+- 永続: ~/fire-backups/
+- sha256: 7068b9...4418e9 (= 永続化後一致)
+- 保存期間: 最低 2 週間 or REPORT-R1/PNL production dry-run 確認完了まで
+
+### W11-1 paper_reason 単体 ALTER plan の取扱
+
+HQ 指示: superseded / completed mark、削除しない。3 plan vault doc 追記済。
+
+### 3 環境 schema 同期完了 ★
+
+production / develop / staging の advisory_decisions が論理一致。
+F286-PNL-R1/R2/R3 + W7-4 REPORT-R1 の前提が全 環境で成立。
+
+### 安全 (Wave 14 全 ✓)
+
+- 実 LINE 送信 0 通
+- DB writes: production CREATE TABLE + 2 indexes / develop 同上 / staging 0
+- backup 整合性 sha256 永続化後一致
+- secrets 0 / 楽天 / 自動発注 / Computer Use なし
+- workflow / cron / launchd 不変
+- forbidden files 未接触
+
+### ガバナンス成果
+
+「段階的 production 適用」枠組み完結。FIRE プロジェクト史上初の
+production DB schema write を 26 必須確認 step で完全制御。
+
+### 並列効果
+
+Wave 14: 約 15-20 分 (= 逐次実行)。短縮率 50% (= 安全のため逐次)。
+Wave 1-14 通算で 60-80% 短縮を 14 wave 連続達成 ★
+
+### 回帰
+
+3,980 PASS 維持。
+
+### HQ 判断論点 (= 5 件、次フェーズ候補)
+
+1. REPORT-R1 production/develop read-only dry-run
+2. REPORT-R1 LINE delivery preview / send guard
+3. DATA-R3 sub-D2.3.x runner 別 staging write
+4. PNL-R2/F062 record-decisions 本番連携再評価
+5. sub-D3 cron 凍結解除設計
+
+各 HQ 別 approve 必要。
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 14 results + backup handling plan +
+  W11-1 superseded mark + log)
+- fire develop は本 Wave で commit なし (= 実 DB apply、code change 0)

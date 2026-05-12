@@ -2,7 +2,7 @@
 id: F286-PNL-R3-MIG-R1-dry-run-plan
 phase: Wave 11 W11-1a / MIG-R1 dry-run 確認 plan
 priority: 最優先
-status: 起票 ☆ 実行は HQ 別 approve (= W12+)
+status: superseded / completed (= 2026-05-12、SCHEMA-R1 案 a 統合派完了で paper_reason は schema に含まれる、本 plan は履歴として保持)
 owner: BlueFire7777 (Fujiwara)
 depends_on:
   - F286-PNL-R3-MIG-R1 (= W10-1 + W10-1a-fix 完了、scripts/setup/migrate_paper_reason.py)
