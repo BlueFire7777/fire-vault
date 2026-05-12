@@ -573,6 +573,180 @@ W22 cron thaw design の 4 段階展開:
 
 ---
 
+## 7.1 plist 配置手順詳細 (= Wave 29 W29-2 L1a 反映)
+
+### 配置元 / 配置先
+
+- source: `~/fire/docs/launchd/jp.fire.weekly-snapshot.plist` (= W25 設計済)
+- destination: `~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist`
+- 配置方法: `cp` (= mv ではない、source は repository に残す)
+
+### 配置前 check (= 必須、本 wave 範囲外で実行)
+
+```bash
+# 1. plist 構文検証
+plutil -lint ~/fire/docs/launchd/jp.fire.weekly-snapshot.plist
+# 期待: OK
+
+# 2. secret / token leak 検証 (= grep 0 件)
+grep -E '(LINE_|JQUANTS_|CHANNEL_|TOKEN|SECRET)' \
+  ~/fire/docs/launchd/jp.fire.weekly-snapshot.plist
+# 期待: exit 1 (0 件)
+
+# 3. LaunchAgents dir 存在確認
+ls -ld ~/Library/LaunchAgents/
+
+# 4. 既存 plist 確認 (= 既存なら unload + 削除 → 再配置)
+ls -la ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist
+launchctl list | grep jp.fire.weekly-snapshot
+```
+
+### 配置 (= HQ_APPROVE_F282_PLACE=1 + 別 wave で実行)
+
+```bash
+cp ~/fire/docs/launchd/jp.fire.weekly-snapshot.plist \
+  ~/Library/LaunchAgents/
+chmod 644 ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist
+plutil -lint ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist
+```
+
+### load (= HQ_APPROVE_F282_LOAD=1 + 別 wave で実行)
+
+```bash
+launchctl load ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist
+launchctl list | grep jp.fire.weekly-snapshot
+# 期待: PID 0 (= 未実行)、Status 0
+```
+
+### HQ approve marker (= 配置 / load 独立承認)
+
+| 承認 | marker | 用途 |
+|---|---|---|
+| 配置 | HQ_APPROVE_F282_PLACE=1 | ~/Library/LaunchAgents/ への cp 許可 |
+| load | HQ_APPROVE_F282_LOAD=1 | launchctl load 許可 |
+
+両者 **別々の HQ approve** が必要。本 wave (= Wave 29) は両方 NO_GO。
+
+---
+
+## 7.2 1 週間試走計画 (= Wave 29 W29-3 L1b 反映)
+
+### 試走期間
+
+- 1 週間 = 1 回の土曜実行 (= F282 weekly snapshot は土曜 02:00 JST)
+- launchctl load 後 1 週間以内に 1 回 触れる
+- 安定確認なら 2-4 週間に延長可
+
+### 観察項目 (= 試走中 / 試走後)
+
+| 項目 | 期待 | 確認方法 |
+|---|---|---|
+| logs/cron/weekly-snapshot.log | F282 snapshot OK: snapshot_count=2, ... | `tail -50` |
+| stderr (= .err) | 空 or warning のみ | `cat logs/cron/weekly-snapshot.err` |
+| production fire.db mtime + size | **unchanged** | `stat -f "%m %z" data/fire.db` |
+| staging.db / develop.db mtime | 土曜 02:00 直後に更新 | 同上 |
+| ~/fire-backups/ 新 backup | 3 点セット (本体 + WAL + SHM) 作成 | `ls -lt ~/fire-backups/` |
+| 実行時間 | 1-3 分 (= 371 MB DB 想定) | log の開始 / 終了 time |
+| integrity_ok / size_ok | True / True | log に出力 |
+
+### 異常検知シグナル
+
+- 実行失敗 (= exit != 0)
+- stderr に traceback
+- **production fire.db mtime + size 変化** (= 致命的、即時 unload)
+- staging/develop の integrity_check 失敗
+- LINE 通知 (= 設計上発生しないが万一発生 → 即時 unload)
+- disk free 急減
+
+### Abort 条件 (= 試走中の即時停止)
+
+| 条件 | 対応 |
+|---|---|
+| production fire.db への write 検出 | 即時 `launchctl unload` |
+| 連続失敗 2 回以上 | unload + 調査 |
+| HQ 明示 abort | unload |
+
+### 1 週間試走 GO / NO-GO 判定
+
+- **GO**: 1 回成功 + production 不変 + log clean + 異常なし
+- **NO-GO**: 1 回でも失敗 / production 変化 / abort trigger 発生
+
+### 試走完了後の次 step
+
+- GO: 安定運用継続 (= 別 wave で本番化承認)
+- NO-GO: 原因分析 → 修正 → 再 試走
+
+### 試走中の本線責務
+
+- 土曜 02:00 直後に log 確認 (= 03:00 までに本線確認推奨)
+- 週次 review で観察項目を全 check
+
+---
+
+## 7.3 logrotate 設定適用手順 (= Wave 29 W29-4 L1c 反映)
+
+### log dir 事前作成 (= plist 配置前必須)
+
+```bash
+mkdir -p ~/fire/logs/cron/
+mkdir -p ~/fire/logs/archive/
+ls -ld ~/fire/logs/cron/ ~/fire/logs/archive/
+```
+
+本 wave (= Wave 29) では **実 mkdir 0**、impl 時 (= Wave 30+) で実行。
+
+### logrotate 設定 file 配置 (= 設計のみ)
+
+- 配置先: `/usr/local/etc/logrotate.d/fire` (= Intel macOS)
+- or `/opt/homebrew/etc/logrotate.d/fire` (= macOS Homebrew arm64、本環境)
+- 配置元: `~/fire/docs/logrotate.d/fire` (= 別 wave で repository に追加)
+
+### logrotate 設定内容 (= W25 § 2 再掲)
+
+```
+/Users/bluefire/fire/logs/cron/*.log
+/Users/bluefire/fire/logs/cron/*.err
+{
+    monthly
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 bluefire staff
+    olddir /Users/bluefire/fire/logs/archive/
+    dateext
+    dateformat -%Y-%m
+}
+```
+
+### logrotate 実行 schedule (= 別 wave)
+
+- 月初 03:00 JST 実行
+- `jp.fire.maintenance-log-rotate.plist` (= W22 cron thaw Step 4)
+
+### logrotate verification (= 配置後、別 wave)
+
+```bash
+logrotate -d /opt/homebrew/etc/logrotate.d/fire  # dry-run
+```
+
+### HQ approve marker
+
+| 承認 | marker | 用途 |
+|---|---|---|
+| log dir 作成 | (= mkdir、軽微、Wave 30 で同時) | 単発 |
+| logrotate 設定配置 | HQ_APPROVE_LOGROTATE=1 | /etc/ への配置 |
+| logrotate launchd 登録 | HQ_APPROVE_LOGROTATE_LAUNCHD=1 | 月次自動実行 |
+
+### 想定 disk 容量
+
+- F282 weekly snapshot のみ: 月次 ~50KB × 3 ヶ月 ≒ 150KB
+- 全 cron job (= W22 Step 1-4 完成時): 12 job × 50KB × 3 ヶ月 ≒ 1.8 MB
+- 問題なし
+
+---
+
 ## 8. 安全 (= 本 design doc 自体)
 
 | 項目 | 結果 |
