@@ -11092,3 +11092,128 @@ Wave 36 実時間 約 50 分、本線単独 150 分、短縮 67% ★
 ### commits (fire-vault main)
 
 - 667f50f (= 上記)、log.md は別 follow-up
+
+## [2026-05-13] milestone | AFTER-R1 staging coverage smoke 成功 (= Wave 37、staging.advisory_decisions 10 row 発見、F282 干渉 0、4,090 PASS)
+
+### HQ Wave 37 起票承認 + HQ_APPROVE_AFTER_R1_READ=1
+
+### Wave 37 投入結果 (= 8 lane = 本線 1 + Codex 7)
+
+- W37-1 L5 (本線) plan + baseline + 7 prompt
+- W37-2 L1a (Codex) staging smoke design、CRITICAL 0 / HIGH 0
+- W37-3 L1b (Codex) 3 環境比較設計、CRITICAL 0 / HIGH 0
+- W37-4 L2a (Codex) test plan、CRITICAL 0 / HIGH 0
+- W37-5 L2b (Codex) artifact validation、CRITICAL 0 / HIGH 0
+- W37-6 L3 (Codex) script extension、CRITICAL 0 / HIGH 0
+- W37-7 L4 (Codex) audit 7 観点、CRITICAL 0 / HIGH 0
+- W37-8 L6 (Codex) regression / F282、4,090 / 干渉 0
+- W37-9 (本線) staging + develop smoke 実行 + artifact + comparison + 報告
+
+### ★ staging coverage 結果
+
+| table | staging | production | develop |
+|---|---|---|---|
+| advisory_decisions | 10 (smoke 0、real 10) ★ | 0 | 0 |
+| advisory_snapshots | 1 | 不在 | 不在 |
+| advisory_snapshot_rows | 5 | 不在 | 不在 |
+| paper_pnl | 不在 | 不在 | 不在 |
+| market_prices_daily | 2,085,284 ★ | 526,764 | (develop で確認) |
+| research_watchlist_signals | 13,695 | 不在 | (確認) |
+
+smoke 残置確認:
+- staging.market_prices W18 smoke (5/8 / 72030/99840/67580): 3 rows ✓
+- staging.research_signals W17 smoke (source_version='w17-3-smoke'): 35 ✓
+
+★ AFTER-R1 source 主軸 = staging 確定 (= W17/W18 filter 適用後の real
+row が評価候補)
+
+### W37 artifact 7 file 新規
+
+reports/after_r1/smoke/2026-05-13/
+- comparison.md (W37、1,460 bytes、3 環境比較)
+- staging/{summary, coverage_details}.json + report.md (W37)
+- develop/{summary, coverage_details}.json + report.md (W37)
+W36 既存 3 file (summary.json / coverage_details.json / report.md) は
+read-only 維持、上書き 0。
+
+### 3 環境 DB mtime + size 完全 unchanged ✓
+
+- /data/fire.db: 5/12 16:17:24 baseline 一致
+- /data/fire.develop.db: 5/12 16:11:43 一致
+- /data/fire.staging.db: 5/12 18:45:22 一致
+
+### F282 launchctl LastExitStatus 0 維持 ✓
+
+### /goal 9 条件全達成 (= HQ 明示)
+
+staging coverage / smoke filter / mtime unchanged / F282 干渉 0 /
+LINE 0 / token 0 / DB write 0 / L4 CRITICAL HIGH 0 / 6 KPI 報告
+
+### L4 audit verdict (= 7 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. staging mode=ro / B. develop 同様 / C. W36 artifact 上書き 0
+D. W37 artifact 命名空間分離 / E. F282 干渉 0
+F. token 参照 0 / G. /goal 停止条件 全 clear
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 7/12+ = 58% | 8 lane 第一候補 |
+| 本線短縮率 | (150-50)/150 = 67% | 目標 50% 大幅達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### lane 選定理由
+
+8 lane 第一候補 (= HQ 補足方針通り、7 sub 自然分割可能)。
+8 lane 不採用ケースなし、本線短縮率 67%。
+
+### fire develop commits
+
+本 Wave で commit なし (= read-only smoke + artifact、code 0)。
+reports/after_r1/smoke/2026-05-13/ に W36 3 + W37 7 = 10 file 存在 (git
+untracked)。
+
+### fire-vault main commits
+
+- 532477b docs(FIRE-CODEX-R1): Wave 37 plan + results + AFTER-R1 staging
+  coverage smoke 成功
+
+### 安全 (Wave 37 全 ✓、絶対条件達成、F282 干渉 0)
+
+- 3 環境全 DB mtime + size unchanged
+- 実 LINE 0 / 実 API 0 / DB write 0
+- token / channel_token / secret 0
+- F101 probe 未実行
+- F282 手動 0 / VACUUM 0 / launchctl 変更 0 / plist 変更 0 / cron 0
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- W36 artifact 3 file 上書き 0 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 37 実時間 約 50 分、本線単独 150 分、短縮 67% ★
+**Wave 1-37 通算で 60-80% 短縮を 37 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 37 完了 + staging coverage smoke 成功 採用承認
+2. AFTER-R1 source 主軸 = staging 確定
+3. Wave 38 候補:
+   - 推奨 a: AFTER-R1 runner impl + test (30-50 件、staging 主軸)
+   - 別案: F101 probe / R2 v1.3 / paper_pnl schema
+
+### commits (fire-vault main)
+
+- 532477b (= 上記)、log.md は別 follow-up
