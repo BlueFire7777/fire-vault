@@ -9263,3 +9263,94 @@ Wave 19 約 20-30 分、本線単独 60-80 分、短縮 60-65%。
 ### commits (fire-vault main)
 
 - b8f8140 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] decision | FIRE-CODEX-R2 / 10-Lane Scaling Design 起票 (= Wave 20、設計のみ、code 0、4,024 PASS 維持)
+
+### HQ Wave 20 起票承認 + R1 v1.1 → R2 拡張枠組み合意
+
+### Wave 20 投入結果
+
+- W20-1 R2 設計初版 (= 15 章、案 A/B 比較 + Hybrid 推奨)
+- W20-2 Wave 20 plan + results + log.md milestone
+
+### R2 設計サマリ
+
+枠組み: 本線 (PM/Architect/Integrator/Final Reviewer) + Codex 最大 10 lane
+- L1a/L1b: Design
+- L2a/L2b: Test
+- L3a/L3b/L3c: Implementation (= domain 別 file 割当て)
+- L4: Audit
+- L5: Docs
+- L6: Regression
+
+段階移行 (= HQ 明示承認必須):
+- P0 (現状 5 lane) → P1 (6 lane) → P2 (8 lane) → P3 (10 lane)
+- 各 P 移行で 2 wave 連続 PASS 要
+
+本線負荷上限明示:
+- sub-task / wave 上限 12
+- commit / wave 上限 6
+- wave 実時間上限 150 分
+- Codex prompt 作成上限 10
+
+### 単線維持 (= R1 継承、Phase 関係なく適用)
+
+- DB write 全 (production/develop/staging)
+- LINE 送信 (実)
+- token / secret 参照
+- cron / launchd / crontab 登録
+- production schema apply
+- workflow 変更
+- HQ 報告 1 ブロック
+
+### rollback / abort 条件
+
+Hard abort: audit CRITICAL / safety violation / LINE 漏れ / token leak /
+            file 衝突 ≥ 2 / HQ abort
+Soft rollback: audit HIGH / 回帰 PASS -1 / lane 遅延 / 過負荷
+Step 後退: Phase 失敗時 1-2 wave 前 Phase に退避
+
+### 10 lane 試験投入候補
+
+- Wave 21 (P1, 6 lane): F101 API 修正実装
+- Wave 22 (P1, 5-6 lane): cron thaw design only
+- Wave 23 (P2, 8 lane): DATA-R3 sub-D2.3.x final audit + LOW 統一
+- Wave 24+ (P3, 10 lane): REPORT-R1 LINE 実送信 token integration
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 vault doc / 設計のみ)。
+
+### fire-vault main commits
+
+- a575241 docs(FIRE-CODEX-R2): Wave 20 plan + results + 10-lane scaling
+  design
+
+### 安全 (Wave 20 全 ✓)
+
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- 全 mtime unchanged (= fire コード)
+- token / secret / cron 0
+- workflow 変更 0 / --no-verify 不使用
+- TODO Excel 未更新
+
+### 並列効果
+
+Wave 20 実時間 約 30-40 分、本線単独 90-120 分、短縮 60-65%。
+**Wave 1-20 通算で 60-80% 短縮を 20 wave 連続達成** ★
+
+(= 本 wave は Codex 起動なし、設計時間短縮のみ)
+
+### 回帰
+
+4,024 PASS 維持 (= code change 0)。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 20 完了 + R2 採用可否 (推奨: approve、P1 6 lane 移行可)
+2. Phase P1 着手 wave 選定 (推奨: Wave 21 = F101 修正実装)
+3. R2 採用後の Codex prompt template 更新タイミング
+
+### commits (fire-vault main)
+
+- a575241 (= 上記)、log.md は別 follow-up
