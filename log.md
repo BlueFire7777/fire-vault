@@ -9204,3 +9204,62 @@ Wave 18 約 30-40 分、本線単独 90-120 分、短縮 65-70%。
 
 - W18 plan + results + audit (= 前 commit)
 - log.md (= 本 entry follow-up)
+
+## [2026-05-12] decision | FIRE-CODEX-R1 v1.1 Wave 19 完了 (F101 API 403 調査 + staging cleanup policy、code change 0、4,024 PASS)
+
+### HQ Wave 19 起票承認
+
+### Wave 19 投入結果 (= 3 sub-task)
+
+- W19-1 F101 API 403 investigation: 静的調査完了、3 段階推奨対応
+- W19-2 staging smoke row inventory + cleanup policy: filter 方針確定
+- Wave 19 plan + results vault doc
+
+### W19-1 F101 API 403 調査 key 発見
+
+- base URL: https://api.jquants.com/v2 共通
+- F100 系 /fins/* 動作確認済、F101 /fins/announcement のみ 403
+- 仮説: endpoint 名違い / plan 制限 / deprecated
+- 修正実装は別 wave + HQ approve
+
+### W19-2 staging row inventory + cleanup
+
+- W17-3 research_watchlist_signals: source_version='w17-3-smoke' 35 row
+- W18-1 market_prices_daily: 2026-05-08 / 72030/99840/67580 3 row (INSERT/REPLACE)
+- filter 適用必須 (= F119 / REPORT-R1 / Pattern Research)
+- 削除は HQ 明示承認後
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 vault doc)。
+
+### fire-vault main commits
+
+- b8f8140 docs(FIRE-CODEX-R1): Wave 19 plan + results + F101 調査 + cleanup policy
+
+### 安全 (Wave 19 全 ✓)
+
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- 全 mtime unchanged
+- token / secret / cron 0
+- 楽天 / 自動発注 / Computer Use なし
+- forbidden files 全 未接触
+
+### 並列効果
+
+Wave 19 約 20-30 分、本線単独 60-80 分、短縮 60-65%。
+**Wave 1-19 通算で 60-80% 短縮を 19 wave 連続達成** ★
+
+### 回帰
+
+4,024 PASS 維持。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 19 完了 → 次フェーズ進行可否 (推奨: approve)
+2. F101 API 修正実装着手判定 (= 別 wave、段階的 HQ approve)
+3. staging smoke row cleanup 着手判定 (= 別 wave、削除当面不要)
+
+### commits (fire-vault main)
+
+- b8f8140 (= 上記)、log.md は別 follow-up
