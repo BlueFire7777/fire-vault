@@ -25,12 +25,23 @@ F286_MIG_R1_HQ_APPROVE) 必須** (= W10-1a-fix HIGH #1 対応)。
 
 ★ DB write 0 / ALTER 不発生。
 
-## 目的
+## ⚠️ W12-2/W12-3-fix で期待値修正 (= 2026-05-12)
 
-1. production DB: paper_reason 不在を確認 → 「dry_run_would_alter」
-2. develop DB: paper_reason 不在を確認 → 「dry_run_would_alter」
-3. staging DB: paper_reason 既存を確認 (= W9-1c で適用済) →
-   「skip_already_exists」
+W12-2 develop apply 試行で発見: **production / develop DB に
+`advisory_decisions` table 自体が存在しない**。
+
+W12-3-fix で migrate_paper_reason に table 存在チェック追加、新 action
+`no_table_skipped` を導入。期待値を修正:
+
+## 目的 (= W12-3-fix 後の修正版)
+
+1. production DB: advisory_decisions table 不在 → **「no_table_skipped」**
+2. develop DB: advisory_decisions table 不在 → **「no_table_skipped」**
+3. staging DB: paper_reason 既存 → 「skip_already_exists」(= 既存変更なし)
+
+★ production / develop は F286-PNL-SCHEMA-R1 (= 別 wave) で
+advisory_decisions table 全体を CREATE する必要あり。本 plan の paper_reason
+column ALTER は **table 不在の現状では実行不可**。
 
 ## 実行条件
 

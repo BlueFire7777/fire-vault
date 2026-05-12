@@ -16,7 +16,23 @@ chapter: F286-PNL-R3 / R-01-08
 
 最終更新: 2026-05-12
 
-## ★ 状態: 起票 (= 実適用は HQ 別 明示承認、develop apply 完了後)
+## ★ 状態: 中断 → F286-PNL-SCHEMA-R1 待ち (2026-05-12 W12-2 中断後)
+
+W12-2 develop apply で発見: **production DB にも `advisory_decisions` table
+自体が存在しない**。本 plan の paper_reason column ALTER は **table 不在の
+現状では実行不可**。
+
+→ F286-PNL-SCHEMA-R1 (= advisory_decisions full schema migration) で
+table を production に CREATE した後、本 plan は不要化 (= schema に
+paper_reason 含むため) もしくは W11-1c として再活用判定。
+
+詳細: [[F286_PNL_SCHEMA_R1_advisory_decisions_full_migration_2026-05-12]]
+
+(以下、修正前の plan 内容は履歴として保持)
+
+---
+
+## (旧) 状態: 起票 (= 実適用は HQ 別 明示承認、develop apply 完了後)
 
 production DB (= ~/fire/data/fire.db) に paper_reason column を追加する
 plan。**production DB write が発生する初の実行**、最大級の慎重さで進める。

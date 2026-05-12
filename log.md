@@ -8709,3 +8709,108 @@ Wave 1-11 通算で 60-80% 短縮を **11 wave 連続達成** ★
 - 本 entry 後の commit (= Wave 11 plan + 3 MIG plans + 4 sub-D2.3.x worksheets
   + 2 audit incidents + results + log)
 - fire develop の 2 commit は別系統 (= 上記)
+
+## [2026-05-12] milestone | FIRE-CODEX-R1 v1.1 Wave 12 完了 (W12-1 dry-run / W12-2 安全中断 / W12-3-fix safe-skip / W12-4 SCHEMA-R1 起票、3,952 PASS)
+
+### HQ Wave 12 approve (= 段階的、2026-05-12)
+
+1. W12-1 MIG-R1 dry-run 3 環境 (= 承認・実行)
+2. W12-2 develop apply (= 承認後、即中断承認)
+3. 案 A+B 採用: safe-skip 修正 + F286-PNL-SCHEMA-R1 起票
+
+### W12-1 dry-run 成功 (= HQ 期待通り、ただし production/develop は誤判定)
+
+- production: dry_run_would_alter (= 旧 migrate script の判定、table 不在
+  だが空 columns で paper_reason 不在判定)
+- develop:    dry_run_would_alter (= 同上)
+- staging:    skip_already_exists (= W9-1c apply 済、正しい判定)
+- 全 DB mtime unchanged
+
+### W12-2 重大発見 (= 安全中断)
+
+**production / develop DB に advisory_decisions table 自体が存在しない**。
+staging のみに存在。
+
+中断時点:
+- Step 3 完了直後、ALTER 未実行
+- 全 3 DB mtime 不変
+- DB write 0
+- 部分書込リスク回避
+
+→ HQ 案 A + 案 B 併用採用
+
+### W12-3-fix safe-skip 即修正
+
+migrate_paper_reason.py:
+- _has_advisory_decisions_table() helper (= sqlite_master 経由、parameter
+  binding、SQL injection 防止)
+- migrate() 内で table 存在を最優先チェック
+- table 不在 → action='no_table_skipped' を返し ALTER 不発行
+- dry-run / write 両方で同 action
+
+修正後 dry-run 期待値:
+- production: no_table_skipped ✓
+- develop:    no_table_skipped ✓
+- staging:    skip_already_exists ✓
+
+W12-3-fix-audit (Codex L4): CRITICAL 0 / HIGH 0 / 観点 A-G 全 OK / APPROVE
+
+### W12-4 F286-PNL-SCHEMA-R1 起票
+
+新規 design vault doc (= advisory_decisions full schema migration、
+staging schema を template、22 列 + PK + 2 indexes + CHECK 完全定義、
+idempotent CREATE TABLE IF NOT EXISTS、HQ 別 approve)
+
+実装 + 実適用は Wave 13+。
+
+### W11-1a/b/c plan 期待値修正
+
+3 plan vault doc に修正追記:
+- dry-run plan: 期待値 no_table_skipped に修正
+- develop / production apply: F286-PNL-SCHEMA-R1 待ち → 中断状態
+
+### fire develop split commits (= 2 件)
+
+- 3345b3b fix(F286-PNL-R3-MIG-R1): table 存在チェック safe-skip
+- c196007 docs(FIRE-CODEX-R1): Wave 12 W12-3-fix table 追加
+
+### 安全 (Wave 12 全 ✓)
+
+- 実 LINE 送信 0 通 / 実 DB write 0
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0
+- 楽天 / 自動発注 / Computer Use / Playwright なし
+- workflow / cron / launchd / crontab 不変
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+
+### 並列効果
+
+Wave 12 実時間 約 30-40 分。本線単独推定 150-200 分。短縮 75-80%。
+**Wave 1-12 通算で 60-80% 短縮を 12 wave 連続達成** ★
+
+### 回帰
+
+3,952 PASS (= W11 baseline 3,942 + W12 +10)。
+
+### ガバナンス成果
+
+本 Wave で「安全中断」枠組みが機能した:
+- 実 DB write 直前に前提不成立を発見
+- ALTER 未実行、mtime 完全不変
+- HQ への即時報告 + 4 案提示
+- 構造的修正 (= safe-skip) を Codex 即実装、再発防止
+- FIRE-CODEX-R1 が「fail fast、fail safe」を実現する証跡
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 12 完了 → 次フェーズ進行可否 (推奨: approve)
+2. F286-PNL-SCHEMA-R1 implementation 着手判定 (= Wave 13+ 別 approve)
+3. MIG-R1 paper_reason 系の運用方針 (= schema 統合 or 分離)
+4. Wave 13 起票候補 (= SCHEMA-R1 impl + audit + apply plans)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 12 results + SCHEMA-R1 起票 + W11-1 plan
+  期待値修正 + audit incident + log)
+- fire develop の 2 commit は別系統 (= 上記)
