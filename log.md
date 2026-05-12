@@ -10962,3 +10962,133 @@ Wave 35-pre 実時間 約 50 分、本線単独 150 分、短縮 67% ★
 ### commits (fire-vault main)
 
 - 4c10a27 (= 上記)、log.md は別 follow-up
+
+## [2026-05-13] milestone | F286-AFTER-R1 read-only smoke 成功 (= Wave 36、/goal 14 条件全達成、F282 干渉 0、4,090 PASS)
+
+### HQ Wave 36 起票承認 + HQ_APPROVE_AFTER_R1_READ=1
+
+### Wave 36 投入結果 (= 8 lane = 本線 1 + Codex 7)
+
+- W36-1 L5 (本線) plan + baseline + 7 prompt
+- W36-2 L1a (Codex) read-only smoke design、CRITICAL 0 / HIGH 0
+- W36-3 L1b (Codex) coverage / filter、CRITICAL 0 / HIGH 0
+- W36-4 L2a (Codex) test plan、CRITICAL 0 / HIGH 0
+- W36-5 L2b (Codex) artifact validation、CRITICAL 0 / HIGH 0
+- W36-6 L3 (Codex) smoke command / runner、CRITICAL 0 / HIGH 0
+- W36-7 L4 (Codex) audit 7 観点、CRITICAL 0 / HIGH 0
+- W36-8 L6 (Codex) regression / F282 interference、4,090 PASS / 干渉 0
+- W36-9 (本線) read-only smoke 実行 + artifact + 報告
+
+### W36-9 本線 read-only smoke 実行結果
+
+実行: inline Python script (URI mode=ro + PRAGMA query_only=ON、O_EXCL 'x')
+出力: smoke_ok=true / mtime_unchanged=true / artifact_count=3 / exit 0
+
+artifact (reports/after_r1/smoke/2026-05-13/):
+- summary.json (1,178 bytes)
+- coverage_details.json (579 bytes)
+- report.md (1,071 bytes)
+
+### ★ production fire.db coverage 結果 (= 実態反映)
+
+| table | exists | total | 備考 |
+|---|---|---|---|
+| advisory_decisions | ✓ | 0 | W14 schema 適用済、row 0 |
+| advisory_snapshots | ✗ | - | table 不在 |
+| advisory_snapshot_rows | ✗ | - | table 不在 |
+| paper_pnl | ✗ | - | production 不在 |
+| market_prices_daily | ✓ | 526,764 | 2025-11-04〜2026-05-01 |
+| research_watchlist_signals | ✗ | - | production 不在 |
+
+重要 finding: production への investment data 投入は未、AFTER-R1 impl
+時は staging 主軸での評価が必要。
+
+### post 検証
+
+| 項目 | 結果 |
+|---|---|
+| production fire.db mtime+size | 5/12 16:17:24 / 371M baseline 一致 ✓ |
+| develop.db mtime | 5/12 16:11:43 一致 ✓ |
+| staging.db mtime | 5/12 18:45:22 一致 ✓ |
+| F282 launchctl LastExitStatus | 0 維持 ✓ |
+| F282 PID | "-" 維持 ✓ |
+| 4,090 PASS | 維持 ✓ |
+
+### /goal 完了条件 14/14 全達成
+
+設計完了 / read-only coverage / mtime unchanged / F282 干渉 0 /
+filter / artifact 3 file / LINE 0 / token 0 / cron 0 / DB write 0 /
+audit CRITICAL 0 / 4,090 PASS / docs 更新 / 6 KPI 報告
+
+### /goal 停止条件 trigger 0 (= 全 13 件 clear)
+
+### L4 audit verdict (= 7 観点、CRITICAL 0 / HIGH 0)
+
+A. URI mode=ro + PRAGMA query_only=ON / B. INSERT/UPDATE/DELETE 0
+C. artifact O_EXCL / D. W17 smoke filter / E. F282 干渉 0
+F. token 参照 0 / G. /goal 停止条件 13 件 0
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 7/12+ = 58% | 8 lane 第一候補 |
+| 本線短縮率 | (150-50)/150 = 67% | 目標 50% 大幅達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### lane 選定理由
+
+8 lane 第一候補 (= HQ 補足方針通り、7 sub 自然分割可能 / 全 disjoint)。
+8 lane 不採用ケースなし、本線短縮率 67% で目標大幅達成。
+
+### fire develop commits
+
+本 Wave で commit なし (= read-only smoke + artifact、code 変更 0)。
+
+reports/after_r1/smoke/2026-05-13/ 新規作成 (= fire repo 内、untracked)。
+
+### fire-vault main commits
+
+- 667f50f docs(FIRE-CODEX-R1): Wave 36 plan + results + AFTER-R1
+  read-only smoke 成功
+
+### 安全 (Wave 36 全 ✓、絶対条件達成、F282 干渉 0)
+
+- 実 DB write 0 / 実 LINE 0 / 実 API 0
+- 全 production DB mtime+size unchanged ✓
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- F282 手動 0 / VACUUM 0 / launchctl load-unload 0 / plist 変更 0
+- cron / launchd / crontab 登録変更 0
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- artifact 既存 file 上書き 0 (= O_EXCL 'x')
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 36 実時間 約 50 分、本線単独 150 分、短縮 67% ★
+**Wave 1-36 通算で 60-80% 短縮を 36 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 36 完了 + read-only smoke 成功 採用承認 (推奨: approve)
+2. production データ薄い問題: AFTER-R1 impl は staging 主軸推奨
+3. Wave 37 候補:
+   - 推奨 a: staging coverage smoke
+   - 推奨 b: AFTER-R1 runner impl + test (30-50 件)
+   - 別案: F101 probe / R2 v1.3
+4. R2 v1.3 改訂 (= Wave 37+、緊急度低)
+
+### commits (fire-vault main)
+
+- 667f50f (= 上記)、log.md は別 follow-up
