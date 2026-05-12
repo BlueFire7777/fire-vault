@@ -9737,3 +9737,91 @@ Wave 23 (= 6 lane、30 分) から +2 lane 拡張で wave 時間 +5 分のみ。
 ### commits (fire-vault main)
 
 - 66afe72 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 weekly snapshot launchd 化設計完了 (= Wave 25、Phase P2 = 8 lane 運用、cron thaw Step 1)
+
+### HQ Wave 25 起票承認 + F282 launchd 化設計 + dry-run 試走計画 範囲承認
+
+### Wave 25 投入結果 (= 8 lane = 本線 L5 + Codex 7)
+
+- W25-1 L5 (本線) plan + git status + 8 prompt + file lock 表
+- W25-2 L1a (Codex) plist 骨子、CRITICAL 0 / HIGH 0
+- W25-3 L1b (Codex) log path + logrotate、CRITICAL 0 / HIGH 0
+- W25-4 L2a (Codex) dry-run 7 step + 試走計画、CRITICAL 0 / HIGH 0
+- W25-5 L2b (Codex) rollback + safety nets、CRITICAL 0 / HIGH 0
+- W25-6 L3 (Codex) snapshot script 設計案、CRITICAL 0 / HIGH 0
+- W25-7 L4 (Codex) audit 8 観点、CRITICAL 0 / HIGH 0 / CONCERN 5
+- W25-8 L6 (Codex) regression plan + 本線 pytest 4,041 PASS
+- W25-9 (本線) F282 launchd 設計 doc 確定 + commit + 報告
+
+### F282 launchd 設計確定 (= L4 CONCERN 5 全反映)
+
+§ 1 plist: jp.fire.weekly-snapshot、土曜 02:00 JST、token plist 除外明示
+§ 2 log: logs/cron/、月別 archive/YYYY-MM/、3 ヶ月保持
+§ 3 dry-run: write_count=0 必須、Step 6 必ず NO_GO
+§ 4 rollback: production 不変原則、staging/develop のみ対象
+§ 5 script: R1/R2 統合 safety guard、VACUUM INTO、inode collision refuse
+§ 6 W22 順序: Step 1 のみ、Step 2-4 別 wave
+
+### L4 audit verdict
+
+GO for design integration with 5 concerns (= CRITICAL 0 / HIGH 0 /
+CONCERN 5、全 設計 doc § 1〜§ 5 に反映済)。
+
+### 成功条件 11/11 全達成 (= P2 運用条件)
+
+- 8 lane 全完了 ✓
+- 衝突 0 ✓ / CRITICAL 0 ✓ / L4 HIGH 0 ✓
+- safety violation 0 ✓
+- 4,041 PASS 維持 ✓
+- wave 実時間 35 分 ✓ (= 150 分上限の 23%)
+- commit 6 件以内 ✓ (= 2 件)
+- Codex 直接 commit 0 ✓
+- 本線過負荷 0 ✓
+- HQ 報告 1 ブロック ✓
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 Codex sandbox=read-only)。
+
+### fire-vault main commits
+
+- c236737 docs(FIRE-CODEX-R1): Wave 25 plan + results + F282 weekly
+  snapshot launchd 設計
+
+### 安全 (Wave 25 全 ✓)
+
+- 実 plist 配置 0 / launchctl load 0 / launchd 登録 0
+- cron / launchd / crontab 登録 0 / 実 LINE 0 / 実 API call 0
+- 全 DB write 0
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- logrotate 設定適用 0 / mkdir 0
+- 既存 modified 2 件 (= forbidden) 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 変更 0 / --no-verify 不使用
+- TODO Excel 未更新
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 25 実時間 約 35 分、本線単独 120-150 分、短縮 70-75%。
+**Wave 1-25 通算で 60-80% 短縮を 25 wave 連続達成** ★
+
+### 回帰
+
+4,041 PASS 維持。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 25 完了 + F282 launchd 設計初版採用可否 (推奨: approve)
+2. Wave 26 候補:
+   - 推奨 a: F282 snapshot script 実 impl + test (= cron thaw Step 1 継続)
+   - 別案: F101 staging probe (= token 使用、別 HQ approve)
+   - 別案: R2 v1.2 改訂 (= W24/W25 L4 CONCERN 累計 8 件反映)
+3. F101 staging probe 着手判定 (= 別 wave + 別 HQ approve、現状未承認継続)
+4. R2 v1.2 改訂タイミング (= Wave 26 以降、緊急度低)
+
+### commits (fire-vault main)
+
+- c236737 (= 上記)、log.md は別 follow-up
