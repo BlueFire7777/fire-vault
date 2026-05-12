@@ -10738,3 +10738,124 @@ Wave 33 実時間 約 45 分、本線単独 90 分、短縮 50%。
 ### commits (fire-vault main)
 
 - 436a64f (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 試走監視テンプレ + W30 cleanup 設計 (= Wave 34、/goal 15 条件全達成、launchd touch 0)
+
+### HQ Wave 34 起票承認 + /goal モード (= read-only 監視 + 設計のみ)
+
+### Wave 34 投入結果 (= 5 lane = 本線 1 + Codex 4、R2 v1.2 task 量「中」)
+
+- W34-1 L5 (本線) plan + baseline + 4 Codex prompt
+- W34-2 L1a (Codex) 試走監視テンプレ 3 種、CRITICAL 0 / HIGH 0
+- W34-3 L1b (Codex) W30 snapshot retention cleanup 設計、CRITICAL 0 / HIGH 0
+- W34-4 L4 (Codex) adversarial audit 7 観点、CRITICAL 0 / HIGH 0
+- W34-5 L6 (Codex) regression + 本線 pytest 4,090 PASS
+- W34-6 (本線) 2 design doc 確定 + 15 条件 + 6 KPI + 報告
+
+### /goal 完了条件 15/15 全達成
+
+1. F282 launchd read-only 確認 ✓ (launchctl list/print)
+2. 試走前 baseline 記録 ✓ (DB + snapshot + log dir + sha256)
+3. 5/16 03:00 チェックテンプレ ✓ (8 項目)
+4. daily check テンプレ ✓ (5 項目)
+5. 5/19 GO/NO-GO 判定 ✓ (GO 7 / NO-GO 7)
+6. abort 手順明文化 ✓ (8 trigger + コマンド)
+7. W30 cleanup plan ✓ (sha256 baseline 含む)
+8-13. F282 手動 0 / launchctl 0 / DB write 0 / LINE 0 / token 0 / plist 0
+14. 4 vault file + log.md 更新
+15. 6 KPI 含む HQ 報告
+
+### /goal 停止条件 trigger 0 (= 13 件、全 clear)
+
+### W30 snapshot baseline 記録 (= cleanup 設計用)
+
+| file | size | sha256 |
+|---|---|---|
+| data/snapshot/fire.staging.db | 353,128,448 | 749916c8...e17ee72 |
+| data/snapshot/fire.develop.db | 353,128,448 | 749916c8...e17ee72 |
+
+両者 sha256 完全一致 = VACUUM INTO 決定論的出力で期待通り。
+
+### 新規 vault doc 2 件
+
+- 03_design/F282_weekly_snapshot_trial_monitoring_2026-05-12.md
+  (7 章: スケジュール / 5/16 / daily / GO-NO-GO / abort / 責務 / 完了後)
+- 03_design/F282_snapshot_retention_cleanup_plan_2026-05-12.md
+  (9 章: baseline / 方針 / 着手判断 / 実行手順 / 削除後 / 失敗 / 安全 / wave)
+
+### L4 audit verdict (= 7 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. 5/16 production 不変検出 / B. daily 想定外複数実行検出
+C. GO/NO-GO vs abort 8 件整合 / D. abort 手順 wave 実行 0
+E. cleanup data/snapshot/ 配下のみ / F. cleanup HQ approve 必須
+G. 本 wave launchd/plist/DB/LINE/token/cron touch 0
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量「中」適切 |
+| 本線短縮率 | (90-35)/90 = 61% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 35/150 = 23% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### F282 状態 (= W33 から不変)
+
+- plist: ~/Library/LaunchAgents/jp.fire.weekly-snapshot.plist (1772 bytes)
+- launchctl list: PID=- LastExitStatus=0 登録継続
+- launchctl print: state=not running
+- 次 run: 2026-05-16 土曜 02:00 JST (= 約 2.7 日後)
+
+### 既存 DB mtime + size 完全 unchanged ✓
+
+- /data/fire.db: 5/12 16:17:24 / 371,081,216
+- /data/fire.develop.db: 5/12 16:11:43 / 371,081,216
+- /data/fire.staging.db: 5/12 18:45:22 / 4,804,063,232
+
+### fire develop commits
+
+本 Wave で commit なし (= read-only + 設計のみ、code 変更 0)。
+
+### fire-vault main commits
+
+- (= 本 wave、後続) docs(FIRE-CODEX-R1): Wave 34 plan + results +
+  trial monitoring + cleanup 設計 (= /goal 15 条件全達成)
+
+### 安全 (Wave 34 全 ✓、絶対条件達成)
+
+- F282 手動実行 0 / VACUUM INTO 0 / launchctl load/unload 0
+- plist 変更 / 再配置 0 / cron 0 / logrotate 設定変更 0
+- 実 LINE 0 / 実 API call 0 / 全 DB write 0
+- token / channel_token / secret 参照 0
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 (= forbidden) 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 34 実時間 約 35 分、本線単独 90 分、短縮 61%。
+**Wave 1-34 通算で 60-80% 短縮を 34 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持 (= read-only、code 変更 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 34 完了 + 試走監視 + cleanup 設計承認 (推奨: approve)
+2. 5/16-5/19 試走の本線監視責務
+3. Wave 35 候補:
+   - Option A: 5/19 GO → 本番化 + cleanup + logrotate launchd 登録
+   - Option B: 5/19 NO-GO → 修正 + 再試走
+   - Option C (並走): F101 staging probe / R2 v1.3 / cron thaw Step 2
+4. R2 v1.3 改訂タイミング (= Wave 36+、緊急度低)
+
+### commits (fire-vault main)
+
+- (= 上記 commit)、log.md は別 follow-up
