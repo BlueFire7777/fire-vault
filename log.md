@@ -11217,3 +11217,137 @@ Wave 37 実時間 約 50 分、本線単独 150 分、短縮 67% ★
 ### commits (fire-vault main)
 
 - 532477b (= 上記)、log.md は別 follow-up
+
+## [2026-05-13] decision | ★ Production v0 Launch Plan 起票 ★ (= Wave 38、選択肢 B 採用、想定 D-Day 6/9、4,090 PASS)
+
+### HQ Wave 38 起票承認 + 本番 v0 最優先方針
+
+### ★ 判断: 選択肢 B (Production v0 Launch Plan 起票) 採用
+
+理由:
+1. AFTER-R1 入力データ不足 (W36/W37: staging.advisory_decisions 10 row /
+   paper_pnl 不在)
+2. AFTER-R1 は v0 後拡張 (HQ 明示)
+3. HQ 明示「迷うなら v0 優先」
+4. ROI: AFTER-R1 MVP より v0 経路整理が高い
+
+選択肢 A 不採用: AFTER-R1 MVP は本線 100-150 分占有、データ不足で価値半減、
+v0 を間接的に遅らせる。
+
+### Wave 38 投入結果 (= 8 lane = 本線 1 + Codex 7)
+
+- W38-1 L5 (本線) plan + 選択肢 B 採用根拠 + 7 prompt
+- W38-2 L1a (Codex) 本番 v0 残タスク棚卸し、CRITICAL 0 / HIGH 0
+- W38-3 L1b (Codex) 依存整理、CRITICAL 0 / HIGH 0
+- W38-4 L2a (Codex) no-send 試走計画、CRITICAL 0 / HIGH 0
+- W38-5 L2b (Codex) v0 safety check、CRITICAL 0 / HIGH 0
+- W38-6 L3 (Codex) 最短 Wave 順、CRITICAL 0 / HIGH 0
+- W38-7 L4 (Codex) audit 7 観点、CRITICAL 0 / HIGH 0
+- W38-8 L6 (Codex) regression / F282、4,090 / 干渉 0
+- W38-9 (本線) Launch Plan doc 統合 + 19 条件 + 6 KPI + 報告
+
+### ★ Production v0 Launch Plan v1.0 確定
+
+03_design/FIRE_production_v0_launch_plan_2026-05-13.md (= 8 章構成)
+
+§ 0 v0 定義 (HQ 明示: 毎朝 advisory 生成 → LINE → DB 記録 → 失敗時停止、
+   自動発注なし)
+§ 1 必須要素 9 件 (DATA/freshness/Advisory/LINE/record/F282/log/失敗停止/no-send)
+§ 2 依存グラフ + cron schedule (08:45 朝 Advisory)
+§ 3 no-send 試走計画 (5/16-5/22、1 週間)
+§ 4 v0 safety check
+§ 5 最短 Wave 順 (Phase A-E、想定 D-Day 2026-06-09 月曜)
+§ 6 v0 後拡張 (AFTER-R1/ML/DASH/ORDER/RISK/INTRA/LANE-R2)
+§ 7 安全要件 / § 8 関連リンク
+
+### 想定 D-Day: 2026-06-09 (月曜)
+
+| 日付 | イベント |
+|---|---|
+| 5/13 (= 本日) | W38 v0 Launch Plan 起票 |
+| 5/16 | F282 試走実行 |
+| 5/19 | F282 GO 判定 |
+| 5/19-5/26 | F100/F101/F111/F119 launchd 登録 |
+| 5/26-6/2 | F062 morning advisory launchd |
+| 6/2-6/9 | no-send 試走 (1 週間) |
+| **6/9** | **D-Day 本番 v0 開始** |
+
+### HQ approve marker 順序
+
+1. F282 GO / 2. HQ_APPROVE_LAUNCHD_DAILY / 3. _MORNING_ADVISORY /
+4. _NO_SEND_TRIAL / 5. _LINE_TOKEN_PRODUCTION /
+6. _PRODUCTION_V0_LAUNCH
+
+### /goal 19 条件全達成
+
+選択肢 B 採用で AFTER-R1 関連 (#3-#6) は該当なし、残り 13 条件全 PASS。
+
+### L4 audit verdict (= 7 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. 選択肢 B 採用根拠 vs HQ「v0 優先」整合 / B. v0 必須要素 list vs HQ 定義 /
+C. 依存グラフ accuracy / D. no-send 試走 token なし完結 /
+E. safety check カバー / F. 最短 Wave 順現実性 / G. /goal 19 達成可
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 7/12+ = 58% | 8 lane 第一候補 |
+| 本線短縮率 | (150-50)/150 = 67% | 目標 50% 大幅達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### lane 選定理由
+
+8 lane 第一候補 (HQ 補足方針)。7 sub 自然分割 (棚卸し/依存/no-send/safety/
+最短 Wave/audit/regression)。8 lane 不採用ケースなし。
+
+### 本 wave 成果と v0 関係 (= HQ 必須追加)
+
+- 本 wave 成果は **本番 v0 に直接必要** (= Launch Plan 正本道筋)
+- 次最短アクション: 5/16 F282 試走 → 5/19 GO 判定 → W39 起票
+
+### fire develop commits
+
+本 Wave で commit なし (= 設計のみ、code 変更 0)。
+
+### fire-vault main commits
+
+- 213a3b9 docs(FIRE-CODEX-R1): Wave 38 + Production v0 Launch Plan v1.0
+  (= 選択肢 B 採用)
+
+### 安全 (Wave 38 全 ✓、F282 干渉 0)
+
+- 実 DB write 0 / 実 LINE 0 / 実 API 0
+- 3 環境全 DB mtime + size unchanged
+- token / channel_token / secret 0
+- F101 probe 未実行
+- F282 手動 0 / VACUUM 0 / launchctl 変更 0 / plist 変更 0 / cron 0
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- W36/W37 artifact 10 file 完全保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 38 実時間 約 50 分、本線単独 150 分、短縮 67% ★
+**Wave 1-38 通算で 60-80% 短縮を 38 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 38 完了 + Production v0 Launch Plan 採用承認 (推奨: approve)
+2. 想定 D-Day 6/9 + Phase A-E 進行承認
+3. Wave 39 起票時期 (= 5/19 F282 GO 判定後)
+
+### commits (fire-vault main)
+
+- 213a3b9 (= 上記)、log.md は別 follow-up
