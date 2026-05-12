@@ -11351,3 +11351,133 @@ Wave 38 実時間 約 50 分、本線単独 150 分、短縮 67% ★
 ### commits (fire-vault main)
 
 - 213a3b9 (= 上記)、log.md は別 follow-up
+
+## [2026-05-13] milestone | F282 temporary launchd smoke 設計 v1.0 (= Wave 39-pre、本番 plist 不干渉、4,090 PASS)
+
+### HQ Wave 39-pre 起票承認
+
+### Wave 39-pre 投入結果 (= 8 lane = 本線 1 + Codex 7)
+
+- W39p-1 L5 (本線) plan + baseline + 7 prompt
+- W39p-2 L1a (Codex) A/B/C 比較 (= 推奨 C)、CRITICAL 0 / HIGH 0
+- W39p-3 L1b (Codex) temporary smoke 詳細設計、CRITICAL 0 / HIGH 0
+- W39p-4 L2a (Codex) verification checklist、CRITICAL 0 / HIGH 0
+- W39p-5 L2b (Codex) abort / cleanup、CRITICAL 0 / HIGH 0
+- W39p-6 L3 (Codex) plist + command draft、CRITICAL 0 / HIGH 0
+- W39p-7 L4 (Codex) audit 8 観点、CRITICAL 0 / HIGH 0
+- W39p-8 L6 (Codex) regression / F282 本番不干渉、4,090 / 干渉 0
+- W39p-9 (本線) design doc 統合 + 18 条件 + 報告
+
+### ★ F282 temporary smoke 設計 v1.0
+
+03_design/F282_temporary_launchd_smoke_2026-05-13.md (= 12 章構成)
+
+[本番との完全分離原則]
+| 項目 | 本番 | temporary smoke |
+|---|---|---|
+| Label | jp.fire.weekly-snapshot | jp.fire.weekly-snapshot-smoke |
+| plist path | LaunchAgents/jp.fire.weekly-snapshot.plist | -smoke 別 file |
+| StartCalendarInterval | 土曜 02:00 繰返し | 平日 1 回 |
+| log path | weekly-snapshot.{log,err} | weekly-snapshot-smoke.{log,err} |
+| snapshot output | data/{staging,develop}.db | data/snapshot-smoke/ |
+
+[HQ 承認 3 段]
+HQ_APPROVE_F282_TEMP_PLACE / _LOAD / _UNLOAD
+
+[abort 8 trigger]
+本番 plist mtime / label 干渉 / 3 環境 DB mtime / W30 file mtime /
+snapshot path 外 / exit non-zero / fork ≥ 2 / token-LINE-API 痕跡 /
+HQ abort
+
+[代替不能項目]
+- 土曜 02:00 自然起動 → 5/16 本番試走で確認
+- 1 週間安定性 → 5/16-5/19 試走で確認
+- 本番 GO 判定 → 5/19 残す
+
+### /goal 18 条件全達成
+
+A/B/C 比較 / 詳細手順 / 本番非干渉 / HQ marker / abort / cleanup /
+代替可不可 / v0 寄与 / DB 0 / LINE 0 / token 0 / launchctl 0 /
+本番 plist 0 / F282 干渉 0 / docs / 6 KPI / lane 理由 / 不採用理由
+
+### /goal 停止条件 trigger 0 (= 13 件 全 clear)
+
+### L4 audit verdict (= 8 観点)
+
+CRITICAL 0 / HIGH 0、全 PASS:
+A. 本番不干渉 / B. label 衝突防止 / C. snapshot path 分離 /
+D. 実行 timing 安全 / E. secret 除外 / F. cleanup 完全 /
+G. HQ marker 3 段 / H. 代替不能明示
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 7/12+ = 58% | 8 lane 第一候補 |
+| 本線短縮率 | (150-50)/150 = 67% | 目標 50% 大幅達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### lane 選定理由
+
+8 lane 第一候補 (= HQ 補足方針通り、7 sub 自然分割)。
+8 lane 不採用ケースなし。
+
+### 本 wave 成果と v0 関係
+
+- 本 wave 成果は **v0 準備 task の停滞を防ぐ risk reduction tool 設計**
+- temporary smoke 実行 (= 別 wave) は 5/19 本番 GO 判定の代替ではない
+- v0 後拡張ではなく、v0 開始までの間接的支援
+
+### 次に本番 v0 へ進むための最短アクション
+
+1. (option) temporary smoke 実行を別 wave 起票 (= 3 段 HQ approve、HQ 判断)
+2. 5/16 F282 本番試走実行待機 (= 本流)
+3. 5/19 F282 GO 判定 (= 本流)
+4. GO → Wave 39 (= F100 daily refresh launchd 設計) へ進行
+
+### fire develop commits
+
+本 Wave で commit なし (= 設計のみ、code 変更 0)。
+
+### fire-vault main commits
+
+- 6650b1b docs(FIRE-CODEX-R1): Wave 39-pre + F282 temporary launchd
+  smoke 設計 v1.0
+
+### 安全 (Wave 39-pre 全 ✓、本番 plist 不干渉)
+
+- 実 plist 配置 0 / launchctl 0 / DB write 0
+- 本番 plist mtime W33 から不変 ✓
+- 本番 launchctl LastExitStatus 0 維持 ✓
+- 3 環境全 DB mtime + size unchanged
+- 実 LINE 0 / 実 API 0
+- token / channel_token / secret 0
+- F101 probe 未実行 / cron 登録変更 0
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- W36/W37 artifact 10 file 完全保持 ✓
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 39-pre 実時間 約 50 分、本線単独 150 分、短縮 67% ★
+**Wave 1-39-pre 通算で 60-80% 短縮を 39 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 39-pre 完了 + temporary smoke 設計 v1.0 採用 (推奨: approve)
+2. temporary smoke 実行可否 (= 別 wave、HQ 判断)
+3. Wave 40 候補 (= 5/19 F282 GO 判定後): F100 daily refresh launchd 設計
+
+### commits (fire-vault main)
+
+- 6650b1b (= 上記)、log.md は別 follow-up
