@@ -10859,3 +10859,106 @@ Wave 34 実時間 約 35 分、本線単独 90 分、短縮 61%。
 ### commits (fire-vault main)
 
 - (= 上記 commit)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F286-AFTER-R1 設計 v1.0 完了 (= Wave 35-pre、8 lane 第一候補採用、F282 試走干渉 0、4,090 PASS)
+
+### HQ Wave 35-pre 起票承認 + HQ 補足方針 8 lane 第一候補
+
+### Wave 35-pre 投入結果 (= 8 lane = 本線 1 + Codex 7)
+
+- W35p-1 L5 (本線) plan + baseline + 7 Codex prompt
+- W35p-2 L1a (Codex) AFTER-R1 architecture、CRITICAL 0 / HIGH 0
+- W35p-3 L1b (Codex) data flow / dependencies、CRITICAL 0 / HIGH 0
+- W35p-4 L2a (Codex) test plan (= 30-50 件想定)、CRITICAL 0 / HIGH 0
+- W35p-5 L2b (Codex) smoke plan (= Step A/B/C)、CRITICAL 0 / HIGH 0
+- W35p-6 L3 (Codex) runner interface / CLI design、CRITICAL 0 / HIGH 0
+- W35p-7 L4 (Codex) adversarial audit 8 観点、CRITICAL 0 / HIGH 0
+- W35p-8 L6 (Codex) regression / integration impact、4,090 PASS / 影響 0
+- W35p-9 (本線) design doc 統合 + 15 条件 + 6 KPI + 報告
+
+### lane 選定理由 (= HQ 必須追加)
+
+8 lane 第一候補採用。設計 task が 7 sub に自然分割 / 全 disjoint。
+8 lane 不採用ケースなし (= HQ 補足方針通り採用)。
+
+### F286-AFTER-R1 設計 v1.0 確定 (= 03_design/F286_AFTER_R1_*)
+
+15 章構成: 概要 / 責務 (Phase 1-3) / 入力 (9) / 出力 (8) / runner /
+タイミング / Lane 評価 / ML 前段 / smoke / safety / TODO 連携 /
+L4 verdict / test plan / 安全 / next wave / 関連リンク
+
+### /goal 完了条件 15/15 全達成
+
+設計完了 / 入出力整理 / runner / 4 種責務分解 / ML 前段 / smoke /
+safety / TODO 連携 / F282 干渉 0 / DB 0 / LINE 0 / token 0 / cron 0 /
+docs 更新 / 6 KPI 報告
+
+### /goal 停止条件 trigger 0 (= 13 件 全 clear)
+
+### L4 audit verdict (= 8 観点、CRITICAL 0 / HIGH 0)
+
+A. F282 試走干渉 0 / B. read-only 安全保証 / C. smoke filter 適用 /
+D. min_sample 過学習防止 / E. ML 本実装ではない明示 /
+F. write path 三段ガード / G. 責務分離 / H. /goal 停止条件 0
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 7/12+ = 58% | 8 lane 第一候補 |
+| 本線短縮率 | (150-50)/150 = 67% | 目標 50% 大幅達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 50/150 = 33% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### F282 状態 (= 試走干渉 0)
+
+launchctl list 状態 unchanged、PID=- LastExitStatus 0 維持。
+2026-05-16 土曜 02:00 JST 自動実行待機継続。
+
+### 既存 DB mtime + size 完全 unchanged ✓
+
+### fire develop commits
+
+本 Wave で commit なし (= 設計のみ、code 0)。
+
+### fire-vault main commits
+
+- 4c10a27 docs(FIRE-CODEX-R1): Wave 35-pre plan + results + F286-AFTER-R1
+  設計 v1.0
+
+### 安全 (Wave 35-pre 全 ✓、絶対条件達成)
+
+- F282 手動 0 / VACUUM 0 / launchctl 0 / plist 0 / cron 0
+- 実 LINE 0 / 実 API 0 / 全 DB write 0
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- 既存 modified 2 件 未接触 ✓
+- W30 snapshot retention 5/19 まで保持 ✓
+- F282 試走干渉 0 ✓
+
+### 並列効果
+
+Wave 35-pre 実時間 約 50 分、本線単独 150 分、短縮 67% ★
+**Wave 1-35-pre 通算で 60-80% 短縮を 35 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 35-pre 完了 + AFTER-R1 設計 v1.0 採用 (推奨: approve)
+2. Wave 36 候補:
+   - 推奨 a: AFTER-R1 read-only smoke (= production read のみ)
+   - 推奨 b: AFTER-R1 runner impl + test (30-50 件)
+   - 別案: F101 probe / R2 v1.3 / cron thaw Step 2
+3. F282 試走 (5/16-5/19) との並走 (= AFTER-R1 設計は干渉 0)
+4. R2 v1.3 改訂 (= Wave 36+、緊急度低)
+
+### commits (fire-vault main)
+
+- 4c10a27 (= 上記)、log.md は別 follow-up
