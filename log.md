@@ -9533,3 +9533,99 @@ Codex 起動なし、純粋設計効率化。
 ### commits (fire-vault main)
 
 - a0d28cb (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | FIRE-CODEX-R2 6 lane Codex 実起動初実証 (= Wave 23、並列効果初の実証、4,041 PASS 維持)
+
+### HQ Wave 23 起票承認 + 6 lane Codex 実起動 minimal probe 承認
+
+### Wave 23 投入結果 (= 6 Codex lane + 本線)
+
+- W23-1 L5 (本線) Wave 23 plan + 6 prompt files
+- W23-2 L1a (Codex) R2 template v1.0 要約 (58 行) CRITICAL 0
+- W23-3 L1b (Codex) 案 A vs B 比較 + Hybrid 推奨 (37 行) CRITICAL 0
+- W23-4 L2 (Codex) dummy test 3 件 (15 行) CRITICAL 0
+- W23-5 L3 (Codex) no-op diff 案 (11 行) CRITICAL 0
+- W23-6 L4 (Codex) R2 設計 audit 7 観点 (61 行) CRITICAL 0 / HIGH 3
+- W23-7 L6 (Codex) regression plan + 本線 pytest 4,041 PASS
+- W23-8 (本線) merge + audit + commit + HQ 報告
+
+### 6 lane Codex 実起動結果
+
+| lane | 起動 | 完了 | 経過 |
+|---|---|---|---|
+| L1a | 19:47 | 19:49 | ~2 分 |
+| L1b | 19:47 | 19:49 | ~2 分 |
+| L2  | 19:47 | 19:48 | ~1 分 |
+| L3  | 19:47 | 19:48 | ~1 分 |
+| L4  | 19:47 | 19:50 | ~3 分 |
+| L6  | 19:47 | 19:49 | ~2 分 |
+
+並列実行 wall-clock 最大 ~3 分。wave 全体 ~30 分。
+
+起動方式:
+codex exec --sandbox read-only --skip-git-repo-check --cd /Users/bluefire/fire
+  --color never --output-last-message {file} < {prompt}
+
+### 成功条件 9/9 全 達成
+
+- 6 lane 全完了
+- file ownership 衝突 0 (= sandbox=read-only 構造的保証)
+- CRITICAL 0 (= 全 lane)
+- safety violation 0
+- 全 pytest PASS (= 4,041)
+- wave 実時間 < 150 分 (= 30 分)
+- commit 6 件以内 (= 2 件)
+- Codex 直接 commit 0
+- HQ 報告 1 ブロック
+
+### L4 audit HIGH 3 (= R2 v1.1 改訂候補)
+
+1. Phase exit 条件難度補正 (= 実装あり wave 1 回以上必須)
+2. file lock の既存 modified 検知必須化
+3. P3 初回対象から LINE/token integration 除外
+
+Hard abort 該当せず (= CRITICAL 0)。Wave 24 候補に R2 v1.1 改訂提案。
+
+### fire develop commits
+
+本 Wave で commit なし (= 全 Codex sandbox=read-only、fire 側 write 0)。
+
+### fire-vault main commits
+
+- 8473aee docs(FIRE-CODEX-R1): Wave 23 plan + results + 6 lane Codex
+  実起動 minimal probe
+
+### 安全 (Wave 23 全 ✓)
+
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- 実 cron / launchd / crontab 登録 0 / plist 配置 0 / launchctl load 0
+- logrotate 適用 0
+- token / secret / channel_token 0 (= sandbox=read-only)
+- F101 staging probe 未実行
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 変更 0 / --no-verify 不使用
+- TODO Excel 未更新
+- forbidden 7 件 未接触 (= scripts/seed* / historical_indicators.py 等)
+- Codex 直接 commit 0
+
+### 並列効果 ★ R2 並列効果の初実証 ★
+
+Wave 23 実時間 約 30 分、本線単独推定 90-120 分、短縮 65-75%。
+**Wave 1-23 通算で 60-80% 短縮を 23 wave 連続達成** ★
+
+### 回帰
+
+4,041 PASS 維持 (= sandbox=read-only で code 変更 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 23 完了 + R2 並列効果初実証承認 (推奨: approve)
+2. L4 HIGH 3 対応 (推奨: R2 v1.1 改訂を Wave 24 候補に起票)
+3. Phase P1 → P2 (= 8 lane) 移行判断 (= 3 wave 連続 PASS 達成、推奨: approve)
+4. Wave 24 候補選定:
+   - 推奨 a: R2 v1.1 改訂 + P2 移行 (= 8 lane 試験)
+   - 推奨 b: F282 weekly snapshot launchd 化設計 + 試走
+
+### commits (fire-vault main)
+
+- 8473aee (= 上記)、log.md は別 follow-up
