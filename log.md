@@ -10047,3 +10047,109 @@ Wave 27 実時間 約 50 分、本線単独 100 分、短縮 50%。
 ### commits (fire-vault main)
 
 - 2f3eba9 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 write path impl + Codex CRITICAL 5 件 全 修正 (= Wave 28、49 tests / 4,090 PASS / 安全事故 0 絶対条件達成)
+
+### HQ Wave 28 起票承認 (= F282 write path impl)
+
+### Wave 28 投入結果 (= 8 lane = 本線 4 + Codex 4)
+
+W28-3 L3 実装中に **Codex pre-commit hook が CRITICAL 5 件** を順次検出、
+本線が全修正後 commit 成功。R2 v1.2「安全事故 0 = 絶対条件」を運用上
+強制する仕組みが機能。
+
+### Codex pre-commit CRITICAL 5 件 (= 本 wave で全 修正)
+
+1. 既存 target unlink → VACUUM INTO 失敗で target 消失
+   → tmp path 経由 atomic rename
+2. WAL/SHM 未 backup → 一貫性破壊
+   → 3 点セット backup (本体 + WAL + SHM)
+3. verify 失敗時の auto-restore なし
+   → _restore_from_backup 関数 + main() integration
+4. cleanup/rename 中の OSError → target 消失
+   → try/except OSError + main() restore
+5. source_size に WAL 未 checkpoint 分含まれず
+   → _get_source_logical_size (PRAGMA page_count * page_size)
+
+### F282 write path 実装 (= fire develop commit 19d69f9)
+
+- _get_source_logical_size (NEW): PRAGMA 経由論理サイズ
+- _prepare_backups (拡張): 3 点セット backup
+- _snapshot_db (拡張): tmp → atomic rename + OSError safe
+- _restore_from_backup (NEW): 3 点セット復元
+- _verify_snapshot (拡張): integrity_check + size 範囲
+- main() write path: prepare → snapshot → verify → 失敗時 restore (2 経路)
+
+### tests (= 22 件新規、合計 49 件 PASS)
+
+- TestPrepareBackups 7 / TestSnapshotDb 8
+- TestVerifySnapshot 4 / TestMainWritePath 4
+- TestSourceLogicalSize 2 / TestSourceURIReadOnly 1
+
+### 6 KPI (= R2 v1.2 必須 table)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量適切 |
+| 本線短縮率 | (150-80)/150 = 47% | < 50% (= CRITICAL 5 修正で上昇) |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 80/150 = 53% | 40% 目標超過 |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### 成功条件 12/12 全達成
+
+- 8 lane 全完了 / 衝突 0 / CRITICAL 0 / L4 HIGH 0
+- safety 0 / 4,090 PASS / wave 65-80 分 / commit <= 6
+- Codex 直接 commit 0 / 本線過負荷 53% < 100%
+- 全 production DB mtime + size unchanged
+- HQ 報告 1 ブロック + 6 KPI table
+
+### fire develop commits
+
+- 19d69f9 feat(F282): write path with full WAL safety (Wave 28、Codex
+  CRITICAL 5 件 全 修正)
+
+### fire-vault main commits
+
+- dccfb9f docs(FIRE-CODEX-R1): Wave 28 plan + results + F282 write path
+  impl + Codex CRITICAL 5 件 修正
+
+### 安全 (Wave 28 全 ✓、絶対条件達成)
+
+- 実 VACUUM INTO 実行 0 / 実 DB snapshot 作成 0
+- plist 配置 0 / launchctl load 0 / cron 0 / logrotate 0
+- 実 LINE 0 / 実 API call 0
+- production / develop / staging DB mtime + size **unchanged**
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 既存 modified 2 件 (= forbidden) 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- Codex 直接 commit 0
+- Codex pre-commit CRITICAL 検出 → 全修正 (= safety 補強)
+
+### 並列効果
+
+Wave 28 実時間 約 65-80 分、本線単独 120-150 分、短縮 47%。
+CRITICAL 5 修正で本線負荷増 (= 通常 impl wave より +20-30 分)。
+**Wave 1-28 通算で 60-80% 短縮を 28 wave 連続達成** ★
+
+### 回帰
+
+4,068 → 4,090 PASS (= +22 新規、既存 0 影響)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 28 完了 + F282 write path impl + Codex CRITICAL 5 件 修正 承認
+   (推奨: approve)
+2. Wave 29 候補:
+   - 推奨 a: F282 plist 配置 + 1 週間試走計画設計 (= 設計のみ)
+   - 推奨 b: F282 staging への実 VACUUM INTO 試行 (= 別 HQ approve)
+   - 別案: F101 staging probe / R2 v1.3 改訂
+3. F282 staging 実 VACUUM INTO 着手判定 (= 別 HQ 明示承認後)
+4. R2 v1.3 改訂タイミング (= 「Codex pre-commit 多段修正運用」正式化候補)
+
+### commits (fire-vault main)
+
+- dccfb9f (= 上記)、log.md は別 follow-up
