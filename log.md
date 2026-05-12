@@ -9354,3 +9354,92 @@ Wave 20 実時間 約 30-40 分、本線単独 90-120 分、短縮 60-65%。
 ### commits (fire-vault main)
 
 - a575241 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | FIRE-CODEX-R2 Phase P1 初試験投入 + F101 endpoint resolution 実装 (= Wave 21、4,041 PASS、CRITICAL 0)
+
+### HQ Wave 21 起票承認 + Phase P1 採用承認
+
+### Wave 21 投入結果 (= 8 sub-task、6 lane 役割分担)
+
+- W21-1 L5 Wave 21 plan + R2 prompt template v1.0
+- W21-2 L1a F101 V2 spec 静的調査 + endpoint 候補 2 件
+- W21-3 L1b endpoint resolution 設計 (= 案 A 単一切替採用)
+- W21-4 L3 materials/client.py +30 行
+- W21-5 L2 tests 17 新規 (= 9 class、全 mock)
+- W21-6 L4 adversarial audit (= 7 観点 PASS)
+- W21-7 L6 regression 4,041 PASS
+- W21-8 本線 commit + log.md + HQ 報告
+
+### Phase P1 役割分担確立
+
+本 Wave 21 では Codex 6 lane 並列起動は次 wave 以降に持ち越し、本線が
+各 lane 役を順次演じて R2 prompt template v1.0 / lane 役割表 /
+file ownership pattern を実地で確立。次 wave で Codex 実 6 lane 起動
+レディネス完成。
+
+### F101 endpoint resolution 実装
+
+W19-1 で特定した /fins/announcement 403 への対応:
+- ANNOUNCEMENT_ENDPOINT_ENV / _DEFAULT / _CANDIDATES 定数追加
+- _resolve_announcement_endpoint() helper (= override > env > default)
+- JQuantsAnnouncementClient(endpoint=None) optional 引数
+- fetch_announcements が self.endpoint 参照
+- backward compat 完全維持 (= 既存 5 test PASS 不変)
+
+実 staging probe は別 wave + 別 HQ 明示承認後 (= 候補
+/fins/announcements 複数形)。
+
+### audit verdict (= W21-6 L4)
+
+| 観点 | 結果 |
+|---|---|
+| A. 既存 API シグネチャ維持 | PASS |
+| B. token 値読出ゼロ | PASS |
+| C. 実 HTTP 出力 0 | PASS |
+| D. backward compat | PASS |
+| E. env name 衝突なし | PASS |
+| F. forbidden import 0 | PASS |
+| G. file ownership 衝突 0 | PASS |
+
+CRITICAL 0 / HIGH 0。
+
+### fire develop commits
+
+- 7aa059e feat(F101): endpoint resolution 切替可能化 + tests
+  (Wave 21 W21-4 + W21-5)
+
+### fire-vault main commits
+
+- (= 直前 commit) docs(FIRE-CODEX-R1): Wave 21 plan + results +
+  F101 endpoint resolution + R2 prompt template v1.0
+
+### 安全 (Wave 21 全 ✓)
+
+- 実 LINE 送信 0 / 実 API call 0 / 全 DB write 0
+- token / secret / cron 0
+- 楽天 / 自動発注 / Computer Use なし
+- .github/workflows/ 変更 0 / --no-verify 不使用
+- TODO Excel 未更新
+- forbidden 7 件 全 未接触
+- Codex 直接 commit 0 (= 本 wave Codex 起動なし)
+
+### 並列効果
+
+Wave 21 実時間 約 50-70 分、本線単独 100-140 分、短縮 50%。
+本 wave は Codex 起動なし、純粋並列効果はなく **R2 prompt template
+v1.0 確立** が主成果。
+**Wave 1-21 通算で 60-80% 短縮を 21 wave 連続達成** ★
+
+### 回帰
+
+4,024 → 4,041 PASS (= +17 新規、既存影響 0)。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 21 完了 + Phase P1 役割分担確立承認 (推奨: approve)
+2. Wave 22 候補選定 (推奨: cron thaw design only = Codex 6 lane 実起動試験)
+3. F101 staging probe 着手判定 (= 別 wave、別 HQ approve)
+
+### commits (fire-vault main)
+
+- (= 上記 docs commit)、log.md は別 follow-up
