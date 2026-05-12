@@ -10263,3 +10263,118 @@ Wave 29 実時間 約 35 分、本線単独 90 分、短縮 61%。
 ### commits (fire-vault main)
 
 - 3e36c9b (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 staging 実 VACUUM INTO 試行成功 (= Wave 30、既存 DB 完全 unchanged、6 KPI 全達成、4,090 PASS 維持)
+
+### HQ Wave 30 起票承認 (= 実 VACUUM INTO 試行承認)
+
+### Wave 30 投入結果 (= 6 lane = 本線 2 + Codex 4)
+
+- W30-1 L5 (本線) plan + mtime baseline + 4 Codex prompt
+- W30-2 L1a (Codex) 実行手順詳細、CRITICAL 0 / HIGH 0
+- W30-3 L1b (Codex) snapshot retention / cleanup 方針、CRITICAL 0 / HIGH 0
+- W30-4 L3 (本線) **実 VACUUM INTO 1 回 試行**
+- W30-5 L4 (Codex) adversarial audit 8 観点、CRITICAL 0 / HIGH 0
+- W30-6 L6 (Codex) regression plan + 本線 pytest 4,090 PASS
+- W30-7 (本線) 結果検証 + cleanup + 6 KPI + 報告
+
+### 実 VACUUM INTO 試行結果 (= W30-4)
+
+実行: FIRE_ENV=snapshot ... --db-source production --db-targets
+staging,develop --target-dir /Users/bluefire/fire/data/snapshot/
+出力: F282 snapshot OK: snapshot_count=2, backup_count=0,
+source_size=371081216 / exit 0
+
+snapshot output (= 専用 path、既存 staging.db 完全保護):
+- data/snapshot/fire.staging.db: 353 MB / integrity_check ok
+- data/snapshot/fire.develop.db: 353 MB / integrity_check ok
+- VACUUM 圧縮: 371 MB → 353 MB (= 約 95%、SQLite 通常動作)
+
+既存 DB (= mtime + size 完全 unchanged ★):
+- production fire.db: 371,081,216 / 5/12 16:17:24 (baseline 一致)
+- 既存 develop.db: 371,081,216 / 5/12 16:11:43 (一致)
+- 既存 staging.db: 4,804,063,232 / 5/12 18:45:22 (一致)
+
+### W30 必須確認 11/11 全達成
+
+実行前 baseline / disk free / mkdir / 実 VACUUM / exit 0 / output 存在 /
+size / integrity / size_ok / 既存 DB unchanged ★ / retention 方針 /
+HQ 報告 1 ブロック。
+
+### L4 audit verdict (= 8 観点、CRITICAL 0 / HIGH 0)
+
+A. snapshot output 命名空間分離 / B. target 限定 / C. source 保護
+D. backup 不在対応 / E. atomic rename / F. integrity+size verify
+G. 異常終了時保護 / H. HQ 禁止項目維持 = 全 PASS
+
+### 6 KPI 全達成 (= R2 v1.2 必須)
+
+| KPI | 値 | 判定 |
+|---|---|---|
+| Codex 稼働率 | 4/12+ = 33% | task 量「中」適切 |
+| 本線短縮率 | (100-40)/100 = 60% | 目標 50% 達成 ✓ |
+| 成果物採用率 | 100% | 目標達成 |
+| 差し戻し率 | 0% | 目標達成 |
+| Integrator 負荷 | 40/150 = 27% | < 40% 達成 ✓ |
+| 安全事故 0 | 0 | 絶対条件達成 ★ |
+
+### snapshot retention 方針
+
+案 B (= 1 週間 retention) 採用、2026-05-19 頃別 wave で削除予定。
+
+### F282 完成パイプライン状態 (= 全 6 段階達成)
+
+W25 設計 ✓ / W26 dry-run impl ✓ / W27 dry-run probe 成功 ✓ /
+W28 write path impl + CRITICAL 5 修正 ✓ / W29 配置 + 試走計画 ✓ /
+W30 実 VACUUM INTO 試行成功 ★
+
+→ 残るは W31+ 実 plist 配置 + launchctl load + 1 週間試走 (= 別 HQ approve)
+
+### 成功条件 13/13 全達成
+
+### fire develop commits
+
+本 Wave で commit なし (= 既存 script の本番実行のみ、code 変更 0)。
+ただし data/snapshot/ に新 file 2 件作成 (= git ignore 対象想定)。
+
+### fire-vault main commits
+
+- cac61c2 docs(FIRE-CODEX-R1): Wave 30 plan + results + F282 staging
+  実 VACUUM INTO 試行成功
+
+### 安全 (Wave 30 全 ✓、絶対条件達成)
+
+- 実 VACUUM INTO 1 回 (= staging + develop、専用 path)
+- production / 既存 staging / 既存 develop DB mtime + size unchanged ✓
+- plist 配置 0 / launchctl load 0 / 自動実行開始 0
+- cron 0 / LINE 0 / 実 API call 0
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 既存 modified 2 件 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 0 / --no-verify 不使用 / TODO Excel 未更新
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 30 実時間 約 40 分、本線単独 100 分、短縮 60%。
+**Wave 1-30 通算で 60-80% 短縮を 30 wave 連続達成** ★
+
+### 回帰
+
+4,090 PASS 維持 (= code 変更 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 30 完了 + 実 VACUUM INTO 試行成功 承認 (推奨: approve)
+2. Wave 31 候補:
+   - 推奨 a: 実 plist 配置 + launchctl load + 1 週間試走開始
+     (= HQ_APPROVE_F282_PLACE=1 + _LOAD=1)
+   - 推奨 b: log dir 作成 + logrotate 設定配置
+   - 別案: F101 staging probe / R2 v1.3 改訂
+3. snapshot file cleanup 着手判定 (= 1 週間後、別 wave)
+4. R2 v1.3 改訂タイミング (= Wave 32+、緊急度低)
+
+### commits (fire-vault main)
+
+- cac61c2 (= 上記)、log.md は別 follow-up
