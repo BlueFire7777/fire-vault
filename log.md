@@ -8507,3 +8507,110 @@ Wave 1-9 通算で 9 wave 連続 60-80% 短縮達成。
 
 - 本 entry 後の commit (= Wave 9 plan + results + schema gap + log)
 - fire develop の 1 commit は別系統 (= 上記)
+
+## [2026-05-12] codex | FIRE-CODEX-R1 v1.1 Wave 10 完了 (MIG-R1 + REPORT-R1 weekly/monthly + sub-D2.3.x 起票、CRITICAL 0 / HIGH 3→0 即修正、3,895 PASS)
+
+### HQ Wave 10 approve 受領 (= 2026-05-12)
+
+- F286-PNL-R3-MIG-R1 起票承認
+- W9-2 REPORT-R1 weekly/monthly impl 着手承認
+- W9-3 DATA-R3 sub-D2.3.x 起票承認 (= 4 sub 個別、staging write は別 HQ approve)
+- W4.1-B / cron / production-develop write 凍結継続
+
+### Wave 10 投入結果 (= 10 sub-task、4 split commit、3,895 PASS)
+
+Phase 1 impl (= Codex 3 並列、W10-3 は W10-2 後):
+- W10-1 MIG-R1 impl + tests (= 13 件 / 15 PASS)
+- W10-2 REPORT-R1 weekly impl + tests (= 43 件 / 83 PASS)
+- W10-3 REPORT-R1 monthly impl + tests (= 42 件 / 101 PASS、W10-2 後順次)
+- W10-5 W9-3 sub-D2.3.x 4 plan vault doc (= 本線、f100/f101/f111/f119)
+
+Phase 2 audit:
+- W10-1b MIG-R1 audit: CRITICAL 0 / HIGH 2 (= dry-run marker / symlink resolve) / MEDIUM 2
+- W10-4 REPORT-R1 audit: CRITICAL 0 / HIGH 1 (= weekly/monthly filesystem 読出) / MEDIUM 2
+
+Phase 3 fix:
+- W10-1a-fix: HIGH 2 + MEDIUM 2 解消 (= +7 / 22 PASS)
+- W10-2a-fix: HIGH 1 + MEDIUM 1 解消 (= +10 / 136 PASS)
+
+### fire develop split commit (= 4 件)
+
+- d4a3c0d feat(F286-PNL-R3-MIG-R1): idempotent migration script + tests
+- f66eecb feat(F286-REPORT-R1): weekly + monthly report generators + runners
+- f9b8fd5 docs+test(FIRE-CODEX-R1): Wave 9 + Wave 10 完了 table + whitelist
+
+(= W9 から継承 5193386 feat(F286-PNL-R3) seed runner for W9-1)
+
+### 安全 (Wave 10 全 ✓)
+
+- 実 LINE 送信 0 通 / DB write 0 (= 実 DB)
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0
+- 楽天 / 自動発注 / Computer Use / Playwright なし
+- workflow 変更 0 / --no-verify 不使用
+- cron / launchd / crontab 本番登録 0 (= sub-D3 凍結継続)
+- W4.1-B F062 経由 smoke 保留継続
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+- external API call 0
+- 注文価格 / 数量 / 執行指示 helper 含めない
+
+### W10-1 MIG-R1 主要内容
+
+- scripts/setup/migrate_paper_reason.py (= idempotent ALTER TABLE ADD COLUMN)
+- production/develop は HQ approve marker (= F286_MIG_R1_HQ_APPROVE env) 必須
+- dry-run でも marker 必須 (= W10-1a-fix)
+- symlink refuse + resolved basename enforce (= W10-1a-fix)
+- ALTER 失敗時 conn.rollback() 明示 (= W10-1a-fix)
+- tests/conftest.py に apply_paper_reason_migration_if_needed helper
+
+### W10-2 + W10-3 REPORT-R1 weekly + monthly 主要内容
+
+- fire/report/aggregators.py 拡張: weekly + monthly dataclass / 関数
+- fire/report/markdown_renderer.py 拡張: render_weekly_markdown +
+  render_monthly_markdown (= iPhone コピー対応、純関数)
+- fire/report/weekly_report.py / monthly_report.py (= 新規)
+- scripts/jobs/run_f286_report_r1_weekly.py / _monthly.py (= 新規)
+- read-only + 三段+六段ガード + atomic 'x' create
+- LINE 配信 / cron 登録は別 HQ approve
+
+### W10-2a-fix 純関数化
+
+generate_weekly_report / generate_monthly_report から
+find_latest_f119_report_path() 内部呼出排除。runner main で呼び、明示 input
+として渡す pattern に統一 (= W8b-fix daily の pattern 踏襲)。
+
+### W10-5 W9-3 sub-D2.3.x 4 plan vault doc
+
+- F286_DATA_R3_sub_D2_3_f100_smoke_plan_2026-05-12.md
+- F286_DATA_R3_sub_D2_3_f101_smoke_plan_2026-05-12.md
+- F286_DATA_R3_sub_D2_3_f111_smoke_plan_2026-05-12.md
+- F286_DATA_R3_sub_D2_3_f119_smoke_plan_2026-05-12.md
+
+各 plan で実 staging write 手順 + HQ approve template。**実行は各 sub 個別
+HQ approve 必須** (= まとめ write 禁止 HQ 明示)。
+
+### 並列効果
+
+Wave 10 実時間 約 90-120 分 (= 5 Codex impl + 2 audit + 2 fix + 本線 plan)。
+本線単独推定 360-480 分。短縮 70-75%。
+Wave 1-10 通算で 60-80% 短縮を **10 wave 連続達成** ★
+
+### 回帰
+
+3,895 PASS (= 3,785 baseline + Wave 10 +110 件)。
+内訳: W10-1 + fix +20 / W10-2 +43 / W10-3 +42 / W10-2a-fix +10 = +115、
+他既存と合算 110 増 (= 一部 test 統合)。
+
+### HQ 判断論点 (= 5 件)
+
+1. Wave 10 完了 → 次フェーズ進行可否 (推奨: approve)
+2. MIG-R1 を production / develop に適用判定 (= HQ marker 経由、別 task)
+3. DATA-R3 sub-D2.3.x staging write 実行判定 (= 4 runner 個別 approve)
+4. REPORT-R1 LINE 配信 / cron 連携判定 (= 別 HQ approve)
+5. 次フェーズ起票候補 (= W11-1 MIG 適用 / W11-2 LINE / W11-3 sub-D2.3.x / W11-4 並走)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 10 plan + results + sub-D2.3.x 4 plan + log)
+- fire develop の 4 commit は別系統 (= 上記)
