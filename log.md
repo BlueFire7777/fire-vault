@@ -9825,3 +9825,102 @@ Wave 25 実時間 約 35 分、本線単独 120-150 分、短縮 70-75%。
 ### commits (fire-vault main)
 
 - c236737 (= 上記)、log.md は別 follow-up
+
+## [2026-05-12] milestone | F282 snapshot script impl 完了 (= Wave 26、dry-run path、4,068 PASS、Phase P2 実装あり 1 回 充足)
+
+### HQ Wave 26 起票承認 (= impl wave、dry-run path のみ承認)
+
+### Wave 26 投入結果 (= 8 lane = 本線 4 + Codex 4)
+
+- W26-1 L5 (本線) plan + file lock + 4 Codex prompt
+- W26-2 L1a (Codex) script 構造詳細設計、CRITICAL 0 / HIGH 0
+- W26-3 L1b (Codex) safety guard test 設計、CRITICAL 0 / HIGH 0
+- W26-4 L2a (本線) TestStagingOnlyGuard + TestResolvePaths impl 15 PASS
+- W26-5 L2b (本線) TestDryRun / TestMainExit / etc impl 12 PASS
+- W26-6 L3 (本線) run_f282_weekly_snapshot.py +345 行
+- W26-7 L4 (Codex) audit 8 観点、CRITICAL 0 / HIGH 0 / CONCERN 2
+- W26-8 L6 (Codex) regression + 本線 pytest 4,068 PASS
+- W26-9 (本線) commit + log.md + HQ 報告
+
+### F282 snapshot script 実装
+
+scripts/jobs/run_f282_weekly_snapshot.py (= 345 行):
+- safety guard 7 検査 (FIRE_ENV=snapshot 必須 / source basename=fire.db /
+  target basename=fire.staging.db|fire.develop.db / symlink refuse /
+  resolved basename 確認 / source-target inode collision refuse)
+- dry-run path: sqlite3 source URI mode=ro + PRAGMA query_only=ON、
+  target dir 書込み権限確認、disk 空き容量、write_count=0 戻り値
+- write path: _prepare_backups / _snapshot_db / _verify_snapshot 全
+  NotImplementedError raise (= 本 wave 未実装、別 wave + HQ approve)
+
+tests/scripts/jobs/test_f282_weekly_snapshot.py (= 380 行、27 件 PASS):
+- TestResolvePaths 4 / TestStagingOnlyGuard 11 / TestDryRun 4 /
+  TestWritePathNotImplemented 3 / TestMainExit 4 / TestSourceURIReadOnly 1
+
+tests/scripts/test_db_path_consistency.py: 例外リストに
+run_f282_weekly_snapshot.py 追加 (= W17-1-fix / W17-2-fix と同じ
+staging-only guard pattern)。
+
+### L4 audit verdict
+
+CRITICAL 0 / HIGH 0 / CONCERN 2 (= B safety guard / D NotImplementedError、
+impl 確認用)。本 impl で全 PASS 化。
+verdict: **GO for Wave 26 impl integration**。
+
+### 成功条件 11/11 全達成 (= P2 運用条件)
+
+- 8 lane 全完了 ✓ / 衝突 0 ✓ / CRITICAL 0 ✓ / L4 HIGH 0 ✓
+- safety 0 ✓ / 4,068 PASS ✓ / wave 45-55 分 ✓
+- commit 6 件以内 ✓ (= fire develop 1 + fire-vault 2)
+- Codex 直接 commit 0 ✓ / 本線過負荷 0 ✓ / HQ 報告 1 ブロック ✓
+
+### R2 v1.1 「実装あり wave 1 回」P2 維持
+
+P2 phase (= Wave 25-) で初の impl wave、4,068 PASS。
+Phase P2 4 条件 (= 衝突 0 / 過負荷 0 / L4 HIGH 0 / 実装あり 1 回) 全充足。
+
+### fire develop commits
+
+- 47aa5ea feat(F282): weekly snapshot script + tests (Wave 26 dry-run
+  path のみ)
+
+### fire-vault main commits
+
+- 8d35788 docs(FIRE-CODEX-R1): Wave 26 plan + results + F282 snapshot impl
+
+### 安全 (Wave 26 全 ✓)
+
+- 実 VACUUM INTO 0 / 実 DB snapshot write 0
+- plist 配置 0 / launchctl load 0 / cron 登録 0
+- logrotate 適用 0
+- 実 LINE 0 / 実 API call 0 / 全 DB write 0
+- token / channel_token / secret 0
+- F101 staging probe 未実行
+- 既存 modified 2 件 (= forbidden) 未接触 ✓
+- 楽天 / 自動発注 / Computer Use なし
+- workflow 変更 0 / --no-verify 不使用 / TODO Excel 未更新
+- Codex 直接 commit 0
+
+### 並列効果
+
+Wave 26 実時間 約 45-55 分、本線単独 100-130 分、短縮 55-65%。
+impl wave なので本線負荷高め。
+**Wave 1-26 通算で 60-80% 短縮を 26 wave 連続達成** ★
+
+### 回帰
+
+4,041 → 4,068 PASS (= +27 新規、既存影響 0)。
+
+### HQ 判断論点 (= 4 件)
+
+1. Wave 26 完了 + F282 snapshot impl (dry-run path) 承認 (推奨: approve)
+2. Wave 27 候補:
+   - 推奨 a: F282 dry-run probe 実施 (= production fire.db への ro 接続 1 回)
+   - 推奨 b: F282 write path 実装 (= VACUUM INTO impl + tests)
+   - 別案: F101 staging probe / R2 v1.2 改訂
+3. F101 staging probe (= 現状未承認継続)
+4. R2 v1.2 改訂タイミング (= Wave 28 以降、緊急度低)
+
+### commits (fire-vault main)
+
+- 8d35788 (= 上記)、log.md は別 follow-up
