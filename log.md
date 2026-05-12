@@ -8614,3 +8614,98 @@ Wave 1-10 通算で 60-80% 短縮を **10 wave 連続達成** ★
 
 - 本 entry 後の commit (= Wave 10 plan + results + sub-D2.3.x 4 plan + log)
 - fire develop の 4 commit は別系統 (= 上記)
+
+## [2026-05-12] codex | FIRE-CODEX-R1 v1.1 Wave 11 完了 (MIG apply plan + LINE preview + sub-D2.3.x refine + 全体 guard audit、CRITICAL 1 即修正、3,942 PASS)
+
+### HQ Wave 11 approve 受領 (= 2026-05-12)
+
+- F286-PNL-R3-MIG-R1 apply plan (= 起票承認、実適用未承認)
+- REPORT-R1 LINE delivery design / preview (= 起票承認、実 LINE 未承認)
+- DATA-R3 sub-D2.3.x runner 別 plan refine (= 起票承認、staging write 個別 approve)
+- W4.1-B / cron / token 使用 凍結継続
+
+### Wave 11 投入結果 (= 9 sub-task)
+
+Phase 1 plan / impl:
+- W11-1a/b/c MIG apply plan 3 分割 (= 本線 vault docs)
+- W11-2 LINE delivery preview + send_guard impl (= Codex L3+L2、40 件 / 42 PASS)
+- W11-3 sub-D2.3.x 4 HQ approve worksheet (= 本線 vault docs)
+
+Phase 2 audit:
+- W11-2b LINE preview audit: CRITICAL 1 / HIGH 2 / MEDIUM 1 検出
+- W11-4 global audit (= Wave 1-10 横断): CRITICAL 0 / HIGH 1 / MEDIUM 1
+  - 観点 A-G 中 6 OK、F のみ NG (= chunk fence)
+
+Phase 3 fix:
+- W11-2a-fix: CRITICAL 1 + HIGH 2 + MEDIUM 1 解消 (+7 件 / 47 PASS)
+
+### W11-2b CRITICAL #1 即修正
+
+**指摘**: evaluate_send_guard が dict(os.environ) で env 全体を copy、
+token / channel_token が env にあると参照経路に入る (= 「env から token
+不参照」要件違反)。
+
+**修正** (= W11-2a-fix):
+- signature 変更: evaluate_send_guard(preview, db_label,
+  hq_approve_marker=None) (= 明示 input、env 全体不読)
+- caller (runner) 側で os.environ.get("F286_LINE_HQ_APPROVE") だけ抽出
+- token / channel_token 一切参照しない
+
+### W11-4 global audit (= Wave 1-10 横断、CRITICAL 0 ★)
+
+7 観点中 6 PASS、F (iPhone コピー format) のみ NG → W11-2a-fix で解消。
+Wave 1-10 全 F286 production code の guard 健全性確認。
+
+### fire develop split commits (= 2 件)
+
+- (TBD #1) feat(F286-REPORT-R1): LINE delivery preview + send_guard helper
+  (W11-2 + W11-2a-fix)
+- 1a2b013 docs(FIRE-CODEX-R1): Wave 11 完了 table entries
+
+### 安全 (Wave 11 全 ✓)
+
+- 実 LINE 送信 0 通 / DB write 0
+- production / develop / staging DB mtime 全 unchanged
+- token / channel_token / secret 参照 0 (= W11-2a-fix で env 全体読出排除)
+- 楽天 / 自動発注 / Computer Use / Playwright なし
+- workflow / cron / launchd / crontab 不変
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+- external API call 0
+
+### W11-1 MIG apply plan 3 分割
+
+- W11-1a dry-run plan (= 全 3 環境)
+- W11-1b develop apply plan (= ALTER 1 回、別 HQ approve)
+- W11-1c production apply plan (= 最後、backup 必須、別 HQ approve)
+
+### W11-3 sub-D2.3.x 4 worksheet
+
+f100 / f101 / f111 / f119 各 worksheet で:
+- 完全 HQ approve template
+- 実行前 checklist + 中断条件 + 完了報告 template
+- runner 個別注意 (= PK 衝突 / LINE disable 等)
+
+### 並列効果
+
+Wave 11 実時間 約 90-120 分 (= Codex 4 lane + 本線 plan + 2 fix)。
+本線単独推定 300-400 分。短縮 70-75%。
+Wave 1-11 通算で 60-80% 短縮を **11 wave 連続達成** ★
+
+### 回帰
+
+3,942 PASS (= Wave 10 baseline 3,895 + Wave 11 +47)。
+
+### HQ 判断論点 (= 5 件)
+
+1. Wave 11 完了 → 次フェーズ進行可否 (推奨: approve)
+2. W12-1 MIG-R1 dry-run 実行判定 (= 簡単、最初に)
+3. W12-2 develop apply 実行判定 (= 別 HQ approve、develop DB write 初)
+4. W12-3 production apply 実行判定 (= 別 HQ approve、production DB write 初)
+5. W12-4-fN sub-D2.3.x 個別 staging write 実行判定 (= 4 runner 個別 approve)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 11 plan + 3 MIG plans + 4 sub-D2.3.x worksheets
+  + 2 audit incidents + results + log)
+- fire develop の 2 commit は別系統 (= 上記)
