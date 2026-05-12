@@ -8971,3 +8971,83 @@ Wave 1-14 通算で 60-80% 短縮を 14 wave 連続達成 ★
 - 本 entry 後の commit (= Wave 14 results + backup handling plan +
   W11-1 superseded mark + log)
 - fire develop は本 Wave で commit なし (= 実 DB apply、code change 0)
+
+## [2026-05-12] codex | FIRE-CODEX-R1 v1.1 Wave 15 完了 (REPORT-R1 application path activation、CRITICAL 0 / HIGH 3 即修正、3,990 PASS)
+
+### HQ Wave 15 一括承認 (= 2026-05-12)
+
+W14-3 で SCHEMA-R1 全 環境同期完了後、application 経路の read-only 健全性
+確認 + LINE 送信前 ガード確認 + 横断 audit を一括承認。
+
+### Wave 15 投入結果 (= 4 sub-task)
+
+W15-1 REPORT-R1 read-only dry-run × 9:
+- production / develop / staging × daily / weekly / monthly
+- 全 exit 0、DB mtime 全 unchanged、Markdown 生成 (= row count 0 graceful)
+
+W15-2 LINE preview / send_guard:
+- production marker 不在 → can_send=False (refuse)
+- staging → can_send=False (= production-only refuse + marker refuse)
+- target_room='REPORT (***)' (= 生 ID mask)
+- LINE 送信 0 / token 参照 0 (= env 経由、W15-3-fix で排除)
+
+W15-3 audit (= Codex L4): CRITICAL 0 / HIGH 3 / MEDIUM 1 / LOW 8
+- HIGH #1: line_preview env 読出
+- HIGH #2: PNL-R2 ingest output 上書き
+- HIGH #3: PNL-R3 paper_reason schema validate 不在
+
+W15-3-fix HIGH 3 件即修正 (= Codex L3+L2):
+- HIGH #1: --hq-approve-marker 明示 input 化、env 読出排除
+- HIGH #2: PNL-R2 output を 'x' mode atomic create に
+- HIGH #3: PNL-R3 REQUIRED_COLUMNS に paper_reason 追加
+- +10 tests、93 PASS in 関連 3 runner
+
+### fire develop split commits (= 2 件)
+
+- f4d1505 fix(F286): W15-3 audit HIGH 3 件解消 (W15-3-fix)
+- 617ffee docs(FIRE-CODEX-R1): Wave 14 + Wave 15 完了 table entries
+
+### 安全 (Wave 15 全 ✓)
+
+- 実 LINE 送信 0 通
+- DB writes (= production / develop / staging) 全 0、mtime unchanged
+- token / channel_token / secret 参照 0 (= W15-3-fix で env 読出排除)
+- 楽天 / 自動発注 / Computer Use なし
+- workflow / cron / launchd / crontab 不変
+- scripts/seed_pattern_layer1.py / historical_indicators.py 未接触
+- TODO Excel 未更新 / Codex 直接 commit 0
+- subprocess 起動 0、external API call 0
+
+### ガバナンス成果
+
+「read-only application path activation」枠組み実施:
+- 実 DB を 9 runner で touch (= read-only)
+- DB write 0、mtime 完全不変
+- LINE 送信 0、token 参照 0
+- audit で隙を発見 → 即修正、HIGH 3 件解消
+
+W14 SCHEMA-R1 完了で構造的基盤確立、W15 で application 経路の健全性確認、
+3 環境同期の効果検証完了。
+
+### 並列効果
+
+Wave 15 実時間 約 30-40 分。本線単独推定 90-120 分。短縮 65-70%。
+**Wave 1-15 通算で 60-80% 短縮を 15 wave 連続達成** ★
+
+### 回帰
+
+3,990 PASS (= W14 baseline 3,980 + W15 +10)。
+
+### HQ 判断論点 (= 3 件)
+
+1. Wave 15 完了 → 次フェーズ進行可否 (推奨: approve)
+2. 次フェーズ候補:
+   - DATA-R3 sub-D2.3.x runner 別 staging write (f100/f101/f111/f119)
+   - PNL-R2 / F062 record-decisions 本番連携再評価
+   - sub-D3 cron 凍結解除設計
+3. REPORT-R1 LINE 実送信 token integration 着手判定 (= 別 HQ approve)
+
+### commits (fire-vault main)
+
+- 本 entry 後の commit (= Wave 15 results + audit incident + log)
+- fire develop の 2 commit は別系統 (= 上記)
