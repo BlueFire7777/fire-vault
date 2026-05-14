@@ -195,7 +195,7 @@ launchctl list / .env / token / schema / log dir / disk free
 - **Wave 53 候補: D-Day 朝 advisory 実送信 1 回目**
 - Wave 54+ 候補: daily monitoring + 異常時対応
 
-### 想定 D-Day: **2026-06-09 (月曜)**
+### D-Day: **2026-06-09 (火曜) 確定** ※ W44.5-pre で曜日確定 / W44.5-post で再確認
 
 - 5/13 W38 (= 本日)
 - 5/16 F282 試走実行
@@ -211,14 +211,19 @@ launchctl list / .env / token / schema / log dir / disk free
 - R2 v1.3 改訂
 - AFTER-R1 本格実装 (= v0 後)
 
-### HQ approve marker 順序
+### HQ approve marker 順序 ※ W40.5 / W40.6 / W44.5-pre で 7 段固定、W44.5-post で確認
 
 1. F282 GO (= W39、自然遷移)
-2. HQ_APPROVE_LAUNCHD_DAILY (= W41)
-3. HQ_APPROVE_LAUNCHD_MORNING_ADVISORY (= W45)
-4. HQ_APPROVE_NO_SEND_TRIAL (= W46)
-5. HQ_APPROVE_LINE_TOKEN_PRODUCTION (= W52)
-6. HQ_APPROVE_PRODUCTION_V0_LAUNCH (= W53)
+2. HQ_APPROVE_LAUNCHD_DAILY (= W41 開始、DATA-R3 plist 配置)
+3. DATA-R3 no-write 試走 GO (= W41 完了、自然遷移)
+4. HQ_APPROVE_LAUNCHD_MORNING_ADVISORY (= W45 開始、F062 plist 配置)
+5. F062 no-send trial GO (= W45 完了、自然遷移)
+6. HQ_APPROVE_LINE_TOKEN_PRODUCTION (= W52、token 投入許可)
+7. HQ_APPROVE_PRODUCTION_V0_LAUNCH (= W53、production send 開始許可)
+補. HQ_APPROVE_PRODUCTION_V0_RECOVERY (= rollback 後再起動)
+
+> ※ 旧版 (Wave 38) では `HQ_APPROVE_NO_SEND_TRIAL` を独立 marker としていたが、
+> W40.5 §10 で自然遷移 (= marker 5) に統合する方針が確定。本表は最新版。
 
 ### リスク
 
