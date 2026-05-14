@@ -11481,3 +11481,1126 @@ Wave 39-pre 実時間 約 50 分、本線単独 150 分、短縮 67% ★
 ### commits (fire-vault main)
 
 - 6650b1b (= 上記)、log.md は別 follow-up
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 39-temp 完了 — F282 temporary launchd smoke 成功 + cleanup 完了
+
+### 概要
+
+Wave 39-pre で設計した F282 temporary launchd smoke (Option C、本番完全分離)
+を 3 段 HQ marker (PLACE/LOAD/UNLOAD) 経由で実機 launchd 上で 1 回だけ実行。
+05/13 01:18 JST 予定通り発火、F282 pipeline 正常動作、本番 plist 完全不干渉
+確認。10:25 JST に UNLOAD 承認受領 → launchctl unload + plist rm 完了。
+
+### key 成果
+
+- temporary plist (jp.fire.weekly-snapshot-smoke) 01:18 JST 予定通り発火
+- launchctl print runs=1 / last exit code=0 (= 単発正常終了)
+- F282 snapshot OK log + data/snapshot-smoke/{staging,develop}.db 353 MB 各
+- 本番 jp.fire.weekly-snapshot plist mtime/size 完全不変 (= 1778593597 / 1772)
+- 本番 next run 5/16 02:00 維持
+- 3 環境 DB + W30 snapshot 完全不変
+- launchctl unload + plist rm 完了 (= ~/Library/LaunchAgents/ から消去)
+- snapshot-smoke output + smoke log は 1 週間 retention 残置
+
+### 教訓 (= 中間結論誤り → 訂正)
+
+- 初回診断で launchctl list "PID=- LastExitStatus 0" を "未起動" と誤判定
+- 追加診断 (launchctl print 後半 runs フィールド + log + snapshot file)
+  で実際は単発起動完了後の状態と判明 → 即訂正報告 → HQ 承認
+- 教訓: diagnostic は print/log/output の 3 点同時確認必須
+
+### 6 KPI
+
+- Codex 稼働率: 0/4 = 0% (= 4 lane prompt 準備済、本線 read-only で 19 条件全達成のため起動冗長)
+- 本線短縮率: 計算対象外 (= read-only)
+- 採用率: 100% (= 全 step HQ 承認)
+- 差戻率: 0 (= 中間結論誤り即訂正で吸収)
+- Integrator 負荷: 中 (= HQ format 1-block 報告 2 件)
+- 安全事故: 0 ✓
+
+### 安全 (Wave 39-temp 全 ✓、本番完全不干渉)
+
+- 本番 jp.fire.weekly-snapshot plist mtime + size 完全不変
+- 本番 launchctl LastExitStatus 0 / state=not running / 5/16 02:00 待機継続
+- 3 環境 DB + W30 snapshot mtime + size 完全 unchanged
+- LINE 送信 0 / token 参照 0 / 外部 API call 0
+- F282 手動実行 0 / VACUUM INTO 追加実行 0 / DB write 0
+- workflow 0 / --no-verify 0 / TODO Excel 未更新
+
+### 次
+
+- 5/16 土曜 02:00 F282 本番試走 (= 本流、変更なし)
+- 5/19 月曜 F282 GO/NO-GO 判定
+- GO 後 Wave 39 = F100 daily refresh launchd 設計 (= v0 Phase B)
+
+### 関連 file
+
+- 結果: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE39_TEMP_results.md (新規)
+- 設計: ~/fire-vault/03_design/F282_temporary_launchd_smoke_2026-05-13.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE39_TEMP_plan.md
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40-pre 完了 — F286-DATA-R3 Daily Refresh Launchd 設計 v1.0
+
+### 概要
+
+v0 Launch Plan Phase B (= 5/19 GO 後 着手予定) の前倒し準備として、
+F286-DATA-R3 daily refresh launchd 設計 v1.0 を Codex 7 lane 並列 + 本線統合
+で完成。月-金 06:30 JST 起動の aggregate runner 1 plist 構成、
+staging-only write 三段ガード継続、F282 (土曜 02:00) と完全分離。
+
+### 8 lane 構成
+
+- L5 (本線): plan / 設計 doc 統合 / vault / log / HQ 報告
+- L1a Codex (26s): launchd architecture → GO / 0 concerns
+- L1b Codex (22s): F282/freshness/F062 dependency → OK / no conflict
+- L2a Codex (22s): no-write trial plan → READY for next wave
+- L2b Codex (24s): log/monitoring/abort plan → READY
+- L3 Codex (47s): plist XML draft → READY for review
+- L4 Codex (79s): adversarial audit 8 観点 → **GO with 2 concerns**
+- L6 Codex (17s): regression + F282 review → F282 unchanged
+
+### L4 audit 2 concerns 解消
+
+- CONCERN C: FIRE_ENV を `staging` に統一 (= 統合 doc §1)
+- CONCERN E: plist XML に `LimitLoadToSessionType=Aqua` 明示追加 (= 統合 doc §1)
+
+### key 設計
+
+- Label: jp.fire.daily-refresh (= F282 と衝突 0)
+- 時刻: 月-金 06:30 JST (StartCalendarInterval 5 個)
+- aggregate runner: scripts/jobs/run_f286_data_r3_daily_refresh.py 既存
+- 4 sub-runner (F100/F101/F111/F119) を --dry-run --execute-dry-run-subprocesses
+  で内部 subprocess 直列実行
+- 三段ガード: db_label=staging + basename fire.staging.db + FIRE_ENV=staging
+- log: logs/cron/daily-refresh.{log,err} (= weekly-snapshot.* と完全分離)
+- LimitLoadToSessionType=Aqua / RunAtLoad=false / retry loop なし
+
+### 6 KPI
+
+- Codex 稼働率: 7/7 = 100%
+- 本線短縮率: 推定 70%+ (= 並列 79s で直列 240s+ 吸収)
+- 採用率: 7/7 = 100% (= 全 lane 成果が統合 doc に反映)
+- 差戻率: 0 (= L4 concerns 即解消、HQ 差戻 0)
+- Integrator 負荷: 中 (= 8 lane 統合 + 2 concerns 反映 + vault 更新)
+- 安全事故 0: ✓
+
+### 安全 (Wave 40-pre 全 ✓、F282 完全不干渉)
+
+- 実 plist 配置 0 (= docs/launchd/ + LaunchAgents/ 共に daily-refresh 不在)
+- launchctl load / unload 0
+- DB write 0 / LINE 0 / token 参照 0 / API call 0
+- F282 plist mtime=1778593597 size=1772 完全不変
+- 3 環境 DB + W30 snapshot 全 unchanged
+- 5/16 02:00 F282 次 run 維持 (= Weekday=7 Hour=2 Minute=0)
+- pytest 4090 collected 維持 (= python code 変更 0)
+
+### v0 への寄与
+
+- v0 Phase B Foundation 完成 (= D-Day 6/9 想定の Phase B を 5/13 で前倒し)
+- Wave 41 起票準備完了 (= F282 GO 後すぐ着手可能)
+- 5/19-5/26 期間を別 task に振替可能
+
+### 次
+
+- 5/14-5/15 待機 (= F282 試走前)
+- 5/16 02:00 F282 本番試走 (= 本流、変更なし)
+- 5/16 03:00 F282 実行後チェック (= auto-memory 3 点同時確認適用)
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 (= F286-DATA-R3 plist 実配置 + launchctl load + no-write 試走)
+  → HQ_APPROVE_LAUNCHD_DAILY 必須
+
+### 関連 file
+
+- 主成果設計 doc: ~/fire-vault/03_design/F286_DATA_R3_daily_refresh_launchd_2026-05-13.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_PRE_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_PRE_results.md
+- Codex 7 lane stdout: /tmp/codex_wave40pre/results/l{1a,1b,2a,2b,3,4,6}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40-post 完了 — F062 Morning Advisory Launchd + No-Send Trial 設計 v1.0
+
+### 概要
+
+v0 Launch Plan Phase C foundation を Phase P2 第 1 陣 8 lane + 第 2 陣 4
+lane 二段投入で前倒し完成。月-金 08:45 JST F062 morning advisory launchd
++ no-send trial の設計 v1.0。DATA-R3 完了 + freshness OK を入力前提、
+preview/no-send mode で 1 週間試走 (Wave 46+) への基盤。F282 + DATA-R3 完全
+不干渉、Codex 11/11 = 100% 稼働、L4 GO 0 concerns + 第 2 陣全 CRITICAL/HIGH 0。
+
+### 12 lane 構成 (= 二段投入)
+
+第 1 陣 8 lane (並列 32s):
+- L5 本線統合
+- L1a F062 launchd architecture: GO with 2 concerns
+- L1b dependency design: OK / no conflict
+- L2a no-send trial plan: READY
+- L2b duplicate prevention: READY
+- L3 plist XML draft: READY
+- L4 adversarial audit 8 観点: **GO with 0 concerns** ★
+- L6 regression + F282/DATA-R3 review: unchanged confirmed
+
+第 2 陣 4 lane (= L4 GO 0 concerns 確認後追加投入、並列 128s):
+- L7a token/secret/LINE 経路 static audit: clean / 2 findings (LOW)
+- L7b no-send trial audit: SAFE
+- L7c duplicate prevention audit: SOUND
+- L7d smoke plan 強化: strengthened
+
+### L7a 2 findings (LOW) を設計に反映
+
+- send_guard は独立 helper module ではなく、runner-level
+  `--hq-approved-send` 引数 absent → 送信拒否 pattern
+- chunk_length=738 は履歴 doc 値、source 実装は `max_chunks=1` で 1 chunk 制限
+
+### key 設計
+
+- Label: jp.fire.morning-advisory (= F282 / DATA-R3 と衝突 0)
+- 時刻: 月-金 08:45 JST (StartCalendarInterval 5 個)
+- runner: scripts/jobs/run_f062_research_advisory_line_preview.py
+- 引数 (試走時): --dry-run / --no-send / --preview-only
+  (= `--hq-approved-send` 不付与で送信拒否)
+- 三段ガード: FIRE_ENV=staging + db_label=staging + send_guard refuse
+- source 制約: max_chunks=1 / partial_delivery=False
+- log: logs/cron/morning-advisory.{log,err} (= 既存 plist と完全分離)
+- LimitLoadToSessionType=Aqua / RunAtLoad=false / retry なし
+
+### freshness gate + DATA-R3 依存
+
+- DATA-R3 完了 log "F286-DATA-R3 daily_refresh dry-run OK" の有無確認
+- freshness gate (agents/data_freshness_gate.py) で staging 鮮度判定
+- いずれか NG → F062 abort + exit 0 + LINE/DB write 0
+
+### 6 KPI
+
+- Codex 稼働率: 11/11 = 100% (= 第 1 陣 7 + 第 2 陣 4 全 exit 0)
+- 本線短縮率: 推定 75%+ (= 並列 160s vs 直列 440s+)
+- 採用率: 11/11 = 100%
+- 差戻率: 0 (= L4 GO 0 concerns、第 2 陣全 CRITICAL/HIGH 0)
+- Integrator 負荷: 中
+- 安全事故 0: ✓
+
+### 安全 (Wave 40-post 全 ✓、F282 + DATA-R3 完全不干渉)
+
+- 実 plist 配置 0 / launchctl load/unload 0
+- DB write 0 / LINE 0 / token / channel_token / secret / env 全体 参照 0
+- 実 API call 0 (= J-Quants / TDnet / LINE)
+- F282 plist mtime 1778593597 size 1772 完全不変
+- DATA-R3 plist (= 前 wave 設計) 配置 0
+- 3 環境 DB + W30 snapshot 全 unchanged
+- pytest 4090 collected 維持
+
+### v0 への寄与
+
+- v0 Launch Plan Phase C foundation 完成 (= Wave 43/44/45 候補を本 wave に
+  統合)
+- Wave 45 (= F062 plist 実配置 + 1 週間 no-send 試走) を 5/26 GO 後即起票可能
+- DATA-R3 + F062 並走で Phase B + C 同時 foundation
+- 第 2 陣 audit 4 lane で L7a-d の depth audit を実施、本番投入リスク低減
+
+### 次
+
+- 5/14-5/15 待機 (= F282 試走前) または別前倒し相談
+- 5/16 02:00 F282 本番試走 (= 本流、変更なし)
+- 5/16 03:00 F282 実行後チェック (= 3 点同時確認、auto-memory 適用)
+- 5/19 F282 GO/NO-GO 判定
+- 5/19 GO 後 Wave 41 (= DATA-R3 plist 実配置 + no-write 試走)
+  → HQ_APPROVE_LAUNCHD_DAILY 必須
+- 5/26+ Wave 45 (= F062 plist 実配置 + no-send 試走)
+  → HQ_APPROVE_LAUNCHD_MORNING_ADVISORY 必須
+- 6/9 D-Day 本番 v0 開始 (= HQ_APPROVE_PRODUCTION_V0_LAUNCH)
+
+### 関連 file
+
+- 主成果設計 doc: ~/fire-vault/03_design/F062_morning_advisory_launchd_2026-05-13.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_POST_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_POST_results.md
+- DATA-R3 設計 (= 前 wave): ~/fire-vault/03_design/F286_DATA_R3_daily_refresh_launchd_2026-05-13.md
+- Codex 11 lane stdout: /tmp/codex_wave40post/results/l{1a,1b,2a,2b,3,4,6,7a,7b,7c,7d}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40.5 完了 — F062 No-Send Trial Checklist + v0 Readiness 設計 v1.0
+
+### 概要
+
+F282 本番試走 5/16 直前に実行系を増やさず、Production v0 Phase C/D/E 直結の
+設計・チェックリストを補強。軽量 wave (= 本線 + Codex 2 lane) で F062
+morning advisory no-send trial の pre-flight / run-time / post-check /
+abort 全 56 項目を CLI command 付きで明文化、HQ approve marker 7 段順序を
+table 化、Phase D / E GO/NO-GO 条件 + 残課題 5 件を整理。
+
+### 3 lane 構成 (= 軽量、8 lane 不採用)
+
+- L5 本線統合: plan / 設計 doc / vault / log / HQ 報告
+- Lane A Codex (56s): no-send trial checklist draft → READY for Wave 45
+- Lane B Codex (48s): v0 Phase D/E dependency + marker review → CLARIFIED
+
+### 8 lane 不採用理由 (= 4 件)
+
+1. HQ 補足明示「実行系を増やしすぎない」「軽量 wave、本線 + 最大 2 lane 推奨」
+2. 成果物が単一 doc (= 12 章 1 file)、Integrator 負荷低維持
+3. F282 5/16 試走への注意分散回避
+4. Wave 40-pre + 40-post で 8/11 lane 構成実証済
+
+### 第 2 陣 Codex 不採用理由
+
+軽量 wave で第 2 陣 4 安全 audit は適用範囲外。Wave 40-post で同観点網羅済。
+
+### 主成果 (= 12 章構成)
+
+`~/fire-vault/03_design/F062_no_send_trial_checklist_and_v0_readiness_2026-05-14.md`
+
+- §1 目的
+- §2 現在地
+- §3 Wave 45 pre-flight checklist (12 項目、CLI command 付き)
+- §4 run-time checklist (10 項目)
+- §5 post-check checklist (12 項目)
+- §6 abort / NO-GO 条件 (12 項目)
+- §7 DATA-R3 daily refresh 依存条件 (10 項目)
+- §8 Phase D no-send trial GO/NO-GO
+- §9 Phase E Production v0 launch GO/NO-GO
+- §10 HQ approve marker 順序 (= 7 段 table)
+- §11 残課題 (= 5 件、優先度付き)
+- §12 Wave 41 / 45 / v0 launch 引き継ぎ
+
+### HQ approve marker 7 段順序 (= 確定)
+
+1. F282 GO 判定 (5/19、自然遷移)
+2. HQ_APPROVE_LAUNCHD_DAILY (Wave 41)
+3. DATA-R3 no-write 試走 GO (Wave 41 完了)
+4. HQ_APPROVE_LAUNCHD_MORNING_ADVISORY (Wave 45)
+5. no-send trial GO = Phase D GO (Wave 45 完了)
+6. HQ_APPROVE_LINE_TOKEN_PRODUCTION (Wave 52)
+7. HQ_APPROVE_PRODUCTION_V0_LAUNCH (Wave 53、D-Day 6/9)
+
+### 6 KPI
+
+- Codex 稼働率: 2/2 = 100% (= Lane A 56s + Lane B 48s)
+- 本線短縮率: 並列 56s vs 直列 104s = 約 46% 短縮
+- 採用率: 2/2 = 100%
+- 差戻率: 0 (= 両 lane CRITICAL/HIGH 0)
+- Integrator 負荷: 低 (= 単一 doc 統合のみ)
+- 安全事故 0: ✓
+
+### 安全 (Wave 40.5 全 ✓、F282 + DATA-R3 + F062 完全不干渉)
+
+- 実 file 変更: 設計 doc + plan/results + log.md のみ、他 0
+- plist 配置/変更 0 / launchctl load/unload 0
+- DB write 0 / LINE 0 / token / channel_token / secret 0
+- env 全体読出 0 / 実 API call 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- F282 next run 5/16 02:00 維持
+- 3 環境 DB + W30 snapshot 完全不変
+- pytest 4090 collected 維持
+- daily-refresh / morning-advisory plist 不在維持 (= LaunchAgents/)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- Wave 45 で即使える checklist 56 項目 (= CLI command 付き)
+- HQ approve marker 7 段順序確定 → 各 wave 起票時即参照可能
+- Phase D / E GO/NO-GO 条件確定 → 5/26-6/2 試走 + 6/9 D-Day 判定基盤
+- 残課題 5 件優先度付きリスト → 漏れ防止
+
+### 次
+
+- 5/14-5/15 待機 or 追加軽量整理
+- 5/16 02:00 F282 本番試走 (= 本流)
+- 5/16 03:00 F282 実行後チェック (= 3 点同時確認 適用)
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 (= DATA-R3 plist 配置 + 1 週間 no-write 試走)
+- 6/9 D-Day v0 開始
+
+### 関連 file
+
+- 主成果設計 doc: ~/fire-vault/03_design/F062_no_send_trial_checklist_and_v0_readiness_2026-05-14.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_5_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_5_results.md
+- Codex 2 lane stdout: /tmp/codex_wave40_5/results/lane_{a,b}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40.6 完了 — Production v0 Cutover/Rollback/Token Runbook 設計 v1.0
+
+### 概要
+
+D-Day 想定に向けて Production v0 開始直前のリスク 6 領域を Runbook 化。
+本線 + Codex 4 lane (= Lane A/B/C/D) で並列起動 47s、15 章 doc 統合。
+F282 + DATA-R3 + F062 完全不干渉、実行系変更 0、token 参照 0、DB write 0。
+
+### 5 lane 構成 (= 8 lane 不採用)
+
+- L5 本線統合: plan / 15 章 doc / vault / log / HQ 報告
+- Lane A Codex (42s): D-Day rollback runbook → READY
+- Lane B Codex (47s): LINE token/env setup → READY for Wave 52
+- Lane C Codex (44s): no-send→production send cutover → READY for Wave 53
+- Lane D Codex (44s): record-decisions migration → READY for Wave 52-53
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 47s vs 直列 177s = 約 75% 短縮。
+
+### 8 lane 不採用理由 (= 4 件)
+
+1. F282 本番試走 5/16 直前のため干渉リスクと注意分散回避
+2. Runbook 中心成果物、過剰分割で Integrator 負荷増
+3. DB/LINE/token/plist/launchctl に触らない設計 wave、4 lane で十分
+4. Wave 40-pre/post で 8/11 lane 構成実証済
+
+### 第 2 陣 Codex 不採用理由
+
+本 wave は Runbook 中心、DB/LINE/token 経路に直接触らない設計のみで第 2 陣
+4 安全 audit (= token 経路 / no-send / duplicate / smoke) は Wave 40-post で
+網羅済、再 audit 不要。
+
+### ⚠ Lane A 重要発見 — 曜日整合性
+
+Lane A audit で **2026-06-09 = 火曜日** と指摘 (= 計算確認済)。
+HQ 起票文書 + 既存 v0 Launch Plan では「D-Day = 6/9 (月曜)」記載。
+
+D-Day 候補 3 案 (= HQ 判断必要):
+- 案 1: 2026-06-08 (月) = 1 日前倒し
+- 案 2: 2026-06-15 (月) = 1 週間延期
+- 案 3: 2026-06-09 (火) = 文言修正のみ
+
+統合 doc §3 + §15 残課題 #1 で明示記録、HQ 報告でも提示。
+
+### 主成果 (= 15 章 doc)
+
+`~/fire-vault/03_design/Production_v0_cutover_rollback_token_runbook_2026-05-14.md`
+
+§1 目的 / §2 現在地 / §3 D-Day 全体フロー (曜日確認含) /
+§4 HQ marker 順序 (= 7 段+補 1) / §5 token 投入 Runbook /
+§6 env 設定 Runbook / §7 cutover Runbook (= wrapper draft 含) /
+§8 record-decisions 移行 (= 四段ガード新設) / §9 GO/NO-GO 判定表 /
+§10 rollback 手順 (= 11 trigger + severity + token rotate) /
+§11 no-send 復帰手順 / §12 異常検知ポイント (= 13 観点) /
+§13 D-Day 時系列オペレーション (= 12 step) /
+§14 Wave 41/45/52/53 引き継ぎ / §15 残課題 (= 14 件、優先度付き)
+
+### key 設計判断
+
+- token は plist EnvironmentVariables 不含、wrapper script で source + exec
+- send_guard = `--hq-approved-send` 引数 + `HQ_APPROVE_SEND_MARKER` 32 文字 random
+- 四段ガード = label + basename + FIRE_ENV + HQ marker 全通過必須
+- production / staging 完全分離 (= 別 env file、新規 shell session)
+
+### 6 KPI
+
+- Codex 稼働率: 4/4 = 100% (= Lane A 42s + B 47s + C 44s + D 44s)
+- 本線短縮率: 約 75% (= 並列 47s vs 直列 177s)
+- 採用率: 4/4 = 100%
+- 差戻率: 0 (= 全 lane CRITICAL/HIGH 0)
+- Integrator 負荷: 中 (= 4 lane 統合 + 15 章 doc + 曜日確認)
+- 安全事故 0: ✓
+
+### 安全 (Wave 40.6 全 ✓、F282 + DATA-R3 + F062 完全不干渉)
+
+- 実 file 変更: 設計 doc + plan/results + log.md のみ、他 0
+- plist 配置/変更 0 / launchctl load/unload 0
+- DB write 0 / LINE 0
+- token / channel_token / secret 参照 0 / env 全体読出 0
+- 実 API call 0 / F101 staging probe 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- daily-refresh / morning-advisory plist 不在維持
+- ~/.fire_secrets/ 内容読込 0 (= ls のみ)
+- pytest 4090 collected 維持
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- Phase E D-Day cutover Runbook 完成 → Wave 53 で即使える時系列 + GO/NO-GO
+- Phase D-E rollback 完備 → 11 trigger / severity / token rotate / DB rollback
+- 四段ガード設計 → production write 安全性 staging より厳格化
+- wrapper script 設計 → token 漏洩面最小化
+- 曜日整合性発見 → D-Day 候補 3 案を HQ に提示
+
+### 次
+
+- 5/14-5/15 待機 or 軽量整理 (= HQ 指示次第)
+- 5/16 02:00 F282 本番試走 (= 本流)
+- 5/16 03:00 F282 実行後チェック (= 3 点同時確認)
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 → Wave 45 → Wave 52 → Wave 53 (= D-Day)
+- D-Day 確定: HQ 判断待ち (= 6/8 月 / 6/9 火 / 6/15 月)
+
+### 関連 file
+
+- 主成果設計 doc: ~/fire-vault/03_design/Production_v0_cutover_rollback_token_runbook_2026-05-14.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_6_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_6_results.md
+- Codex 4 lane stdout: /tmp/codex_wave40_6/results/lane_{a,b,c,d}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40.7 完了 — Production v0 Readiness Check CLI 実装 v1.0
+
+### 概要
+
+Wave 41/45/52/53 GO/NO-GO 判定支援の **read-only CLI** を実装。
+本線 + Codex 6 lane (= Lane A/B/C/D/E/F、並列 52s) で設計分担し、
+本線で CLI 700 行 + pytest 15 個実装 + 10 章 doc 統合。15 必須 test
+全 PASS、pytest collected 4090 → 4105 (= +15)。F282 + 3 環境 DB + W30
+snapshot 完全不干渉、token 値 0 / launchctl call 0 / DB write 0。
+
+### 7 lane 構成 (= 8 lane 不採用)
+
+- L5 本線統合: CLI 実装 + pytest 実装 + 動作確認 + 統合
+- Lane A Codex (41s): CLI schema / phase design → READY
+- Lane B Codex (37s): F282 / launchd / plist checks 設計 → READY
+- Lane C Codex (45s): DB / token safety checks 設計 → READY
+- Lane D Codex (37s): D-Day / HQ marker / schedule 設計 → READY
+- Lane E Codex (52s): pytest 15 test 設計 → READY
+- Lane F Codex (44s): vault doc 10 章 outline → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 52s vs 直列 256s = 約 80% 短縮。
+
+### 8 lane 不採用理由 (= 4 件)
+
+1. F282 本番試走 5/16 直前のため干渉リスクと注意分散回避
+2. 実装対象が単一 CLI + 単一 test 中心、6 lane で十分
+3. 過剰分割で Integrator 負荷増
+4. Wave 40-pre/post で 8/11 lane 構成実証済
+
+### 第 2 陣 Codex 不採用理由
+
+本 wave は実装 + test 中心。第 2 陣 4 安全 audit (= token / no-send /
+duplicate / smoke) は Wave 40-post で網羅済。本 CLI 自体が L7a-d 観点を
+機械的代替・自動化する位置付け。
+
+### 主成果
+
+- 実装 CLI: scripts/jobs/run_production_v0_readiness_check.py
+  19 check (= F282 5 + DB 3 + plist 2 + token 2 + no-send 1 + HQ marker 4 + date 2)
+- pytest: tests/scripts/jobs/test_run_production_v0_readiness_check.py
+  15 test 全 PASS (= --phase required / invalid exit 2 / json valid /
+  pre-f282 absent plist / wave41/45 marker / token 非読 / D-Day Tuesday /
+  DB no write / schema 安定 / strict / GO-NO-GO text / unsafe option 不在 /
+  launchctl call 0 / token non-leak)
+- 設計 doc: 03_design/Production_v0_readiness_check_cli_2026-05-14.md (10 章)
+
+### CLI 動作確認
+
+phase pre-f282 (5/13 時点) → verdict GO / 11 PASS + 8 SKIP
+phase pre-wave41 (no strict) → exit 0 (= WARN を GO 扱い)
+phase pre-wave41 --strict → exit 1 (= WARN → NO-GO)
+phase invalid → exit 2 (= argparse error)
+phase pre-v0-launch (5/13 時点) → verdict NO-GO (想定通り、token 等未配置)
+
+### 6 KPI
+
+- Codex 稼働率: 6/6 = 100%
+- 本線短縮率: 約 80% (= 並列 52s vs 直列 256s)
+- 採用率: 6/6 = 100% (= 全 lane 成果 CLI/test/doc に反映)
+- 差戻率: 0 (= 15 test 即 PASS)
+- Integrator 負荷: 中-高 (= 6 lane + CLI 700 行 + 15 test + 10 章 doc)
+- 安全事故 0: ✓
+
+### 安全 (Wave 40.7 全 ✓、F282 + DATA-R3 + F062 完全不干渉)
+
+- 実 file 変更: CLI + pytest + 設計 doc + plan/results + log.md のみ
+- plist 配置/変更 0 / launchctl load/unload 0
+- DB write 0 (= stat のみ、sqlite3.connect も使わない)
+- LINE 0 / token / channel_token / secret 参照 0 / env 全体読 0
+- 実 API call 0 / F101 staging probe 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- daily-refresh / morning-advisory plist 不在維持
+- pytest collected 4090 → 4105 (= +15、想定通り増加)
+- 15 新 test 全 PASS、既存 test 影響 0
+
+### v0 への寄与
+
+- Wave 41/45/52/53 各着手前に 1 コマンドで 19 check + GO/NO-GO 取得
+- D-Day 前日最終確認自動化 (= --phase pre-v0-launch --strict)
+- W40.5 56 項目 / W40.6 15 章 Runbook をプログラム化
+- safety enforcement (= token 値読まない / DB write 0) を test で機械保証
+
+### 次
+
+- 5/14-5/15 待機 or 軽量整理 (= 本 CLI で pre-f282 動作確認可)
+- 5/16 02:00 F282 本番試走 (= 本流)
+- 5/16 03:00 F282 実行後チェック (= post-f282 phase で機械検証)
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 → Wave 45 → Wave 52 → Wave 53 (= D-Day 6/9 火曜)
+
+### 関連 file
+
+- 実装 CLI: ~/fire/scripts/jobs/run_production_v0_readiness_check.py
+- 実装 test: ~/fire/tests/scripts/jobs/test_run_production_v0_readiness_check.py
+- 設計 doc: ~/fire-vault/03_design/Production_v0_readiness_check_cli_2026-05-14.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_7_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_7_results.md
+- Codex 6 lane stdout: /tmp/codex_wave40_7/results/lane_{a,b,c,d,e,f}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 40.8 完了 — F282 Post-Run Inspection Report CLI 実装 v1.0
+
+### 概要
+
+5/16 02:00 F282 試走後、03:00 の実行後チェックを read-only / 機械的 に行う
+専用 CLI を実装。W39-temp 教訓 (= PID=-/LastExit=0 単独判定不可、
+3 点同時確認必須) を CLI 化、auto memory feedback と test で永続化。
+本線 + Codex 6 lane (= Lane A-F、並列 45s)、21 test 全 PASS、
+pytest collected 4105 → 4126 (= +21)。
+
+### 7 lane 構成 (= 8 lane 不採用)
+
+- L5 本線統合: CLI 1100 行 + pytest 21 個 + 動作確認 + 統合
+- Lane A Codex (41s): CLI schema / report schema → READY
+- Lane B Codex (27s): launchctl print parser / plist parser → READY
+- Lane C Codex (34s): log / snapshot check → READY
+- Lane D Codex (29s): baseline compare / DB stat safety → READY
+- Lane E Codex (45s): pytest 20 test 設計 → READY
+- Lane F Codex (43s): vault doc 12 章 + usage guide → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 45s vs 直列 219s = 約 79% 短縮。
+
+### 8 lane 不採用理由 (= 4 件)
+
+1. F282 本番試走 5/16 直前のため干渉リスクと注意分散回避
+2. HQ 補足明示「最大 6 lane まで」
+3. 実装対象が単一 CLI + 単一 test 中心、6 lane で十分
+4. Wave 40-pre + 40-post で 8/11 lane 実証済
+
+### 第 2 陣 Codex 不採用理由
+
+本 wave は実装 + test 中心。第 2 陣 4 安全 audit (= token / no-send /
+duplicate / smoke) は Wave 40-post で網羅済。本 CLI 自体が 3 点同時確認
+(= runs + log + output) を機械的代替・自動化する位置付け。
+
+### key 設計
+
+- 20 check 関数 (= F282 plist 4 + launchctl 3 + log 4 + snapshot 5 + DB 4)
+- THREE_POINT_WARNING を全 report (text/json/markdown) に含める
+- launchctl print 保存 text 入力方式 (= subprocess 0)
+- snapshot file のみ read-only URI で integrity_check
+- production/develop/staging DB は stat のみ (= test 11 で機械保証)
+- baseline JSON 比較 + 未指定時 SKIP
+- exit code 0 (GO) / 1 (NO-GO) / 2 (invalid)
+
+### 21 test 全 PASS
+
+20 必須 (= HQ 起票文書) + 補助 1 (= CheckResult schema 安定)。
+途中 2 件 FAIL → 即修正:
+1. baseline path 解決 → relative path 維持で repo_root / Path(rel) に修正
+2. test 17 (= VACUUM) → source docstring "VACUUM" 含み → "vacuum"
+   小文字化 + test 強化
+
+### 6 KPI
+
+- Codex 稼働率: 6/6 = 100% (= A 41s + B 27s + C 34s + D 29s + E 45s + F 43s)
+- 本線短縮率: 約 79% (= 並列 45s vs 直列 219s)
+- 採用率: 6/6 = 100%
+- 差戻率: 0 (= 内製修正 2 件で吸収、HQ 差戻 0)
+- Integrator 負荷: 中-高 (= 6 lane + CLI 1100 行 + 21 test + 12 章 doc + 修正 2 回)
+- 安全事故 0: ✓
+
+### 安全 (Wave 40.8 全 ✓、F282 + 環境完全不干渉)
+
+- 実 file 変更: CLI + pytest + 設計 doc + plan/results + log.md のみ
+- plist 配置/変更 0 / launchctl load/unload/kickstart 0
+- DB write 0 / production/develop/staging DB sqlite 接続 0
+- LINE 0 / token / channel_token / secret 0 / env 全体読 0
+- 実 API call 0 / F101 staging probe 0 / F282 手動実行 0
+- VACUUM SQL 0 (= source 大文字 VACUUM 0)
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- pytest collected 4105 → 4126 (= +21)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- 5/16 03:00 機械的検証 1 コマンド化
+- W39-temp 教訓 (= 3 点同時確認) を CLI 化、再発防止永続化
+- W40.7 readiness CLI と組合せで 2 段機械確認 (= post-f282 phase + 本 CLI)
+- 試走後 GO/NO-GO 判定 +  Markdown report 自動出力
+
+### 次
+
+- 5/14 baseline JSON 作成 (/tmp/f282_baseline_2026-05-16.json)
+- 5/16 02:00 F282 試走
+- 5/16 03:00 launchctl print 保存 + 本 CLI 実行 + W40.7 CLI 実行
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 → 45 → 52 → 53 (= D-Day 6/9 火)
+
+### 関連 file
+
+- 実装 CLI: ~/fire/scripts/jobs/run_f282_post_run_inspection_report.py
+- 実装 test: ~/fire/tests/scripts/jobs/test_run_f282_post_run_inspection_report.py
+- 設計 doc: ~/fire-vault/03_design/F282_post_run_inspection_report_cli_2026-05-14.md
+- plan: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_8_plan.md
+- results: ~/fire-vault/02_todo/FIRE_CODEX_R1_WAVE40_8_results.md
+- Codex 6 lane stdout: /tmp/codex_wave40_8/results/lane_{a,b,c,d,e,f}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 41-pre 完了 — F286-DATA-R3 Runner Enhancement v1.0
+
+### 概要
+
+F282 GO 後 (= 5/19) Wave 41 本番で即着手できるよう、DATA-R3 daily refresh
+runner の強化 + freshness gate report + sub-runner 順序整列 + 15 新 test
+追加。本線 + Codex 8 lane (= 並列 59s)、既存 37 + 新規 15 = 52 test 全 PASS、
+pytest collected 4126 → 4141 (+15)。F282 完全不変。
+
+### 8 lane 構成
+
+- L5 本線統合: runner 強化 + 新 test 実装 + 動作確認
+- Lane A Codex (59s): runner enhancement plan → READY
+- Lane B Codex (33s): freshness gate report design → READY
+- Lane C Codex (33s): subprocess sequence order → READY
+- Lane D Codex (54s): 6 mandatory test enhancement → READY
+- Lane E Codex (27s): F282 non-interference test → READY
+- Lane F Codex (54s): source-level safety audit → CONCERN 9 (= 監査不能、本線で補完)
+- Lane G Codex (32s): morning advisory contract → READY
+- Lane H Codex (43s): vault doc 12 章 outline → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 59s vs 直列 335s = 約 82% 短縮。
+
+### key 実装
+
+- 順序整列: f100 → f101 → f111 → f119 (= EXPECTED_JOB_SEQUENCE 定数)
+- 新規関数: build_freshness_summary / write_freshness_report
+- 新規 CLI: --freshness-report-json / --stale-threshold-hours
+- 新規定数: FRESHNESS_REPORT_SCHEMA_VERSION = "1.0" / DEFAULT_STALE_THRESHOLD_HOURS = 24
+
+freshness report は morning advisory (= Wave 45) 用 contract。
+verdict = OK/STALE/MISSING/FAILED の 4 種、JSON file 出力。
+
+### 15 新 test 全 PASS
+
+- TestSubprocessSequenceOrder (= 3)
+- TestFreshnessReport (= 5)
+- TestF282NonInterferenceSource (= 3)
+- TestF282NonInterferenceRuntime (= 2)
+- TestFreshnessReportArgparseIntegration (= 2)
+
+既存 TestListDailyRefreshJobsContent 1 件を新順序に更新。
+合計 52 test 0.07s 全 PASS。
+
+### CLI 動作確認
+
+dry-run mode default で /tmp/w41pre_freshness.json 生成:
+- report_id = "data_r3_freshness_2026-05-08"
+- verdict = "MISSING" (= dry-run subprocess なしのため想定通り)
+- expected_sequence 4 件
+- f282_safety.f282_touched = false
+- exit 0
+
+### 6 KPI
+
+- Codex 稼働率: 8/8 = 100%
+- 本線短縮率: 約 82% (= 並列 59s vs 直列 335s)
+- 採用率: 8/8 = 100%
+- 差戻率: 0 (= 内製修正 3 件で吸収)
+- Integrator 負荷: 中-高
+- 安全事故 0: ✓
+
+### 安全 (Wave 41-pre 全 ✓、F282 完全不干渉)
+
+- 実 file 変更: runner + test + 設計 doc + plan/results + log.md
+- plist 配置/変更 0 / launchctl call 0
+- DB write 0 / production/develop DB touch 0
+- LINE 0 / token/channel_token/secret 0 / env 全体読 0
+- 実 API call 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- pytest 4126 → 4141 (= +15)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- Wave 41 本番 (= 5/19 GO 後 plist 配置 + 1 週間 no-write 試走) で即使える
+  強化版 runner + freshness gate
+- morning advisory (= Wave 45) 用 contract 確立
+- F282 不干渉設計を test で機械保証
+
+### 次
+
+- 5/16 02:00 F282 試走 (= launchd 自動)
+- 5/16 03:00 post-run inspection (= W40.8 + W40.7 CLI)
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 本番起票 → HQ_APPROVE_LAUNCHD_DAILY 必須
+
+### 関連 file
+
+- 主成果実装: ~/fire/scripts/jobs/run_f286_data_r3_daily_refresh.py
+- 主成果 test: ~/fire/tests/scripts/jobs/test_run_f286_data_r3_daily_refresh.py
+- 設計 doc: ~/fire-vault/03_design/F286_DATA_R3_wave41_pre_runner_enhancement_2026-05-14.md
+- Codex 8 lane stdout: /tmp/codex_wave41_pre/results/lane_{a,b,c,d,e,f,g,h}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 42-pre 完了 — F062 No-Send Runner Enhancement v1.0
+
+### 概要
+
+W41-pre DATA-R3 freshness report (schema 1.0) を F062 preview runner が
+consume する no-send safe abort 機構を実装。verdict != OK で preview 生成
+停止 + output file 不在 + exit 0 (= chain-level safe)。本線 + Codex 8 lane
+(= 63s)、既存 37 + 新規 25 = 62 test 全 PASS、pytest 4141 → 4166 (+25)。
+
+### 8 lane 構成
+
+- L5 本線統合: runner 強化 + 新 test 実装 + 動作確認
+- Lane A Codex (59s): F062 runner enhancement plan → READY
+- Lane B Codex (24s): freshness consumer design → READY
+- Lane C Codex (63s): send-guard / no-send integrity → READY
+- Lane D Codex (49s): preview payload chunk policy → READY
+- Lane E Codex (36s): pytest enhancement design → READY
+- Lane F Codex (54s): F062 source safety audit → CONCERN 10 (= 監査不能、本線で補完)
+- Lane G Codex (32s): vault doc 12 章 outline → READY
+- Lane H Codex (27s): Wave 45 cutover handoff → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 63s vs 直列 344s = 約 82% 短縮。
+
+### key 実装
+
+- 新規関数:
+  - load_freshness_report(path) → dict | None
+  - check_freshness_verdict(report) → (bool, str)
+  - summarize_freshness_for_preview(report) → dict
+- 新規 CLI:
+  - --freshness-report-json PATH (default None)
+  - --require-freshness-ok (default False)
+- 新規定数: SUPPORTED_FRESHNESS_SCHEMA_VERSIONS = ("1.0",)
+- main() 統合: input load 前に freshness gate
+  - gate NG → 早期 return 0 (= safe abort、output 不在)
+  - gate OK → 通常 preview 生成
+
+### freshness consumer contract
+
+| condition | should_proceed |
+|---|---|
+| report None | False (= unavailable) |
+| schema_version != "1.0" | False (= unsupported) |
+| verdict == "OK" | True |
+| verdict in {STALE, MISSING, FAILED} | False |
+
+W41-pre producer (/tmp/f286_data_r3_freshness.json) と完全整合。
+
+### 25 新 test 全 PASS
+
+- TestFreshnessConsumerLoad (= 5)
+- TestFreshnessVerdictCheck (= 6)
+- TestSummarizeFreshnessForPreview (= 2)
+- TestFreshnessGateMainIntegration (= 5)
+- TestF062NoSendSourceSafety (= 3、AST 検証)
+- TestF062F282NonInterference (= 4、runtime + source)
+
+既存 37 test 全 PASS 維持 (= 後方互換)。合計 62 test 0.11s。
+
+### CLI 動作確認
+
+- freshness OK: gate 通過 + preview output 生成、exit 0
+- freshness FAILED: safe abort + output file 不在、exit 0、stderr 説明
+- freshness file 不在: safe abort
+
+### 6 KPI
+
+- Codex 稼働率: 8/8 = 100%
+- 本線短縮率: 約 82% (= 並列 63s vs 直列 344s)
+- 採用率: 8/8 = 100%
+- 差戻率: 0 (= 内製修正 3 件で吸収)
+- Integrator 負荷: 中-高
+- 安全事故 0: ✓
+
+### 安全 (Wave 42-pre 全 ✓、F282 + 環境完全不干渉)
+
+- 実 file 変更: F062 runner + test + 設計 doc + log.md
+- plist 配置/変更 0 / launchctl call 0
+- DB write 0 / production/develop DB touch 0
+- LINE 0 / linebot import 0 / token/channel_token/secret 値 0
+- env 全体読出 0 / 実 API call 0
+- VACUUM SQL 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- daily-refresh / morning-advisory plist 不在維持
+- pytest 4141 → 4166 (= +25)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- Wave 45 no-send trial で即使える強化版 F062 preview runner
+- W41-pre DATA-R3 producer と W42-pre F062 consumer の chain 確立
+- 二重 gate 構造 (= freshness + 送信 HQ marker) を test で機械保証
+- 後方互換性維持 (= 既存 37 test 全 PASS)
+
+### 次
+
+- 5/16 02:00 F282 試走
+- 5/16 03:00 post-run inspection
+- 5/19 F282 GO/NO-GO 判定
+- GO 後 Wave 41 (= DATA-R3 plist 配置)
+- 5/26+ Wave 45 (= F062 plist 配置 + 1 週間 no-send 試走)
+  → HQ_APPROVE_LAUNCHD_MORNING_ADVISORY 必須
+  → 本 wave F062 runner で freshness gate 活用
+
+### 関連 file
+
+- 主成果実装: ~/fire/scripts/jobs/run_f062_research_advisory_line_preview.py
+- 主成果 test: ~/fire/tests/scripts/jobs/test_run_f062_research_advisory_line_preview.py
+- 設計 doc: ~/fire-vault/03_design/F062_wave42_pre_no_send_runner_enhancement_2026-05-14.md
+- Codex 8 lane stdout: /tmp/codex_wave42_pre/results/lane_{a,b,c,d,e,f,g,h}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 43-pre 完了 — Production v0 Readiness Check CLI v1.1
+
+### 概要
+
+W40.7 readiness CLI v1.0 を v1.1 に拡張、W40.8 / W41-pre / W42-pre 成果
+を統合。F282 → DATA-R3 → F062 → D-Day chain を機械的に GO/NO-GO 判定。
+本線 + Codex 8 lane (= 90s)、既存 15 + 新規 17 = 32 test 全 PASS、
+pytest 4166 → 4183 (+17)。F282 完全不変。
+
+### 8 lane 構成
+
+- L5 本線統合: CLI v1.1 拡張 + 新 test + 動作確認
+- Lane A Codex (61s): CLI v1.1 extension plan → READY
+- Lane B Codex (40s): DATA-R3 freshness consumer check → READY
+- Lane C Codex (37s): F282 post-run reference check → READY
+- Lane D Codex (41s): F062 no-send safety check → READY
+- Lane E Codex (52s): D-Day + HQ marker enhancement → READY
+- Lane F Codex (90s): pytest design → READY
+- Lane G Codex (74s): source safety audit → CONCERN 10 (= 監査不能、本線で補完)
+- Lane H Codex (65s): vault doc 12 章 outline → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 90s vs 直列 460s = 約 80% 短縮。
+
+### key 実装 (= v1.1 拡張)
+
+- CLI_VERSION = "1.1" 定数追加 + JSON output に cli_version 含める
+- 新規 6 check 関数:
+  - check_data_r3_freshness_report_schema_valid (= W41-pre 1.0)
+  - check_data_r3_expected_sequence_matches (= f100→f101→f111→f119)
+  - check_f062_freshness_consumer_capability (= W42-pre 関数 + option)
+  - check_f062_no_send_source_safety (= AST 検証で linebot 0)
+  - check_f282_post_run_report_exists (= W40.8 markdown 出力参照)
+  - check_d_day_weekday_hq_decision_pending (= 6/9 火曜 vs HQ 月曜)
+- 新規定数: DATA_R3_FRESHNESS_DEFAULT_PATH / EXPECTED_DATA_R3_SEQUENCE
+  / SUPPORTED_DATA_R3_SCHEMA_VERSIONS / F062_RUNNER_RELATIVE_PATH
+  / D_DAY_CANDIDATE_OPTIONS
+- ALL_CHECK_FUNCS: 19 → 25
+- 既存 19 check 完全維持 (= 後方互換)
+
+### 17 新 test 全 PASS
+
+- TestCliVersionV11 (= 2)
+- TestDataR3FreshnessReportCheck (= 7)
+- TestF062NoSendSafetyChecks (= 3)
+- TestF282PostRunReferenceCheck (= 3)
+- TestDDayWeekdayHqDecisionPending (= 2)
+
+既存 15 test 全 PASS 維持。合計 32 test 0.07s。
+
+### CLI 動作確認
+
+pre-v0-launch (= 5/13 時点):
+- cli_version: 1.1
+- verdict: NO-GO (= 想定通り、F282 試走前 + plist 未配置)
+- 25 check, 11 PASS / 7 WARN / 3 FAIL / 4 SKIP
+- DATA_R3_FRESHNESS_REPORT_SCHEMA_VALID = FAIL (file 既存 verdict !=OK)
+- F062_FRESHNESS_CONSUMER_CAPABILITY = PASS
+- F062_NO_SEND_SOURCE_SAFETY = PASS (AST 検証)
+- D_DAY_WEEKDAY_HQ_DECISION_PENDING = WARN (= 6/9 火曜検出 + 3 候補)
+
+### 6 KPI
+
+- Codex 稼働率: 8/8 = 100%
+- 本線短縮率: 約 80% (= 並列 90s vs 直列 460s)
+- 採用率: 8/8 = 100%
+- 差戻率: 0 (= 内製修正 1 件 = AST 検証移行)
+- Integrator 負荷: 中-高 (= 8 lane + CLI +300 行 + test +17)
+- 安全事故 0: ✓
+
+### 安全 (Wave 43-pre 全 ✓、F282 完全不干渉)
+
+- 実 file 変更: readiness CLI + test + 設計 doc + log.md
+- plist 配置/変更 0 / launchctl call 0
+- DB write 0 / production/develop/staging DB sqlite 接続 0
+- LINE 0 / token / channel_token / secret 0 / env 全体読 0
+- 実 API call 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- daily-refresh / morning-advisory plist 不在維持
+- pytest 4166 → 4183 (= +17)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- F282 → DATA-R3 → F062 → D-Day chain 機械的 GO/NO-GO 1 コマンド
+- W40.8 / W41-pre / W42-pre の成果を readiness CLI に統合
+- 後方互換性 100% (= 既存 15 test 全 PASS)
+- D-Day 曜日問題を CLI で明示 (= HQ 決定待ち visualize)
+
+### 次
+
+- 5/14-5/15 baseline JSON 準備
+- 5/16 02:00 F282 試走
+- 5/16 03:00 W40.8 post-run + CLI v1.1 --phase post-f282
+- 5/19 F282 GO/NO-GO + CLI v1.1 --phase pre-wave41
+- 順次 Wave 41/45/52/53 で CLI v1.1 を phase 別 GO 判定
+- 6/8 月曜 CLI v1.1 --phase pre-v0-launch --strict
+- 6/9 火曜 D-Day (= HQ 決定済の場合)
+
+### 関連 file
+
+- 主成果実装: ~/fire/scripts/jobs/run_production_v0_readiness_check.py
+- 主成果 test: ~/fire/tests/scripts/jobs/test_run_production_v0_readiness_check.py
+- 設計 doc: ~/fire-vault/03_design/Production_v0_readiness_check_cli_v1_1_2026-05-14.md
+- Codex 8 lane stdout: /tmp/codex_wave43_pre/results/lane_{a,b,c,d,e,f,g,h}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
+
+---
+
+## [2026-05-13] milestone | FIRE-CODEX-R1 Wave 44-pre 完了 — F282 Baseline Capture + Post-Run Drill Pack v1.0
+
+### 概要
+
+5/16 02:00 F282 試走後、03:00 の post-run 確認を迷わず実行するための
+準備 pack 完成。baseline capture helper + drill 6 step + GO/NO-GO テンプレ。
+本線 + Codex 8 lane (= 80s)、19 新 test 全 PASS、pytest 4183 → 4202 (+19)。
+F282 完全不変。baseline JSON は実 path (= /tmp/f282_baseline_2026-05-16.json)
+に 5/13 時点で生成済 (= 5/16 当日そのまま使える)。
+
+### 8 lane 構成
+
+- L5 本線: helper 実装 + test 実装 + vault docs
+- Lane A Codex (60s): baseline capture helper design → READY
+- Lane B Codex (49s): baseline JSON schema W40.8 整合 → READY
+- Lane C Codex (54s): 5/16 drill 6-step design → READY
+- Lane D Codex (40s): GO/NO-GO report template → READY
+- Lane E Codex (56s): pytest design → READY
+- Lane F Codex (80s): source safety audit → CONCERN 1 (= 軽微)
+- Lane G Codex (53s): vault doc 12 章 outline → READY
+- Lane H Codex (39s): chain design → READY
+
+全 lane CRITICAL 0 / HIGH 0。並列 max 80s vs 直列 431s = 約 81% 短縮。
+
+### 主成果
+
+新規 file (= 4 個):
+- scripts/jobs/run_f282_baseline_capture.py (= 約 280 行、read-only)
+- tests/scripts/jobs/test_run_f282_baseline_capture.py (= 19 test)
+- 03_design/F282_baseline_capture_and_post_run_drill_2026-05-14.md
+- 04_daily/template_f282_post_run.md (= 12 section テンプレ)
+
+実 baseline JSON (= /tmp/f282_baseline_2026-05-16.json):
+- schema_version "1.0" / f282_plist captured / db 3 環境 / snapshot 2 file
+- safety_flags 全 false / W40.8 互換確認済
+
+### key 設計
+
+- CLI 安全 option のみ (= write/launchctl/vacuum 等の unsafe option 0)
+- exit code: 0 (GO) / 1 (WARN plist 不在) / 2 (invalid/unsafe path)
+- output path guard: data/ / .git/ / LaunchAgents/ / .fire_secrets/ refuse
+- AST 検証で sqlite3/launchctl/VACUUM/token literal 0 を機械保証
+
+### 19 新 test 全 PASS / pytest 4183 → 4202
+
+- schema valid / missing plist WARN / no sqlite connect /
+  no launchctl call / no VACUUM literal / no token access /
+  no linebot/sqlite import / output path guard 3 件 /
+  no data write / W40.8 compatibility / F282 unchanged runtime /
+  argparse safety 2 件 / invalid date
+
+合計 19 test 0.04s。
+
+### CLI 動作確認 (= 5/13 時点で実行)
+
+実 baseline 生成成功:
+- f282_plist exists=True / db 3/3 / snapshot 2/2 exists
+- safety: sqlite_connect=0 launchctl_call=0 db_write=0 token_accessed=0
+- exit 0
+
+### 6 KPI
+
+- Codex 稼働率: 8/8 = 100%
+- 本線短縮率: 約 81% (= 並列 80s vs 直列 431s)
+- 採用率: 8/8 = 100%
+- 差戻率: 0
+- Integrator 負荷: 中-高
+- 安全事故 0: ✓
+
+### 安全 (Wave 44-pre 全 ✓、F282 完全不干渉)
+
+- 実 file 変更: helper + test + vault docs のみ
+- launchctl call 0 / sqlite3 import 0 / DB write 0
+- VACUUM SQL 0 / token / channel_token / secret 値 0
+- F282 plist mtime 1778593597 size 1772 完全不変
+- 3 環境 DB + W30 snapshot 完全不変
+- pytest 4183 → 4202 (= +19)
+- workflow / --no-verify / TODO Excel 0
+
+### v0 への寄与
+
+- 5/16 03:00 drill 6 step で機械化、迷い時間 0
+- baseline JSON 事前生成で W40.8 が即読込可
+- GO/NO-GO 報告テンプレで Fujiwara 記入時間最小化
+- W44-pre → W40.8 → W43-pre の chain 完成
+
+### 次
+
+- 5/14-5/15 baseline JSON 再生成可
+- 5/16 02:00 F282 試走
+- 5/16 03:00 drill 6 step 実行
+- 5/16 04:00 GO/NO-GO 報告 commit
+- 5/19 F282 GO/NO-GO 判定
+
+### 関連 file
+
+- 実装 helper: ~/fire/scripts/jobs/run_f282_baseline_capture.py
+- 実装 test: ~/fire/tests/scripts/jobs/test_run_f282_baseline_capture.py
+- 設計 doc: ~/fire-vault/03_design/F282_baseline_capture_and_post_run_drill_2026-05-14.md
+- GO/NO-GO テンプレ: ~/fire-vault/04_daily/template_f282_post_run.md
+- 実 baseline JSON: /tmp/f282_baseline_2026-05-16.json (= 5/13 生成済)
+- Codex 8 lane stdout: /tmp/codex_wave44_pre/results/lane_{a,b,c,d,e,f,g,h}.txt
+
+### commits (fire-vault main)
+
+- log.md milestone append (= 本 entry、別 follow-up commit)
