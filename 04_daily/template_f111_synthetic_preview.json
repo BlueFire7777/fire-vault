@@ -1,0 +1,34 @@
+[
+  {
+    "code": "0000",
+    "name": "_template_銘柄名",
+    "research_advisory_label": "boost",
+    "expected_h20": 0.75,
+    "post_cap_rank": 1,
+    "manual_review_required": true,
+    "auto_order_allowed": false,
+    "research_advisory_text": "決算ポジティブ + 出来高伴う上昇",
+    "reason_tags": ["決算ポジティブ", "出来高伴う上昇", "上方修正期待"]
+  },
+  {
+    "code": "0001",
+    "name": "_template_中信頼銘柄",
+    "research_advisory_label": "boost_with_caution",
+    "expected_h20": 0.60,
+    "post_cap_rank": 2,
+    "manual_review_required": true,
+    "auto_order_allowed": false,
+    "research_advisory_text": "業績ポジティブ",
+    "reason_tags": ["業績ポジティブ"]
+  },
+  {
+    "code": "0002",
+    "name": "_template_中立",
+    "research_advisory_label": "neutral",
+    "expected_h20": 0.50,
+    "post_cap_rank": 3,
+    "manual_review_required": true,
+    "auto_order_allowed": false,
+    "reason_tags": ["特段の材料なし"]
+  }
+]
