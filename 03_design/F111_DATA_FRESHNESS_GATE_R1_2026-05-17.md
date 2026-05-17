@@ -273,6 +273,50 @@ verify + 新規 HIGH 発見)。
 
 ---
 
+## §10c R1.1 hardening (= 2 度目の後追い hardening) 追加 6 lane 結果
+
+R1 + 1 度目 hardening (= base_date 切替 / W2-B per-code freshness)
+完了後、commit 前の deferred 3 items + 追加 Codex audit を実施:
+
+### 実装内容
+- helper: `normalize_code_variants(code)` 純関数追加
+  ("9247" ↔ "92470" 双方向化、その他 self-only)
+- runner: per-table helper (`_price_latest_for_code` /
+  `_derived_latest_for_code` / `_exists_for_code`) で variants を
+  `SELECT MAX(date) WHERE code IN (?, ?)` で同時 query
+  → Lane B HIGH 「両 variant 共存時に最初 hit のみ返す」問題を解消
+- W2-B loop: input code (= 5 桁標準) を全 table へ
+- helper docstring: previous_trading_day 祝日対応の TODO + 拡張
+  ポイント (jpholiday / 内製 JSON / 楽天 calendar API) 明記
+- helper module docstring: DB 接続方針 (= mode=ro + query_only=ON のみ、
+  immutable=1 不使用、WAL stale read 回避理由) 追記
+
+### Codex 6 lane (R1.1 hardening 後)
+
+| lane | verdict | HIGH | 摘要 |
+|---|---|---|---|
+| A (code normalization) | APPROVE | 0 | 双方向化 + per-table 解決確認 |
+| B (tests / edge) | **CONCERN** | **1** | 両 variant 共存時 最初 hit のみ → 即修正 (MAX 集約) |
+| C (output clarity) | CONCERN | MEDIUM | resolved_code / queried_variants 未表示 → 別 wave 任意 |
+| D (no-write safety) | APPROVE | 0 | mode=ro + query_only 維持、immutable=1 不使用 |
+| E (5/18 post-snapshot 再利用性) | APPROVE | 0 | code variants 整合確認 |
+| F (docs / next-wave) | APPROVE | 0 | holiday TODO + WAL 注記 docstring 適切 |
+
+### tests
+- 42 → **54 PASS** (= +12 件: TestCodeNormalization 6 + TestPerTableCodeResolution 5 + Lane B HIGH regression 1)
+
+### staging smoke
+- 結果は R1 hardening 後と同等 (= overall=FAIL / fail=1 / warn=11)
+- code variants effect は staging で表面化せず (= 元から 5 桁 hit)
+- 将来 4 桁混在 schema や F062 整合で価値発揮
+
+### deferred (remaining、別 wave)
+- F062/Ops Summary adapter (= 元 R1 Lane F+H schema mismatch)
+- Lane C MEDIUM: JSON/MD 出力に resolved_code / queried_variants 追加
+- 祝日対応 previous_trading_day 本格実装
+
+---
+
 ## §11 関連 file
 
 ```
