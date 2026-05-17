@@ -334,6 +334,8 @@ unchanged:
   scripts/jobs/run_jquants_daily_refresh.py (= CLI 変更なし)
   scripts/jobs/backfill_market_financials.py (= delegate 先、変更なし)
 
-設計 doc (= untracked):
-  ~/fire-vault/03_design/JQUANTS_TOKEN_ENV_CONNECTIVITY_R1_2026-05-17.md
+設計 doc:
+  ~/fire-vault/03_design/JQUANTS_ENV_CONNECTIVITY_R1_2026-05-17.md
+  (※ 旧 filename `JQUANTS_TOKEN_ENV_CONNECTIVITY_R1_2026-05-17.md` から
+   `*token*` gitignore 回避のため rename。content 不変、secret 漏洩 0)
 ```
