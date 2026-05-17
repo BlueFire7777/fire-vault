@@ -1,13 +1,71 @@
 # FIRE F111-JPX-MARKET-EXPLORER-EXPORT-API-AUDIT-R1.5 (2026-05-18)
 
 doc_id: FIRE-F111-JPX-EXPORT-API-AUDIT-R1.5-2026-05-18
-status: 調査設計 / **operator 手動確認待ち** / WebFetch / scraping 不使用
+status: **operator 手動確認 完了** (= 2026-05-18) / OpenClaw 取得補助 R3 へ分岐
 HQ marker: (= 調査 wave、本 doc commit/push は別 wave)
+updated_at: 2026-05-18 (= operator 確認結果 反映)
 related:
 - [[F111_JPX_MARKET_EXPLORER_SEED_R1_2026-05-17]]
 - [[JPX_MARKET_EXPLORER_AGENT_CHOICE_2026-05-18]]
 - [[F062_OPS_SUMMARY_FRESHNESS_ADAPTER_DESIGN_2026-05-17]]
 - [[NIGHT_R0_READ_ONLY_BATCH_DESIGN_2026-05-17]]
+
+---
+
+## §0 operator 手動確認結果 (= 2026-05-18 追記)
+
+Fujiwara が手動 browser で確認した結果:
+
+| 観点 | 結果 | 判定 |
+|---|---|---|
+| 公式 API docs / link | **なさそう** | A シナリオ 不採用 |
+| CSV / Excel export | **なし** | B シナリオ 不採用 |
+| 表コピー (= 画面選択 → クリップボード) | **できなさそう** | (= scraping 風だが画面側で阻止) |
+| URL share / filter parameter | **できそう** | C シナリオ 採用 (= screen 条件証跡として) |
+| 利用規約の明示的な自動取得制限 | **見当たらず** | (= ただし scraping 風機能は画面側で抑止) |
+
+### §0.1 結論 (= 本 R1.5 確定)
+
+- **公式 API 連携**: 現時点では **不採用** (= docs/link 不在)
+- **CSV / export 連携**: **不採用** (= export 機能 不在)
+- **URL share**: 採用 (= screen 条件の証跡として保持)
+- **候補表取得**: **OpenClaw 取得補助 R3** へ分岐 (= 別 doc で詳細設計)
+- **FIRE 側 R1 seed runner**: 引き続き **受け皿として使用** (= 変更なし)
+
+### §0.2 §3 決定木 の到達点
+
+```
+Q1: 公式 API + TOS OK?  → NO
+Q2: 画面 CSV export?    → NO
+Q3: URL share 安定?     → YES (= ただし表データ取得不可)
+       ↓
+   → C + D 不採用 (= D も 表取得手段がない)
+   → 新シナリオ G (= URL share + OpenClaw 取得補助 + 既 R1 runner) ★ 採用
+```
+
+### §0.3 §6 期待値予想 vs 実結果
+
+| 観点 | 予想 | 実結果 | 一致 |
+|---|---|---|---|
+| 公式 API 不在 | 60-70% NG | 不在 | ✓ 一致 |
+| CSV export あり | 60-70% OK | **なし** | × 不一致 (= 予想より厳しい結果) |
+| URL share 安定 | 40-50% NG | あり | ✓ 一致 (= 予想反転、安定する側) |
+| TOS 個人利用 OK | 80-90% OK | 明示制限なし | ✓ 一致 |
+| TOS 自動取得 禁止 | 50-60% NG | 明示なし | △ 中立 (= 画面側で実質阻止) |
+
+→ **CSV export なしが想定外**、URL share 単体では表データ取得不能。
+   → R3 で OpenClaw browser 経由の取得補助が必要 (= 別 doc 詳細設計)。
+
+### §0.4 次 wave (= 確定)
+
+| 順序 | wave | HQ marker |
+|---|---|---|
+| 1 | OpenClaw 取得補助 R3 設計 doc 作成 | (= 本 wave で別 doc 作成) |
+| 2 | OpenClaw 取得補助 設計 doc commit/push | HQ_APPROVE_JPX_SEED_R3_OPENCLAW_ACQUISITION_DESIGN |
+| 3 | OpenClaw local capture 実装 (= 別 wave) | HQ_APPROVE_JPX_SEED_R3_OPENCLAW_LOCAL_CAPTURE |
+| 4 | FIRE seed pipeline smoke (= 別 wave) | HQ_APPROVE_JPX_SEED_R3_FIRE_SEED_PIPELINE_SMOKE |
+
+詳細は [[JPX_MARKET_EXPLORER_OPENCLAW_ACQUISITION_DESIGN_2026-05-18]] (= 本 wave で作成)。
 
 ---
 
@@ -17,6 +75,8 @@ JPX Market Explorer (= https://jpx-explorer.com/ja-JP/screener) の
 **公式 API / CSV export / URL share / filter parameter** の可否を read-only
 で確認するためのテンプレートを設計し、FIRE JPX Seed R2 以降の優先順位
 方針を確定する。
+
+(= 本目的は達成済、結論は §0 参照)
 
 本 wave は **設計 + operator 手動確認テンプレート整理のみ**:
 - WebFetch / 外部 HTTP / スクレイピング / ブラウザ自動操作 = **0 件**
